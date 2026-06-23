@@ -216,3 +216,14 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+.codegraph
+inferences/labels
+inferences/models
+inferences/outputs
+inferences/sources
+inferences/temp
+inferences/t5_training/t5_gingivitis_model/pytorch_model.bin
+yolov9
+CLAUDE.md
+.claude
