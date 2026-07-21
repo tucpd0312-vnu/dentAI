@@ -1,0 +1,30 @@
+FROM python:3.11-slim
+
+# OpenCV + libpq + build tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libpq-dev \
+        libgl1 \
+        libglib2.0-0 \
+        libsm6 \
+        libxext6 \
+        libxrender1 \
+        gcc \
+        g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Django + ML deps
+COPY requirements.worker.txt .
+RUN pip install --no-cache-dir \
+        --extra-index-url https://download.pytorch.org/whl/cu126 \
+        -r requirements.worker.txt
+
+# Django project code (weights mounted as volumes — không copy vào image)
+COPY backend/ .
+
+# /inferences và /yolov9 mount từ host, main.py thêm yolov9 vào path tự động
+ENV PYTHONPATH=/inferences:/app
+
+CMD ["celery", "-A", "config.celery", "worker", \
+     "--loglevel=info", "--concurrency=1", "-Q", "inference"]

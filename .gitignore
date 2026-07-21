@@ -223,7 +223,17 @@ inferences/models
 inferences/outputs
 inferences/sources
 inferences/temp
+inferences/actual
+inferences/actual_runner
 inferences/t5_training/t5_gingivitis_model/pytorch_model.bin
 yolov9
 CLAUDE.md
 .claude
+data_test
+falc/exp_paper
+falc/paper_exp
+train/segment
+runs/
+falc/
+
+web/media

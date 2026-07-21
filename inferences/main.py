@@ -14,6 +14,7 @@ import csv
 import glob
 import math
 import os
+import shutil
 import sys
 import time
 
@@ -68,10 +69,13 @@ def process_single_image(
     )
 
     # ---------- ROI detection → save arch crops to temp_output_dir ----------------
+    shutil.rmtree(temp_output_dir, ignore_errors=True)
+    os.makedirs(temp_output_dir, exist_ok=True)
     roi_xywh, temp_output_dir = get_roi(
         weights=WEIGHTS_ROI,
         image_path=image_path,
         temp_output_dir=temp_output_dir,
+        device=device,
     )
 
     # ---------- Disease detection on ROI crops, coords mapped to original ----------
@@ -125,6 +129,7 @@ def process_single_image(
             ]
         else:
             caption = warning
+            bboxes_xyxy = []
 
     # ---------- Annotate image ---------------------------------------------------
     annotated_path = draw_box_on_mask(

@@ -1,0 +1,107 @@
+from django.db import models
+
+
+class Patient(models.Model):
+    name = models.CharField(max_length=255)
+    patient_code = models.CharField(max_length=64, unique=True)
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.patient_code} — {self.name}"
+
+
+class Case(models.Model):
+    class Status(models.TextChoices):
+        PROCESSING = "processing"
+        DONE = "done"
+        FAILED = "failed"
+
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name="cases")
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PROCESSING)
+    confidence_threshold = models.FloatField(default=0.5)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Case #{self.pk} [{self.status}] — {self.patient}"
+
+
+class Image(models.Model):
+    class Status(models.TextChoices):
+        QUEUED = "queued"
+        PROCESSING = "processing"
+        DONE = "done"
+        LOW_CONFIDENCE = "low_confidence"
+        FAILED = "failed"
+
+    case = models.ForeignKey(Case, on_delete=models.CASCADE, related_name="images")
+    order_index = models.PositiveIntegerField(default=0)
+    original_path = models.CharField(max_length=512)
+    annotated_path = models.CharField(max_length=512, blank=True)
+    width = models.PositiveIntegerField(null=True)
+    height = models.PositiveIntegerField(null=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.QUEUED)
+    is_low_confidence = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["order_index"]
+
+    def __str__(self):
+        return f"Image #{self.pk} [{self.status}] in Case #{self.case_id}"
+
+    def is_edited_by_doctor(self) -> bool:
+        """A doctor added, corrected or removed a box, or rewrote the caption."""
+        touched_box = self.detections.filter(
+            models.Q(source=Detection.Source.DOCTOR)
+            | models.Q(is_modified=True)
+            | models.Q(is_deleted=True)
+        ).exists()
+        return touched_box or (hasattr(self, "caption") and self.caption.is_edited)
+
+
+class Detection(models.Model):
+    class Source(models.TextChoices):
+        AI = "ai"
+        DOCTOR = "doctor"
+
+    image = models.ForeignKey(Image, on_delete=models.CASCADE, related_name="detections")
+    source = models.CharField(max_length=8, choices=Source.choices, default=Source.AI)
+    is_deleted = models.BooleanField(default=False)
+    # source stays 'ai' when a doctor edits an AI box; this flag records the edit
+    is_modified = models.BooleanField(default=False)
+    tooth_fdi = models.CharField(max_length=4)   # '11','12',...,'43'
+    mgi_level = models.PositiveSmallIntegerField()  # 0–4
+    # YOLO normalized coords (0–1)
+    x_center = models.FloatField()
+    y_center = models.FloatField()
+    width = models.FloatField()
+    height = models.FloatField()
+    match_score = models.FloatField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Detection tooth={self.tooth_fdi} MGI{self.mgi_level} (image #{self.image_id})"
+
+
+class Mask(models.Model):
+    image = models.ForeignKey(Image, on_delete=models.CASCADE, related_name="masks")
+    tooth_fdi = models.CharField(max_length=4)
+    polygon = models.JSONField()   # [[x_norm, y_norm], ...]
+    class_id = models.PositiveSmallIntegerField()
+
+    def __str__(self):
+        return f"Mask tooth={self.tooth_fdi} (image #{self.image_id})"
+
+
+class Caption(models.Model):
+    image = models.OneToOneField(Image, on_delete=models.CASCADE, related_name="caption")
+    ai_text = models.TextField()         # T5 output — KHÔNG bao giờ ghi đè
+    edited_text = models.TextField(blank=True, null=True)
+    is_edited = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Caption (image #{self.image_id}, edited={self.is_edited})"

@@ -2,4 +2,4 @@ pandas
 numpy
 nltk
 sentence-transformers
-scipy
+scipy 

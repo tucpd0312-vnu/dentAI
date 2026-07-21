@@ -1,0 +1,14 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install deps layer (cached until package.json changes)
+COPY frontend/package*.json ./
+RUN npm install
+
+# Source code (overridden by volume mount in dev)
+COPY frontend/ .
+
+EXPOSE 3000
+# Dev mode với hot-reload — đổi thành "npm run build && npm run start" cho prod
+CMD ["npm", "run", "dev"]

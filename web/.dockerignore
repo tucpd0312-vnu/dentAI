@@ -1,0 +1,28 @@
+# ── Python cache ─────────────────────────────────────────────────────────────
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+*.egg-info/
+
+# ── Node ─────────────────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/.next/
+
+# ── Django runtime / DB ───────────────────────────────────────────────────────
+backend/db.sqlite3
+backend/media/
+
+# ── Env / IDE ─────────────────────────────────────────────────────────────────
+.env
+.venv/
+.ruff_cache/
+.pytest_cache/
+
+# ── Git / CI / claude ─────────────────────────────────────────────────────────
+.git/
+.gitignore
+.claude/
+.codegraph/
+
+# ── Conda export (không cần trong image) ─────────────────────────────────────
+environment.worker.yml

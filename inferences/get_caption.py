@@ -7,7 +7,7 @@ from typing import List, Tuple, Dict
 
 import torch
 
-_T5_MODEL_DIR = os.path.join(os.path.dirname(__file__), 't5_training', 't5_gingivitis_model')
+_T5_MODEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 't5_training', 't5_gingivitis_model')
 _device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Column order used in train.py: upper arch right→left, lower arch right→left

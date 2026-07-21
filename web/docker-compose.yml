@@ -1,0 +1,120 @@
+version: "3.9"
+
+x-django-env: &django-env
+  DJANGO_SETTINGS_MODULE: config.settings
+  DATABASE_URL:           postgres://dentai:dentai@db:5432/dentai
+  SECRET_KEY:             change-me-in-production
+  DEBUG:                  "1"
+  ALLOWED_HOSTS:          "*"
+  MEDIA_ROOT:             /app/media
+  CELERY_BROKER_URL:      redis://redis:6379/0
+  CELERY_RESULT_BACKEND:  redis://redis:6379/0
+
+services:
+
+  # ── PostgreSQL 15 ───────────────────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       dentai
+      POSTGRES_USER:     dentai
+      POSTGRES_PASSWORD: dentai
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dentai"]
+      interval: 5s
+      retries: 5
+
+  # ── Redis (Celery broker) ───────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 5
+
+  # ── Django + DRF backend ────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    restart: unless-stopped
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py runserver 0.0.0.0:8000"
+    ports:
+      - "8002:8000"
+    environment:
+      <<: *django-env
+    volumes:
+      - ./backend:/app                 # hot-reload code
+      - ./media:/app/media
+      - ../falc:/falc:ro               # FALC bridge (FeedbackStore)
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Celery inference worker (GPU) ───────────────────────────────────────────
+  worker:
+    profiles: ["worker-docker"]          # không start cùng docker-compose up
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    restart: unless-stopped
+    command: celery -A config.celery worker --loglevel=info --concurrency=1 -Q inference
+    environment:
+      <<: *django-env
+      INFERENCE_DEVICE: "0"            # đổi "cpu" nếu không có GPU
+      INFERENCES_DIR:   /inferences
+      YOLOV9_DIR:       /yolov9
+    volumes:
+      - ./backend:/app
+      - ./media:/app/media
+      # AI pipeline (read-only mounts — weights KHÔNG bao giờ vào image)
+      - ../inferences:/inferences:ro
+      - ../yolov9:/yolov9:ro
+      - ../falc:/falc:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # ── Next.js frontend ────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://backend:8000
+    volumes:
+      - ./frontend:/app                # hot-reload code
+      - /app/node_modules              # isolate node_modules trong container
+      - /app/.next                     # cache build
+    depends_on:
+      - backend
+
+volumes:
+  pg_data:
+  redis_data:
