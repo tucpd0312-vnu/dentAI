@@ -56,6 +56,27 @@ def build_t5_input(
     return 'Tooth gingivitis levels: ' + ', '.join(values)
 
 
+def _stub_caption(t5_input: str) -> str:
+    """Fallback caption generator khi khong co T5 weights."""
+    # Parse MGI values tu input string
+    prefix = 'Tooth gingivitis levels: '
+    if not t5_input.startswith(prefix):
+        return t5_input
+    values_str = t5_input[len(prefix):]
+    values = [int(v.strip()) for v in values_str.split(',')]
+    _T5_COLUMNS = ['13', '12', '11', '21', '22', '23', '43', '42', '41', '31', '32', '33']
+    mgi_map = {fdi: v for fdi, v in zip(_T5_COLUMNS, values)}
+
+    mgi_names = {0: 'khong viem', 1: 'viem nhe', 2: 'viem vua', 3: 'viem nang', 4: 'viem rat nang'}
+    parts = []
+    for fdi, v in zip(_T5_COLUMNS, values):
+        if v > 0:
+            parts.append(f'rang {fdi}: {mgi_names.get(v, f"MGI{v}")}')
+    if not parts:
+        return 'Khong phat hien viem loi o cac rang bo khung (MGI 0).'
+    return 'Phat hien viem loi: ' + '; '.join(parts) + '.'
+
+
 def generate_caption(t5_input: str) -> str:
     """
     Generate a clinical description from the structured input string.
@@ -63,7 +84,12 @@ def generate_caption(t5_input: str) -> str:
     Decode config matches train.py generate_sample_captions:
         num_beams=5, early_stopping=True, max_length=256.
     """
-    model, tokenizer = _load_model()
+    try:
+        model, tokenizer = _load_model()
+    except Exception:
+        # Fallback: khong co T5 weights -> tra ve structured caption
+        return _stub_caption(t5_input)
+
     inputs = tokenizer(
         t5_input,
         return_tensors='pt',

@@ -76,9 +76,9 @@ export default function ResultsPage() {
       if ((e.target as HTMLElement).tagName === 'INPUT') return;
       const { idx, total, caseId } = navRef.current;
       if (e.key === 'ArrowLeft' && idx > 0)
-        router.push(`/analysis/${caseId}/results/${idx - 1}`);
+        router.push(`/analysis/${caseId}/results/${idx - 1}/`);
       if (e.key === 'ArrowRight' && total !== null && idx < total - 1)
-        router.push(`/analysis/${caseId}/results/${idx + 1}`);
+        router.push(`/analysis/${caseId}/results/${idx + 1}/`);
     };
     window.addEventListener('keydown', handle);
     return () => window.removeEventListener('keydown', handle);
@@ -124,7 +124,7 @@ export default function ResultsPage() {
         {/* Prev / counter / Next */}
         <div className="flex items-center gap-0.5">
           <button
-            onClick={() => router.push(`/analysis/${caseId}/results/${idx - 1}`)}
+            onClick={() => router.push(`/analysis/${caseId}/results/${idx - 1}/`)}
             disabled={!hasPrev}
             title="Ảnh trước (←)"
             className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
@@ -135,7 +135,7 @@ export default function ResultsPage() {
             Ảnh {idx + 1}{total !== null ? ` / ${total}` : ''}
           </span>
           <button
-            onClick={() => router.push(`/analysis/${caseId}/results/${idx + 1}`)}
+            onClick={() => router.push(`/analysis/${caseId}/results/${idx + 1}/`)}
             disabled={!hasNext}
             title="Ảnh tiếp theo (→)"
             className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"

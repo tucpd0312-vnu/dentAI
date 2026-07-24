@@ -148,7 +148,7 @@ export default function EditPage() {
           });
         }
       }));
-      router.push(`/analysis/${caseId}/results/${idx}`);
+      router.push(`/analysis/${caseId}/results/${idx}/`);
     } catch {
       setSaveError('Lưu thất bại. Vui lòng thử lại.');
       setSaving(false);
@@ -245,7 +245,7 @@ export default function EditPage() {
         {saveError && <p className="text-xs text-red-500">{saveError}</p>}
 
         <button
-          onClick={() => router.push(`/analysis/${caseId}/results/${idx}`)}
+          onClick={() => router.push(`/analysis/${caseId}/results/${idx}/`)}
           className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
         >
           Hủy

@@ -111,6 +111,7 @@ def _run_pipeline(image_path: str, case_id: int, image_id: int) -> dict:
         image_path=image_path,
         image_folder=media_temp,
         roi_xywh=roi_xywh,
+        device=device,
     )
 
     teeth_data = build_teeth_data(all_masks, center_tooth, img_w, img_h)
