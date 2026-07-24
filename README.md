@@ -298,3 +298,164 @@ docker compose exec backend python manage.py export_labels --out /app/media/labe
 | Frontend gọi API lỗi 502 | Backend chưa sẵn sàng — kiểm tra `docker compose logs backend` |
 | Ảnh annotated không hiển thị | `MEDIA_ROOT` của worker và backend phải trỏ cùng thư mục `web/media` |
 | Kết quả trả về "độ tin cậy thấp" | Confidence gate fail — ảnh mờ/lệch góc, chụp lại hoặc hạ ngưỡng ở `/settings` |
+
+---
+
+## 4. Hướng dẫn nhanh (Windows — Docker Desktop)
+
+> Dành cho Windows (cmd.exe) | cập nhật 2026-07-23
+
+### 4.1. Yêu cầu
+
+- **Docker Desktop** (đã cài đặt và đang chạy)
+- **Git** (để clone repo)
+- Trình duyệt (Chrome/Firefox/Edge)
+
+### 4.2. Tải project
+
+```cmd
+git clone <repo-url> dentai
+cd dentai
+```
+
+### 4.3. Khởi động toàn bộ hệ thống (backend + frontend + DB + Redis)
+
+```cmd
+cd web
+docker compose down -v
+docker compose up -d --build
+```
+
+Lệnh này chạy 4 service:
+- `db` — PostgreSQL 15 (port **5432**)
+- `redis` — Redis 7 (port **6380**)
+- `backend` — Django REST API (port **8002**)
+- `frontend` — Next.js web app (port **3001**)
+
+Kiểm tra trạng thái:
+
+```cmd
+docker compose ps
+docker compose logs backend --tail 20
+```
+
+Phải thấy dòng `Applying users.0001_initial... OK`.
+
+### 4.4. Tạo tài khoản admin đầu tiên
+
+```cmd
+docker compose exec backend python manage.py createsuperuser
+```
+
+Nhập username, email, password theo hướng dẫn.
+
+### 4.5. Truy cập
+
+| URL | Chức năng |
+|---|---|
+| http://localhost:3001 | Web app (frontend) |
+| http://localhost:3001/login/ | Đăng nhập |
+| http://localhost:3001/register/ | Đăng ký tài khoản mới |
+| http://localhost:8002/api/ | API backend |
+| http://localhost:8002/admin/ | Django Admin (quản lý DB) |
+
+### 4.6. Luồng sử dụng cơ bản
+
+#### Đăng ký tài khoản mới
+
+1. Mở http://localhost:3001/register/
+2. Nhập username, email, password, confirm password
+3. Submit → backend gửi mã OTP 6 số (in ra console log)
+4. Xem OTP code trong log:
+
+```cmd
+docker compose logs backend --tail 30
+```
+
+Tìm dòng: `Mã xác thực email của bạn là: XXXXXX`
+
+5. Mở http://localhost:3001/verify-otp/?email=... (tự động redirect sau đăng ký)
+6. Nhập mã 6 số → tài khoản được kích hoạt → vào màn hình phân tích
+
+#### Đăng nhập
+
+1. Mở http://localhost:3001/login/
+2. Nhập username + password
+3. Đăng nhập thành công → vào màn hình phân tích
+
+#### Phân tích ảnh (cần Celery worker)
+
+Nếu muốn chạy pipeline AI, cần chạy thêm Celery worker:
+
+```cmd
+cd web\backend
+set DJANGO_SETTINGS_MODULE=config.settings
+set DATABASE_URL=postgres://dentai:dentai@localhost:5432/dentai
+set CELERY_BROKER_URL=redis://localhost:6380/0
+set CELERY_RESULT_BACKEND=redis://localhost:6380/0
+set MEDIA_ROOT=G:\AIdent\dentaI\web\media
+set INFERENCES_DIR=G:\AIdent\dentaI\inferences
+set YOLOV9_DIR=G:\AIdent\dentaI\yolov9
+set INFERENCE_DEVICE=cpu
+
+..\.venv\Scripts\celery.exe -A config.celery worker --loglevel=info --pool=solo --concurrency=1 -Q inference
+```
+
+Sau đó vào http://localhost:3001/analysis/new/ → upload ảnh → xem kết quả.
+
+### 4.7. Các lệnh thường dùng (Windows)
+
+```cmd
+:: Xem log
+docker compose logs -f backend
+docker compose logs -f frontend
+
+:: Restart 1 service
+docker compose restart backend
+docker compose restart frontend
+
+:: Rebuild 1 service (khi sửa code)
+docker compose up -d --build backend
+docker compose up -d --build frontend
+
+:: Dừng toàn bộ
+docker compose down
+
+:: Dừng + xoá DB (mất hết dữ liệu)
+docker compose down -v
+
+:: Kiểm tra danh sách user
+docker compose exec backend python manage.py shell -c "from apps.users.models import User; [print(u.username, u.email, u.role) for u in User.objects.all()]"
+
+:: Django Admin (quản lý DB qua web)
+:: Mở http://localhost:8002/admin/ — đăng nhập bằng superuser
+```
+
+### 4.8. Cấu hình email thật (SMTP)
+
+Hiện tại OTP code in ra console log. Để gửi email thật qua Gmail:
+
+Thêm vào docker-compose.yml trong block `environment` của service `backend`:
+
+```yaml
+EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST: smtp.gmail.com
+EMAIL_PORT: 587
+EMAIL_USE_TLS: "True"
+EMAIL_HOST_USER: your@gmail.com
+EMAIL_HOST_PASSWORD: app-password-16-chars
+DEFAULT_FROM_EMAIL: noreply@dentai.local
+```
+
+> Dùng App Password của Google (không phải mật khẩu Gmail thật).
+
+### 4.9. Xử lý sự cố (Windows)
+
+| Triệu chứng | Cách xử lý |
+|---|---|
+| Frontend gọi API lỗi 500/502 | `docker compose logs backend --tail 20` — kiểm tra backend có chạy không |
+| Đăng ký lỗi 404 | Backend chưa rebuild với code mới → `docker compose down -v` rồi `docker compose up -d --build` |
+| Không thấy OTP code | `docker compose logs backend \| findstr "OTP\|xác thực"` |
+| Không đăng nhập được sau khi verify | Kiểm tra `is_active=True`: `docker compose exec backend python manage.py shell -c "from apps.users.models import User; u=User.objects.get(username='...'); print(u.is_active, u.email_verified)"` |
+| Docker không chạy | Mở Docker Desktop, đợi status "Running" |
+| Port 3001/8002 đã bị chiếm | Đổi port trong docker-compose.yml |
