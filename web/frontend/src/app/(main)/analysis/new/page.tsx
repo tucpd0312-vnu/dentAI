@@ -80,7 +80,7 @@ export default function NewAnalysisPage() {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       files.forEach(f => URL.revokeObjectURL(f.preview));
-      router.push(`/analysis/${data.id}/processing`);
+      router.push(`/analysis/${data.id}/processing/`);
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;

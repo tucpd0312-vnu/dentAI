@@ -237,3 +237,21 @@ runs/
 falc/
 
 web/media
+
+# Test databases (local dev)
+web/backend/test*.db
+web/backend/*.db
+
+# docker-compose override (contains real SMTP credentials)
+# web/docker-compose.override.yml
+
+# Worker batch file (contains absolute local paths)
+run_worker.bat
+
+# Next.js
+web/frontend/.next/
+web/frontend/node_modules/
+
+# Guide / plans (local dev docs)
+GUIDE.md
+PLAN_AUTH.md

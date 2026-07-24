@@ -84,6 +84,7 @@ def process_single_image(
         image_path=image_path,
         image_folder=temp_output_dir,
         roi_xywh=roi_xywh,
+        device=device,
     )
 
     # ---------- Build pixel-space data for matcher --------------------------------
@@ -148,7 +149,7 @@ def main():
     output_folder  = os.path.join(_BASE_DIR, 'outputs')
     label_folder   = os.path.join(_BASE_DIR, 'labels')
     temp_output_dir = os.path.join(_BASE_DIR, 'temp')
-    device = 0
+    device = 'cpu'  # 0 cho GPU, 'cpu' cho CPU
 
     os.makedirs(output_folder,   exist_ok=True)
     os.makedirs(temp_output_dir, exist_ok=True)

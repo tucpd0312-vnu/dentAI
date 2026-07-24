@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  trailingSlash: true,
   // react-konva pulls in konva's node build which requires the native `canvas`
   // package during SSR/bundling. We only render Konva client-side, so stub it out.
   webpack: (config) => {
