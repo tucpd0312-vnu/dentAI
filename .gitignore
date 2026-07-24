@@ -243,7 +243,7 @@ web/backend/test*.db
 web/backend/*.db
 
 # docker-compose override (contains real SMTP credentials)
-web/docker-compose.override.yml
+# web/docker-compose.override.yml
 
 # Worker batch file (contains absolute local paths)
 run_worker.bat
