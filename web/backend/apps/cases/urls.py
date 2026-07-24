@@ -1,17 +1,12 @@
-from django.urls import path
+from django.urls import re_path
 from . import views
 
 urlpatterns = [
-    # Cases
-    path("cases", views.CaseListCreateView.as_view(), name="case-list-create"),
-    path("cases/<int:case_id>/status", views.CaseStatusView.as_view(), name="case-status"),
-    path("cases/<int:case_id>/export", views.CaseExportView.as_view(), name="case-export"),
-
-    # Images inside a case
-    path("cases/<int:case_id>/images/<int:image_index>", views.ImageDetailView.as_view(), name="image-detail"),
-    path("cases/<int:case_id>/images/<int:image_index>/export", views.ImageExportView.as_view(), name="image-export"),
-
-    # Detections
-    path("cases/<int:case_id>/images/<int:image_index>/detections", views.DetectionCreateView.as_view(), name="detection-create"),
-    path("detections/<int:pk>", views.DetectionUpdateView.as_view(), name="detection-update"),
+    re_path(r"^cases/?$", views.CaseListCreateView.as_view(), name="case-list-create"),
+    re_path(r"^cases/(?P<case_id>\d+)/status/?$", views.CaseStatusView.as_view(), name="case-status"),
+    re_path(r"^cases/(?P<case_id>\d+)/export/?$", views.CaseExportView.as_view(), name="case-export"),
+    re_path(r"^cases/(?P<case_id>\d+)/images/(?P<image_index>\d+)/?$", views.ImageDetailView.as_view(), name="image-detail"),
+    re_path(r"^cases/(?P<case_id>\d+)/images/(?P<image_index>\d+)/export/?$", views.ImageExportView.as_view(), name="image-export"),
+    re_path(r"^cases/(?P<case_id>\d+)/images/(?P<image_index>\d+)/detections/?$", views.DetectionCreateView.as_view(), name="detection-create"),
+    re_path(r"^detections/(?P<pk>\d+)/?$", views.DetectionUpdateView.as_view(), name="detection-update"),
 ]
