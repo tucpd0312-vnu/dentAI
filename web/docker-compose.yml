@@ -9,19 +9,6 @@ x-django-env: &django-env
   MEDIA_ROOT:             /app/media
   CELERY_BROKER_URL:      redis://redis:6379/0
   CELERY_RESULT_BACKEND:  redis://redis:6379/0
-  # Email SMTP — để dùng email thật, tạo file docker-compose.override.yml:
-  #   services:
-  #     backend:
-  #       environment:
-  #         EMAIL_HOST_USER: "your@gmail.com"
-  #         EMAIL_HOST_PASSWORD: "your-app-password"
-  EMAIL_BACKEND:          django.core.mail.backends.console.EmailBackend
-  EMAIL_HOST:             localhost
-  EMAIL_PORT:             "587"
-  EMAIL_USE_TLS:          "True"
-  EMAIL_HOST_USER:        ""
-  EMAIL_HOST_PASSWORD:    ""
-  DEFAULT_FROM_EMAIL:     noreply@dentai.local
 
 services:
 
