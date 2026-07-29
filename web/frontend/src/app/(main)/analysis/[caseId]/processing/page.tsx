@@ -38,7 +38,7 @@ export default function ProcessingPage() {
         if (data.status === 'done') {
           setRedirecting(true);
           timerRef.current = setTimeout(
-            () => router.push(`/analysis/${caseId}/results/0/`),
+            () => router.push(`/analysis/${caseId}/results/0`),
             700,
           );
           return;
@@ -205,7 +205,7 @@ export default function ProcessingPage() {
             Phân tích mới
           </Link>
           <Link
-            href="/history/"
+            href="/history"
             className="
               flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium
               border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors

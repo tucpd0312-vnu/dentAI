@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primeicons/primeicons.css";
-import AuthProvider from "@/components/providers/AuthProvider";
 
 export const metadata: Metadata = {
   title: "DentAI - Chẩn đoán viêm lợi",
@@ -16,9 +15,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="vi">
-      <body>
-        <AuthProvider>{children}</AuthProvider>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

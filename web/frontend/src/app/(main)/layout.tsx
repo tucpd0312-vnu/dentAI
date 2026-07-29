@@ -1,29 +1,7 @@
-'use client';
-
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
-import { useAuth } from '@/components/providers/AuthProvider';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login/');
-    }
-  }, [loading, user, router]);
-
-  if (loading || !user) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-surface">
-        <span className="material-symbols-outlined text-5xl text-gray-300 animate-spin">autorenew</span>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-screen overflow-hidden bg-surface">
       <Sidebar />
