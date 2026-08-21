@@ -14,8 +14,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
 parts/
 sdist/
 var/
@@ -226,24 +224,24 @@ inferences/temp
 inferences/actual
 inferences/actual_runner
 inferences/t5_training/t5_gingivitis_model/pytorch_model.bin
+inferences/benchmark_results
+inferences/benchmark.py
 yolov9
 CLAUDE.md
 .claude
 data_test
 falc/exp_paper
 falc/paper_exp
-train/segment
+train/
 runs/
 falc/
 
 web/media
+web/backend/scans_storage
 
 # Test databases (local dev)
 web/backend/test*.db
 web/backend/*.db
-
-# docker-compose override (contains real SMTP credentials)
-web/docker-compose.override.yml
 
 # Worker batch file (contains absolute local paths)
 run_worker.bat
@@ -255,3 +253,6 @@ web/frontend/node_modules/
 # Guide / plans (local dev docs)
 GUIDE.md
 PLAN_AUTH.md
+web/benchmark_web.py
+web/docs/benchmark_web
+web/frontend/tsconfig.tsbuildinfo
