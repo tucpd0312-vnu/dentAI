@@ -202,7 +202,7 @@ export default function ProcessingPage() {
             "
           >
             <span className="material-symbols-outlined text-[18px]">add_circle</span>
-            Phân tích mới
+            Chẩn đoán viêm lợi
           </Link>
           <Link
             href="/history/"

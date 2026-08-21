@@ -194,6 +194,31 @@ export default function EditPage() {
     );
   }
 
+  // Backend đã chặn mọi endpoint sửa nhãn; chặn thêm ở đây để người không có
+  // quyền (bệnh nhân, hoặc được chia sẻ 'chỉ xem') không vào được màn hình rồi
+  // mới nhận 403 lúc bấm Lưu.
+  if (!imgData.can_edit) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3">
+        <span className="material-symbols-outlined text-5xl text-gray-300">lock</span>
+        <p className="text-sm font-medium text-gray-700">
+          Bạn không có quyền chỉnh sửa kết quả của ca này.
+        </p>
+        <p className="max-w-sm text-center text-xs text-gray-500">
+          {imgData.case_permission === 'view'
+            ? 'Ca này được chia sẻ với bạn ở chế độ chỉ xem.'
+            : 'Chỉ bác sĩ và quản trị viên mới được chỉnh sửa nhãn chẩn đoán, vì dữ liệu này được dùng để huấn luyện lại mô hình.'}
+        </p>
+        <Link
+          href={`/analysis/${caseId}/results/${idx}`}
+          className="text-sm text-primary underline underline-offset-2"
+        >
+          Quay lại xem kết quả
+        </Link>
+      </div>
+    );
+  }
+
   const imageUrl = toMediaUrl(imgData.original_path || imgData.annotated_path);
   const selectedDet = localDets.find(d => d.localId === selectedId && d._state !== 'deleted') ?? null;
   const activeCount = localDets.filter(d => d._state !== 'deleted').length;

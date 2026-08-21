@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import api, { CaseStatus, ImageResult } from '@/lib/api';
+import ShareModal from '@/components/results/ShareModal';
 
 /* Konva must not SSR */
 const ResultsCanvas = dynamic(
@@ -50,6 +51,11 @@ export default function ResultsPage() {
   const [error, setError] = useState(false);
   const [showBoxes, setShowBoxes] = useState(true);
   const [showMasks, setShowMasks] = useState(true);
+  const [sharing, setSharing] = useState(false);
+
+  // Chỉ chủ sở hữu và admin được chia sẻ — người ĐƯỢC chia sẻ không share tiếp.
+  const canShare =
+    imgData?.case_permission === 'owner' || imgData?.case_permission === 'admin';
 
   useEffect(() => {
     let mounted = true;
@@ -117,8 +123,21 @@ export default function ResultsPage() {
   const caption = imgData.caption;
   const imageUrl = toMediaUrl(imgData.original_path || imgData.annotated_path);
 
+  const sharedReadOnly = imgData.case_permission === 'view';
+
   return (
     <div className="space-y-4">
+      {sharing && <ShareModal caseId={caseId} onClose={() => setSharing(false)} />}
+
+      {/* Ca của người khác chia sẻ cho tôi, chỉ được xem */}
+      {sharedReadOnly && (
+        <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-800">
+          <span className="material-symbols-outlined text-[18px] shrink-0">visibility</span>
+          Ca này được chia sẻ với bạn ở chế độ <strong>chỉ xem</strong> — bạn không thể
+          chỉnh sửa nhãn chẩn đoán.
+        </div>
+      )}
+
       {/* ── Toolbar ── */}
       <div className="bg-white rounded-xl border border-gray-200 px-4 py-2 flex items-center gap-2 flex-wrap">
         {/* Prev / counter / Next */}
@@ -166,16 +185,33 @@ export default function ResultsPage() {
 
         {/* Action buttons */}
         <div className="flex items-center gap-2">
-          <Link
-            href={`/analysis/${caseId}/results/${idx}/edit`}
-            className="
-              flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
-              border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors
-            "
-          >
-            <span className="material-symbols-outlined text-[16px]">edit</span>
-            Chỉnh sửa
-          </Link>
+          {/* Chỉ chủ sở hữu và admin mới chia sẻ được — backend chặn độc lập. */}
+          {canShare && (
+            <button
+              onClick={() => setSharing(true)}
+              className="
+                flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
+                border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors
+              "
+            >
+              <span className="material-symbols-outlined text-[16px]">share</span>
+              Chia sẻ
+            </button>
+          )}
+          {/* can_edit do backend tính (vai trò + quyền trên ca) — bệnh nhân và
+              người được chia sẻ 'view' không thấy nút này. */}
+          {imgData.can_edit && (
+            <Link
+              href={`/analysis/${caseId}/results/${idx}/edit`}
+              className="
+                flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
+                border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors
+              "
+            >
+              <span className="material-symbols-outlined text-[16px]">edit</span>
+              Chỉnh sửa
+            </Link>
+          )}
           <button
             onClick={() =>
               window.open(`/api/cases/${caseId}/images/${idx}/export/`, '_blank')
