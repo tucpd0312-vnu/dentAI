@@ -10,6 +10,11 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.users.activity import log_activity
+from apps.users.models import LogAction, LogCategory
+from apps.users.permissions import IsActiveUser
+
+from .access import can_edit_case, scoped_cases, scoped_images
 from .models import Case, Detection, Image, Patient
 from .serializers import (
     CaseCreateSerializer,
@@ -21,10 +26,19 @@ from .serializers import (
 from .tasks import run_inference_task
 
 
+def _forbidden(message: str) -> Response:
+    return Response({"detail": message}, status=status.HTTP_403_FORBIDDEN)
+
+
 class CaseListCreateView(APIView):
+    permission_classes = [IsActiveUser]
+
     def get(self, request):
-        cases = Case.objects.select_related("patient").order_by("-created_at")
-        return Response(CaseListSerializer(cases, many=True).data)
+        # Ca của tôi + ca được chia sẻ cho tôi (admin: tất cả).
+        cases = scoped_cases(request.user).order_by("-created_at")
+        return Response(
+            CaseListSerializer(cases, many=True, context={"request": request}).data
+        )
 
     def post(self, request):
         # Build a plain dict with scalar values (request.data.get returns the
@@ -54,7 +68,7 @@ class CaseListCreateView(APIView):
                 patient_code=f"BN-{uuid4().hex[:8].upper()}",
                 notes=d.get("notes", ""),
             )
-        case = Case.objects.create(patient=patient)
+        case = Case.objects.create(patient=patient, created_by=request.user)
 
         # Save uploaded images, create Image records, enqueue tasks
         media_dir = os.path.join(settings.MEDIA_ROOT, "originals", str(case.pk))
@@ -76,25 +90,39 @@ class CaseListCreateView(APIView):
                 queue="inference",
             )
 
+        log_activity(
+            LogCategory.BUSINESS, LogAction.CASE_CREATE,
+            actor=request.user, request=request, target_case=case,
+            detail={"patient_code": patient.patient_code, "n_images": len(d["images"])},
+        )
         return Response({"id": case.pk, "status": case.status}, status=status.HTTP_201_CREATED)
 
 
 class CaseStatusView(APIView):
+    permission_classes = [IsActiveUser]
+
     def get(self, request, case_id):
-        case = get_object_or_404(Case, pk=case_id)
+        # 404 (không phải 403) khi ngoài phạm vi — không tiết lộ ca đó có tồn tại.
+        case = get_object_or_404(scoped_cases(request.user), pk=case_id)
         return Response(CaseStatusSerializer(case).data)
 
 
 class ImageDetailView(APIView):
-    def _get_image(self, case_id, image_index):
-        return get_object_or_404(Image, case_id=case_id, order_index=image_index)
+    permission_classes = [IsActiveUser]
+
+    def _get_image(self, request, case_id, image_index):
+        return get_object_or_404(
+            scoped_images(request.user), case_id=case_id, order_index=image_index
+        )
 
     def get(self, request, case_id, image_index):
-        img = self._get_image(case_id, image_index)
-        return Response(ImageSerializer(img).data)
+        img = self._get_image(request, case_id, image_index)
+        return Response(ImageSerializer(img, context={"request": request}).data)
 
     def patch(self, request, case_id, image_index):
-        img = self._get_image(case_id, image_index)
+        img = self._get_image(request, case_id, image_index)
+        if not can_edit_case(request.user, img.case):
+            return _forbidden("Bạn không có quyền chỉnh sửa kết quả của ca này.")
 
         # Update caption edit
         new_caption = request.data.get("caption_text")
@@ -103,39 +131,96 @@ class ImageDetailView(APIView):
             img.caption.is_edited = True
             img.caption.save()
             _trigger_falc_caption(img)
+            log_activity(
+                LogCategory.BUSINESS, LogAction.LABELS_EDITED,
+                actor=request.user, request=request, target_case=img.case,
+                detail={"image_index": img.order_index, "field": "caption"},
+            )
 
-        return Response(ImageSerializer(img).data)
+        return Response(ImageSerializer(img, context={"request": request}).data)
 
 
 class DetectionCreateView(APIView):
+    permission_classes = [IsActiveUser]
+
     def post(self, request, case_id, image_index):
-        img = get_object_or_404(Image, case_id=case_id, order_index=image_index)
+        img = get_object_or_404(
+            scoped_images(request.user), case_id=case_id, order_index=image_index
+        )
+        if not can_edit_case(request.user, img.case):
+            return _forbidden("Bạn không có quyền chỉnh sửa kết quả của ca này.")
+
         ser = DetectionSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         detection = ser.save(image=img, source=Detection.Source.DOCTOR)
         _trigger_falc_bbox(img, detection)
+        log_activity(
+            LogCategory.BUSINESS, LogAction.LABELS_EDITED,
+            actor=request.user, request=request, target_case=img.case,
+            detail={"image_index": img.order_index, "field": "detection", "op": "create",
+                    "tooth_fdi": detection.tooth_fdi, "mgi": detection.mgi_level},
+        )
         return Response(DetectionSerializer(detection).data, status=status.HTTP_201_CREATED)
 
 
 class DetectionUpdateView(APIView):
+    permission_classes = [IsActiveUser]
+
+    def _get_detection(self, request, pk):
+        """Chỉ lấy được box nằm trong ca mà người dùng có quyền SỬA."""
+        detection = get_object_or_404(
+            Detection.objects.select_related("image__case"), pk=pk
+        )
+        if not can_edit_case(request.user, detection.image.case):
+            return None
+        return detection
+
     def patch(self, request, pk):
-        detection = get_object_or_404(Detection, pk=pk)
+        detection = self._get_detection(request, pk)
+        if detection is None:
+            return _forbidden("Bạn không có quyền chỉnh sửa kết quả của ca này.")
+
         ser = DetectionSerializer(detection, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
         ser.save(is_modified=True)
         _trigger_falc_bbox(detection.image, detection)
+        log_activity(
+            LogCategory.BUSINESS, LogAction.LABELS_EDITED,
+            actor=request.user, request=request, target_case=detection.image.case,
+            detail={"image_index": detection.image.order_index, "field": "detection",
+                    "op": "update", "tooth_fdi": detection.tooth_fdi,
+                    "mgi": detection.mgi_level},
+        )
         return Response(ser.data)
 
     def delete(self, request, pk):
-        detection = get_object_or_404(Detection, pk=pk)
+        detection = self._get_detection(request, pk)
+        if detection is None:
+            return _forbidden("Bạn không có quyền chỉnh sửa kết quả của ca này.")
+
         detection.is_deleted = True
         detection.save()
+        log_activity(
+            LogCategory.BUSINESS, LogAction.LABELS_EDITED,
+            actor=request.user, request=request, target_case=detection.image.case,
+            detail={"image_index": detection.image.order_index, "field": "detection",
+                    "op": "delete", "tooth_fdi": detection.tooth_fdi},
+        )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class ImageExportView(APIView):
+    permission_classes = [IsActiveUser]
+
     def get(self, request, case_id, image_index):
-        img = get_object_or_404(Image, case_id=case_id, order_index=image_index)
+        img = get_object_or_404(
+            scoped_images(request.user), case_id=case_id, order_index=image_index
+        )
+        log_activity(
+            LogCategory.BUSINESS, LogAction.CASE_EXPORT,
+            actor=request.user, request=request, target_case=img.case,
+            detail={"scope": "image", "image_index": img.order_index},
+        )
         return _build_image_zip(img)
 
 
@@ -143,8 +228,10 @@ class CaseExportView(APIView):
     """ZIP of the case. By default only images a doctor actually edited are
     included; pass ?all=1 to export every image in the case."""
 
+    permission_classes = [IsActiveUser]
+
     def get(self, request, case_id):
-        case = get_object_or_404(Case, pk=case_id)
+        case = get_object_or_404(scoped_cases(request.user), pk=case_id)
         include_all = request.query_params.get("all") in ("1", "true", "yes")
 
         images = [
@@ -164,6 +251,11 @@ class CaseExportView(APIView):
                 rows += _csv_rows(img, image_ref=f"image_{img.order_index}")
             zf.writestr("labels.csv", "\n".join(rows))
         buf.seek(0)
+        log_activity(
+            LogCategory.BUSINESS, LogAction.CASE_EXPORT,
+            actor=request.user, request=request, target_case=case,
+            detail={"scope": "case", "n_images": len(images), "all": include_all},
+        )
         return FileResponse(buf, as_attachment=True, filename=f"case_{case_id}.zip")
 
 

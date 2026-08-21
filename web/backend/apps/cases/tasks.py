@@ -42,8 +42,18 @@ def run_inference_task(self, image_id: int) -> dict:
             _save_detections_and_masks(img, result)
 
     except Exception as exc:
+        from apps.users.activity import log_activity
+        from apps.users.models import LogAction, LogCategory
+
         img.status = Image.Status.FAILED
         img.save(update_fields=["status"])
+        # Worker không có `request` — chỉ ghi actor là chủ ca để admin truy được nguồn.
+        log_activity(
+            LogCategory.ERROR, LogAction.PIPELINE_ERROR,
+            actor=img.case.created_by, target_case=img.case,
+            detail={"image_id": image_id, "image_index": img.order_index,
+                    "error": f"{type(exc).__name__}: {exc}"[:500]},
+        )
         raise self.retry(exc=exc, countdown=0, max_retries=0)
 
     finally:
@@ -221,15 +231,33 @@ def _save_detections_and_masks(img, result: dict) -> None:
 
 
 def _update_case_status(case) -> None:
+    from apps.users.activity import log_activity
+    from apps.users.models import LogAction, LogCategory
+
     from .models import Case, Image
 
     images = Image.objects.filter(case=case)
     if images.filter(status__in=[Image.Status.PROCESSING, Image.Status.QUEUED]).exists():
         return
 
+    previous = case.status
     case.status = (
         Case.Status.FAILED
         if images.filter(status=Image.Status.FAILED).exists()
         else Case.Status.DONE
     )
     case.save(update_fields=["status"])
+
+    # Chỉ ghi log ở lần chuyển trạng thái đầu tiên — hàm này được gọi sau MỖI ảnh.
+    if previous == case.status:
+        return
+    log_activity(
+        LogCategory.BUSINESS,
+        LogAction.CASE_FAILED if case.status == Case.Status.FAILED else LogAction.CASE_DONE,
+        actor=case.created_by, target_case=case,
+        detail={
+            "n_images": images.count(),
+            "n_failed": images.filter(status=Image.Status.FAILED).count(),
+            "n_low_confidence": images.filter(status=Image.Status.LOW_CONFIDENCE).count(),
+        },
+    )
