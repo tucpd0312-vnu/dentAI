@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/providers/AuthProvider';
 
@@ -10,15 +10,25 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [timedOut, setTimedOut] = useState(false);
+
+  // SessionGuard chuyển hướng về đây kèm ?reason=timeout khi phiên hết hạn do
+  // không hoạt động. Đọc từ window thay vì useSearchParams để không phải bọc
+  // Suspense (Next 14 yêu cầu khi prerender).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setTimedOut(params.get('reason') === 'timeout');
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!username.trim() || !password) return;
     setSubmitting(true);
     setError(null);
+    setTimedOut(false);
     try {
       await login(username.trim(), password);
-      window.location.href = '/analysis/new/';
+      window.location.href = '/dashboard/';
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { non_field_errors?: string[]; detail?: string } } })?.response?.data;
@@ -42,6 +52,16 @@ export default function LoginPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        {timedOut && !error && (
+          <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+            <span className="material-symbols-outlined text-[16px] shrink-0 mt-0.5">schedule</span>
+            <span>
+              Phiên đăng nhập đã hết hạn do không hoạt động trong 1 giờ.
+              Vui lòng đăng nhập lại.
+            </span>
+          </div>
+        )}
+
         {error && (
           <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
             <span className="material-symbols-outlined text-[16px] shrink-0">error</span>

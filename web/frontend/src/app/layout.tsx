@@ -5,8 +5,8 @@ import "primeicons/primeicons.css";
 import AuthProvider from "@/components/providers/AuthProvider";
 
 export const metadata: Metadata = {
-  title: "DentAI - Chẩn đoán viêm lợi",
-  description: "Hệ thống AI hỗ trợ chẩn đoán viêm lợi từ ảnh nội nha",
+  title: "DentAI - AI nha khoa đa chức năng",
+  description: "Hệ thống AI nha khoa đa chức năng",
 };
 
 export default function RootLayout({

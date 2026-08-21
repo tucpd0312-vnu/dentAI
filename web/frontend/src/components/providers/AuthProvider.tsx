@@ -13,6 +13,7 @@ import {
   isAuthenticated,
   getAccessToken,
   type AuthUser,
+  type RegisterPayload,
   type Role,
 } from '@/lib/auth';
 
@@ -21,12 +22,17 @@ interface AuthContextValue {
   role: Role | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
-  register: (username: string, email: string, password: string, confirmPassword: string) => Promise<{ email: string }>;
+  register: (payload: RegisterPayload) => Promise<{ email: string }>;
   verifyOTP: (email: string, code: string) => Promise<void>;
   resendOTP: (email: string) => Promise<void>;
   changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
-  logout: () => void;
+  logout: (reason?: 'idle_timeout') => Promise<void>;
   refreshUser: () => Promise<void>;
+  isAdmin: boolean;
+  isDoctor: boolean;
+  isPatient: boolean;
+  /** Bác sĩ và quản trị viên mới được sửa nhãn (nhãn sửa feed vào FALC). */
+  canEditLabels: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -66,8 +72,8 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     setUser(res.user);
   }, []);
 
-  const register = useCallback(async (username: string, email: string, password: string, confirmPassword: string) => {
-    return await authRegister(username, email, password, confirmPassword);
+  const register = useCallback(async (payload: RegisterPayload) => {
+    return await authRegister(payload);
   }, []);
 
   const verifyOTP = useCallback(async (email: string, code: string) => {
@@ -83,14 +89,17 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     await authChangePassword(oldPassword, newPassword);
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async (reason?: 'idle_timeout') => {
     setUser(null);
-    authLogout();
+    // authLogout gọi /auth/logout/ để blacklist refresh token rồi xoá localStorage.
+    await authLogout(reason);
   }, []);
+
+  const role = user?.role ?? null;
 
   const value: AuthContextValue = {
     user,
-    role: user?.role ?? null,
+    role,
     loading,
     login,
     register,
@@ -99,6 +108,10 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     changePassword,
     logout,
     refreshUser: loadUser,
+    isAdmin: role === 'admin',
+    isDoctor: role === 'doctor',
+    isPatient: role === 'patient',
+    canEditLabels: role === 'admin' || role === 'doctor',
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
