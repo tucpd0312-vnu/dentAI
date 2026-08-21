@@ -1,0 +1,51 @@
+from django.urls import re_path
+
+from . import views
+
+urlpatterns = [
+    # "download/{token}" phải đứng TRƯỚC pattern `(?P<pk>\d+)` cho rõ ý định — token
+    # không phải số nên không thực sự đụng nhau, nhưng giữ đúng quy ước cases/urls.py.
+    re_path(
+        r"^scans/download/(?P<token>[A-Za-z0-9_-]+)/?$",
+        views.ScanDownloadView.as_view(), name="scan-download",
+    ),
+    re_path(r"^scans/?$", views.ScanListView.as_view(), name="scan-list"),
+    # ── Chunked upload (§4.2) ──────────────────────────────────────────────────
+    re_path(
+        r"^scans/uploads/?$", views.ScanUploadInitView.as_view(), name="scan-upload-init",
+    ),
+    re_path(
+        r"^scans/uploads/(?P<pk>\d+)/complete/?$",
+        views.ScanUploadCompleteView.as_view(), name="scan-upload-complete",
+    ),
+    re_path(
+        r"^scans/uploads/(?P<pk>\d+)/(?P<index>\d+)/?$",
+        views.ScanUploadChunkView.as_view(), name="scan-upload-chunk",
+    ),
+    re_path(
+        r"^scans/uploads/(?P<pk>\d+)/?$",
+        views.ScanUploadStatusView.as_view(), name="scan-upload-status",
+    ),
+    re_path(r"^scans/(?P<pk>\d+)/?$", views.ScanDetailView.as_view(), name="scan-detail"),
+    re_path(r"^scans/(?P<pk>\d+)/status/?$", views.ScanStatusView.as_view(), name="scan-status"),
+    re_path(
+        r"^scans/(?P<pk>\d+)/preview/(?P<index>\d+)/?$",
+        views.ScanPreviewView.as_view(), name="scan-preview",
+    ),
+    re_path(
+        r"^scans/(?P<pk>\d+)/open-token/?$",
+        views.ScanOpenTokenView.as_view(), name="scan-open-token",
+    ),
+    re_path(
+        r"^scans/(?P<pk>\d+)/segmentations/?$",
+        views.ScanSegmentationListCreateView.as_view(), name="scan-segmentation-list",
+    ),
+    re_path(
+        r"^segmentations/(?P<pk>\d+)/file/?$",
+        views.SegmentationFileView.as_view(), name="segmentation-file",
+    ),
+    re_path(
+        r"^scans/(?P<pk>\d+)/logs/?$",
+        views.ScanActivityLogView.as_view(), name="scan-logs",
+    ),
+]

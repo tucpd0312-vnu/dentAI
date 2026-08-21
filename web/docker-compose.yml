@@ -2,26 +2,22 @@ version: "3.9"
 
 x-django-env: &django-env
   DJANGO_SETTINGS_MODULE: config.settings
-  DATABASE_URL:           postgres://dentai:dentai@db:5432/dentai
-  SECRET_KEY:             change-me-in-production
+  DATABASE_URL:           postgres://${POSTGRES_USER:-dentai}:${POSTGRES_PASSWORD:-dentai}@db:5432/${POSTGRES_DB:-dentai}
+  SECRET_KEY:             ${SECRET_KEY:-change-me-in-production}
   DEBUG:                  "1"
   ALLOWED_HOSTS:          "*"
   MEDIA_ROOT:             /app/media
   CELERY_BROKER_URL:      redis://redis:6379/0
   CELERY_RESULT_BACKEND:  redis://redis:6379/0
-  # Email SMTP — để dùng email thật, tạo file docker-compose.override.yml:
-  #   services:
-  #     backend:
-  #       environment:
-  #         EMAIL_HOST_USER: "your@gmail.com"
-  #         EMAIL_HOST_PASSWORD: "your-app-password"
-  EMAIL_BACKEND:          django.core.mail.backends.console.EmailBackend
-  EMAIL_HOST:             localhost
+
+  EMAIL_BACKEND:          django.core.mail.backends.smtp.EmailBackend
+  EMAIL_HOST:             smtp.gmail.com
   EMAIL_PORT:             "587"
   EMAIL_USE_TLS:          "True"
-  EMAIL_HOST_USER:        ""
-  EMAIL_HOST_PASSWORD:    ""
-  DEFAULT_FROM_EMAIL:     noreply@dentai.local
+
+  SEED_ADMIN_USERNAME:    ${SEED_ADMIN_USERNAME:-admin}
+  SEED_ADMIN_EMAIL:       ${SEED_ADMIN_EMAIL:-admin@dentai.local}
+  SEED_ADMIN_PASSWORD:    ${SEED_ADMIN_PASSWORD:-Admin@123}
 
 services:
 
@@ -30,9 +26,9 @@ services:
     image: postgres:15-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB:       dentai
-      POSTGRES_USER:     dentai
-      POSTGRES_PASSWORD: dentai
+      POSTGRES_DB:       ${POSTGRES_DB:-dentai}
+      POSTGRES_USER:     ${POSTGRES_USER:-dentai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dentai}
     volumes:
       - pg_data:/var/lib/postgresql/data
     ports:
@@ -63,15 +59,37 @@ services:
     restart: unless-stopped
     command: >
       sh -c "python manage.py migrate --noinput &&
+             python manage.py seed_admin &&
              python manage.py runserver 0.0.0.0:8000"
     ports:
       - "8002:8000"
+    env_file:
+      - ./backend/.env               # SMTP credentials (không commit)
     environment:
       <<: *django-env
     volumes:
       - ./backend:/app                 # hot-reload code
       - ./media:/app/media
       - ../falc:/falc:ro               # FALC bridge (FeedbackStore)
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Celery scans worker (CPU) ───────────────────────────────────────────────
+  scans_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    restart: unless-stopped
+    command: celery -A config.celery worker --loglevel=info --concurrency=1 -Q scans
+    env_file:
+      - ./backend/.env
+    environment:
+      <<: *django-env
+    volumes:
+      - ./backend:/app
     depends_on:
       db:
         condition: service_healthy
@@ -86,6 +104,8 @@ services:
       dockerfile: Dockerfile.worker
     restart: unless-stopped
     command: celery -A config.celery worker --loglevel=info --concurrency=1 -Q inference
+    env_file:
+      - ./backend/.env               # SMTP credentials (không commit)
     environment:
       <<: *django-env
       INFERENCE_DEVICE: "0"            # đổi "cpu" nếu không có GPU

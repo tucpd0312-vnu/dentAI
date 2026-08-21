@@ -11,8 +11,12 @@ frontend/.next/
 # ── Django runtime / DB ───────────────────────────────────────────────────────
 backend/db.sqlite3
 backend/media/
+backend/scans_storage/
 
 # ── Env / IDE ─────────────────────────────────────────────────────────────────
+# **/.env cần thiết: `COPY backend/ .` sẽ nướng backend/.env (SMTP password)
+# vào layer image nếu chỉ ignore `.env` ở root.
+**/.env
 .env
 .venv/
 .ruff_cache/
