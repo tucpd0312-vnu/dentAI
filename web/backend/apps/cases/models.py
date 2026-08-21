@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 
@@ -18,6 +19,14 @@ class Case(models.Model):
         FAILED = "failed"
 
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name="cases")
+    # Chủ sở hữu ca. Ca tạo trước khi có auth được data migration gán cho admin seed.
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="cases",
+    )
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.PROCESSING)
     confidence_threshold = models.FloatField(default=0.5)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -105,3 +114,38 @@ class Caption(models.Model):
 
     def __str__(self):
         return f"Caption (image #{self.image_id}, edited={self.is_edited})"
+
+
+class CaseShare(models.Model):
+    """Chia sẻ một ca chẩn đoán cho tài khoản khác đã có trên hệ thống.
+
+    Không hỗ trợ chia sẻ tới email lạ, không có link công khai — dữ liệu y tế chỉ
+    tới được người đã đăng nhập.
+    """
+
+    class Permission(models.TextChoices):
+        VIEW = "view", "Chỉ xem"
+        EDIT = "edit", "Xem và sửa"
+
+    case = models.ForeignKey(Case, on_delete=models.CASCADE, related_name="shares")
+    shared_with = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="shared_cases"
+    )
+    shared_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+",
+    )
+    permission = models.CharField(
+        max_length=8, choices=Permission.choices, default=Permission.VIEW
+    )
+    note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        # Chia sẻ lại cùng một người → update permission, không tạo bản ghi trùng.
+        unique_together = ("case", "shared_with")
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Case #{self.case_id} → {self.shared_with} ({self.permission})"
