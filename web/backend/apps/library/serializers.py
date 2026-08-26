@@ -1,9 +1,8 @@
 """Serializer cho kho dữ liệu.
 
 Điểm cần đọc kỹ: **khối thông tin bệnh nhân là PHI và bị cắt ở tầng này**, không phải
-chỉ ẩn ngoài giao diện — `AssetListSerializer`/`AssetDetailSerializer` chỉ gắn field
-`patient`/`condition_note` khi người gọi là admin hoặc bác sĩ
-(`access.can_see_patient_info`). Gõ thẳng URL API cũng không thấy.
+chỉ ẩn ngoài giao diện. Bác sĩ/admin đọc được trong phạm vi truy cập; bệnh nhân chỉ
+đọc được PHI của tư liệu do chính họ tải, không đọc được qua chia sẻ.
 """
 import os
 
@@ -75,7 +74,7 @@ class AssetUploadInitSerializer(serializers.Serializer):
         max_length=100, required=False, allow_blank=True, default=""
     )
 
-    # ── Thông tin bệnh nhân (tuỳ chọn, chỉ bác sĩ/admin gửi được — chặn ở view) ──
+    # ── Thông tin bệnh nhân (tuỳ chọn, mọi vai trò đều có thể khai khi tải lên) ──
     patient_name = serializers.CharField(
         max_length=255, required=False, allow_blank=True, default=""
     )
@@ -200,14 +199,14 @@ class _AssetBaseSerializer(serializers.ModelSerializer):
         """None khi người gọi không được xem PHI — khác với "asset không có bệnh nhân",
         nhưng frontend chỉ cần biết "không hiển thị khối này" nên không tách hai trạng
         thái làm gì; cờ `can_see_patient_info` ở response detail đã nói rõ vì sao."""
-        if not can_see_patient_info(self._user()) or not obj.patient_id:
+        if not can_see_patient_info(self._user(), obj) or not obj.patient_id:
             return None
         return PatientSerializer(obj.patient).data
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
         # `condition_note` là mô tả tình trạng bệnh nhân ⇒ cùng nhóm PHI với `patient`.
-        if not can_see_patient_info(self._user()):
+        if not can_see_patient_info(self._user(), instance):
             data.pop("condition_note", None)
         return data
 
@@ -229,7 +228,7 @@ class AssetDetailSerializer(_AssetBaseSerializer):
     source = serializers.SerializerMethodField()
 
     def get_can_see_patient_info(self, obj):
-        return can_see_patient_info(self._user())
+        return can_see_patient_info(self._user(), obj)
 
     def get_source(self, obj):
         """Nguồn gốc khi tư liệu đến từ module khác — null với dữ liệu tải thẳng lên."""

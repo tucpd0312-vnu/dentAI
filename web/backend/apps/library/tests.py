@@ -4,8 +4,8 @@ Trọng tâm là hai thứ dễ sai nhất và hỏng thì hỏng âm thầm:
 
 1. **Phạm vi truy cập** (`access.scoped_assets`) — mỗi vai trò thấy đúng phần của mình,
    ra ngoài phạm vi là 404 chứ không phải 403.
-2. **Khối PHI** — tên/tuổi/giới tính/mô tả tình trạng bệnh nhân KHÔNG lọt ra response
-   của tài khoản bệnh nhân, kể cả trên tư liệu do chính họ tải lên.
+2. **Khối PHI** — bệnh nhân thấy thông tin trên tư liệu do chính mình tải, nhưng
+   KHÔNG đọc được PHI từ tư liệu người khác chia sẻ.
 
 Chạy: `python manage.py test apps.library`
 """
@@ -130,11 +130,12 @@ class CategoryApiTests(LibraryTestCase):
         self.assertEqual(res.data["id"], self.category.pk)
         self.assertEqual(DataCategory.objects.count(), before)
 
-    def test_patient_cannot_create_category(self):
+    def test_patient_can_create_other_category(self):
         res = self.client_for(self.patient).post(
             "/api/library/categories/", {"name": "Tự chế"}, format="json"
         )
-        self.assertEqual(res.status_code, 403)
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(res.data["name"], "Tự chế")
 
 
 class UploadTests(LibraryTestCase):
@@ -157,13 +158,24 @@ class UploadTests(LibraryTestCase):
         self.assertTrue(asset.patient.patient_code.startswith("LIB-"))
         self.assertEqual(asset.condition_note, "Lợi sưng vùng răng cửa")
 
-    def test_patient_upload_never_attaches_patient_record(self):
-        """Vai trò bệnh nhân không được xem PHI ⇒ cũng không được ghi vào đó."""
+    def test_patient_upload_attaches_patient_record(self):
         asset = self.upload(self.patient, extra={
-            "patient_name": "Nguyễn Văn A", "condition_note": "mô tả",
+            "patient_name": "Nguyễn Văn A",
+            "birth_year": 2000,
+            "gender": "male",
+            "condition_note": "mô tả",
         })
-        self.assertIsNone(asset.patient)
-        self.assertEqual(asset.condition_note, "")
+        self.assertIsNotNone(asset.patient)
+        self.assertEqual(asset.patient.name, "Nguyễn Văn A")
+        self.assertEqual(asset.patient.birth_year, 2000)
+        self.assertTrue(asset.patient.patient_code.startswith("LIB-"))
+        self.assertEqual(asset.condition_note, "mô tả")
+
+        detail = self.client_for(self.patient).get(f"/api/library/assets/{asset.pk}/")
+        self.assertEqual(detail.status_code, 200)
+        self.assertTrue(detail.data["can_see_patient_info"])
+        self.assertEqual(detail.data["patient"]["name"], "Nguyễn Văn A")
+        self.assertEqual(detail.data["condition_note"], "mô tả")
 
     def test_extension_must_match_data_type(self):
         res = self.client_for(self.doctor).post(
@@ -488,9 +500,11 @@ class SourceImportTests(LibraryTestCase):
                 format="json",
             )
         self.assertEqual(res.status_code, 201, res.data)
-        # PHI vẫn bị cắt ở serializer với vai trò bệnh nhân.
-        self.assertIsNone(res.data["asset"]["patient"])
-        self.assertNotIn("condition_note", res.data["asset"])
+        # Bệnh nhân đọc được PHI trên tư liệu của chính họ, kể cả khi tư liệu được
+        # sao chép từ ca viêm lợi do họ sở hữu.
+        self.assertEqual(res.data["asset"]["patient"]["name"], "Bệnh nhân nguồn")
+        self.assertTrue(res.data["asset"]["can_see_patient_info"])
+        self.assertEqual(res.data["asset"]["condition_note"], "")
 
     def test_scan_owner_imports_ready_anonymized_scan(self):
         with mock.patch("apps.library.views.process_asset_task.apply_async") as enqueue:

@@ -45,9 +45,7 @@ function normalize(value: string): string {
 
 export default function NewAssetPage() {
   const router = useRouter();
-  // Chỉ bác sĩ/quản trị viên nhập được thông tin bệnh nhân (PHI). Backend bỏ qua các
-  // trường này nếu người gửi là bệnh nhân — ở đây ẩn hẳn khối đó cho khỏi gây hiểu nhầm.
-  const { canEditLabels, loading: authLoading } = useAuth();
+  const { isPatient, loading: authLoading } = useAuth();
 
   const inputRef = useRef<HTMLInputElement>(null);
   // Phiên upload dở từ lần submit lỗi trước — bấm lại chỉ gửi nốt chunk còn thiếu,
@@ -159,12 +157,12 @@ export default function NewAssetPage() {
           categoryId,
           dataType,
           dataTypeOther: dataTypeOther.trim() || undefined,
-          patientName: canEditLabels ? patient.name.trim() || undefined : undefined,
-          patientCode: canEditLabels ? patient.code.trim() || undefined : undefined,
+          patientName: patient.name.trim() || undefined,
+          patientCode: isPatient ? undefined : patient.code.trim() || undefined,
           // Hệ thống lưu NĂM SINH, không lưu tuổi — quy đổi ngay tại đây.
-          birthYear: canEditLabels && age ? CURRENT_YEAR - age : undefined,
-          gender: canEditLabels ? patient.gender : undefined,
-          conditionNote: canEditLabels ? patient.condition.trim() || undefined : undefined,
+          birthYear: age ? CURRENT_YEAR - age : undefined,
+          gender: patient.gender,
+          conditionNote: patient.condition.trim() || undefined,
           file,
         },
         setProgress,
@@ -211,42 +209,42 @@ export default function NewAssetPage() {
         Kho dữ liệu
       </Link>
 
-      {/* ── Khối 1: thông tin bệnh nhân (chỉ bác sĩ / quản trị viên) ── */}
-      {canEditLabels && (
-        <section className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-          <button
-            type="button"
-            onClick={() => setShowPatient(v => !v)}
-            aria-expanded={showPatient}
-            className="flex w-full items-center gap-2 border-b border-gray-100 px-5 py-3.5 text-left"
-          >
-            <span className="material-symbols-outlined text-[18px] text-gray-400">
-              personal_injury
-            </span>
-            <span className="font-serif text-[15px] font-semibold text-gray-900">
-              Thông tin bệnh nhân
-            </span>
-            <span className="text-xs font-normal text-gray-400">(tuỳ chọn)</span>
-            <span className="material-symbols-outlined ml-auto text-[18px] text-gray-400">
-              {showPatient ? 'expand_less' : 'expand_more'}
-            </span>
-          </button>
+      {/* ── Khối 1: thông tin bệnh nhân (mọi vai trò, tuỳ chọn) ── */}
+      <section className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+        <button
+          type="button"
+          onClick={() => setShowPatient(v => !v)}
+          aria-expanded={showPatient}
+          className="flex w-full items-center gap-2 border-b border-gray-100 px-5 py-3.5 text-left"
+        >
+          <span className="material-symbols-outlined text-[18px] text-gray-400">
+            personal_injury
+          </span>
+          <span className="font-serif text-[15px] font-semibold text-gray-900">
+            Thông tin bệnh nhân
+          </span>
+          <span className="text-xs font-normal text-gray-400">(tuỳ chọn)</span>
+          <span className="material-symbols-outlined ml-auto text-[18px] text-gray-400">
+            {showPatient ? 'expand_less' : 'expand_more'}
+          </span>
+        </button>
 
-          {showPatient && (
-            <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-gray-600">
-                  Tên bệnh nhân
-                </label>
-                <input
-                  type="text"
-                  value={patient.name}
-                  onChange={e => setPatient(p => ({ ...p, name: e.target.value }))}
-                  placeholder="Nguyễn Văn A"
-                  disabled={submitting}
-                  className={inputCls}
-                />
-              </div>
+        {showPatient && (
+          <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-gray-600">
+                Tên bệnh nhân
+              </label>
+              <input
+                type="text"
+                value={patient.name}
+                onChange={e => setPatient(p => ({ ...p, name: e.target.value }))}
+                placeholder="Nguyễn Văn A"
+                disabled={submitting}
+                className={inputCls}
+              />
+            </div>
+            {!isPatient && (
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-gray-600">
                   Mã bệnh nhân
@@ -260,7 +258,8 @@ export default function NewAssetPage() {
                   className={inputCls}
                 />
               </div>
-              <div>
+            )}
+            <div>
                 <label className="mb-1.5 block text-xs font-medium text-gray-600">Tuổi</label>
                 <input
                   type="number"
@@ -277,8 +276,8 @@ export default function NewAssetPage() {
                   {patient.age.trim() ? ` (${CURRENT_YEAR - Number(patient.age)})` : ''} thay vì
                   tuổi, để số liệu không sai lệch theo thời gian.
                 </p>
-              </div>
-              <div>
+            </div>
+            <div>
                 <span className="mb-1.5 block text-xs font-medium text-gray-600">Giới tính</span>
                 <div className="flex gap-4 pt-1.5">
                   {(Object.keys(GENDER_LABEL) as Gender[]).map(g => (
@@ -296,8 +295,8 @@ export default function NewAssetPage() {
                     </label>
                   ))}
                 </div>
-              </div>
-              <div className="sm:col-span-2">
+            </div>
+            <div className="sm:col-span-2">
                 <label className="mb-1.5 block text-xs font-medium text-gray-600">
                   Mô tả tình trạng
                 </label>
@@ -309,11 +308,10 @@ export default function NewAssetPage() {
                   disabled={submitting}
                   className={`${inputCls} resize-none`}
                 />
-              </div>
             </div>
-          )}
-        </section>
-      )}
+          </div>
+        )}
+      </section>
 
       {/* ── Khối 2: phân loại & loại dữ liệu ── */}
       <section className="overflow-hidden rounded-xl border border-gray-200 bg-white">
@@ -340,7 +338,7 @@ export default function NewAssetPage() {
                   {c.name}
                 </option>
               ))}
-              {canEditLabels && <option value={NEW_CATEGORY}>➕ Khác — nhập tên mới…</option>}
+              <option value={NEW_CATEGORY}>➕ Khác — nhập tên mới…</option>
             </select>
 
             {categoryChoice === NEW_CATEGORY && (

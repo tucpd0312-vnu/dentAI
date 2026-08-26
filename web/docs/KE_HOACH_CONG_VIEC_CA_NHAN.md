@@ -16,6 +16,7 @@ Phạm vi phụ trách: từ **chia sẻ RNNHT 3D** đến các hạng mục gia
 - [x] Chia sẻ ca viêm lợi cho tài khoản cá nhân đã có.
 - [x] Phân quyền nền tảng theo ba vai trò admin, bác sĩ, bệnh nhân đã có.
 - [x] Kho dữ liệu đã có model, API tải lên theo chunk, xem, tải xuống, phân loại, phân quyền và giao diện cho mọi vai trò.
+- [x] Mọi vai trò đều nhập được tên, tuổi, giới tính, mô tả tình trạng và phân loại **Khác** khi tải lên; bệnh nhân chỉ đọc PHI trên tư liệu do chính họ tải.
 - [x] Chia sẻ cá nhân cho RNNHT 3D đã được bổ sung trong đợt triển khai này.
 - [x] Tiền điều kiện `source_scan`, `source_case`, `source_image` của Kho dữ liệu đã được đồng nghiệp bổ sung và merge vào `develop`.
 
@@ -30,6 +31,8 @@ Phạm vi phụ trách: từ **chia sẻ RNNHT 3D** đến các hạng mục gia
 ### AUTH-01 — Hiện/ẩn mật khẩu
 
 - [x] Thêm nút hiện/ẩn mật khẩu ở trang đăng nhập.
+- [x] Thêm nút hiện/ẩn cho cả mật khẩu và xác nhận mật khẩu ở trang đăng ký.
+- [x] Đăng nhập chấp nhận tên đăng nhập hoặc email; duyệt vai trò bác sĩ không làm thay đổi mật khẩu.
 - [x] Nút có `aria-label`, không submit form và dùng được bằng bàn phím.
 - Tiêu chí hoàn thành: đổi qua lại giữa `password` và `text`, không làm mất giá trị đã nhập.
 
@@ -92,7 +95,8 @@ Phạm vi phụ trách: từ **chia sẻ RNNHT 3D** đến các hạng mục gia
 - [x] Chuỗi migration sau merge hợp lệ: `scans.0003` và `users.0006 → users.0007`; tính năng chia sẻ lên kho không cần đổi schema.
 - [x] `manage.py check` và `makemigrations --check --dry-run` đạt.
 - [x] 33/33 test `apps.library` đạt, gồm quyền nguồn, chống tạo trùng và sao chép file độc lập.
-- [x] Toàn bộ 48/48 test backend đạt, gồm cả phân quyền số liệu Tổng quan.
+- [x] Toàn bộ 51/51 test backend đạt trên PostgreSQL, gồm phân quyền Kho dữ liệu, import nguồn, xác thực và số liệu Tổng quan.
+- [x] API lưu phim 3D/ảnh viêm lợi vào Kho dữ liệu khóa bản ghi hợp lệ trên PostgreSQL, không dùng `FOR UPDATE` trực tiếp trên queryset `DISTINCT`.
 - [x] Type-check và production build frontend đạt, sinh đủ 22 trang/route.
 - [ ] ESLint độc lập — `next lint` đang yêu cầu khởi tạo cấu hình tương tác vì dự án chưa có file cấu hình ESLint; không tự chọn chuẩn thay nhóm.
 - [x] `git diff --check` đạt; không có dấu xung đột hoặc khoảng trắng lỗi trong thay đổi mới.

@@ -32,7 +32,7 @@ from apps.scans.access import can_manage_scan, scoped_scans
 from apps.scans.models import Scan
 from apps.users.activity import log_activity
 from apps.users.models import LogAction, LogCategory, Role
-from apps.users.permissions import IsActiveUser, IsAdminOrDoctor
+from apps.users.permissions import IsActiveUser
 
 from .access import (
     can_edit_asset,
@@ -92,14 +92,14 @@ def _import_response(request, asset, created):
 # ── Phân loại ────────────────────────────────────────────────────────────────
 
 class CategoryListCreateView(APIView):
-    """GET mở cho mọi vai trò (ai cũng cần chọn phân loại khi tải lên).
+    """Liệt kê và tạo phân loại — mở cho mọi tài khoản đang hoạt động.
 
-    POST chỉ admin/bác sĩ: nếu bệnh nhân cũng tạo được danh mục thì kho sẽ đầy danh
-    mục rác trong vài tuần, và bộ lọc mất tác dụng (§B.4, §J câu 5).
+    Tên được chuẩn hoá và chống trùng không phân biệt hoa/thường để lựa chọn
+    "Khác — nhập tên mới" không làm sinh các danh mục tương đương.
     """
 
     def get_permissions(self):
-        return [IsAdminOrDoctor()] if self.request.method == "POST" else [IsActiveUser()]
+        return [IsActiveUser()]
 
     def get(self, request):
         qs = DataCategory.objects.annotate(
@@ -145,12 +145,15 @@ class AssetListView(APIView):
         q = (request.query_params.get("q") or "").strip()
         if q:
             filters = Q(title__icontains=q) | Q(original_filename__icontains=q)
-            # Tìm theo tên/mã bệnh nhân chỉ mở cho người được xem PHI — nếu không,
-            # bệnh nhân dò được tên người khác qua kết quả tìm kiếm.
+            patient_filters = Q(patient__name__icontains=q) | Q(
+                patient__patient_code__icontains=q
+            )
+            # Vai trò chuyên môn tìm PHI trong toàn phạm vi. Bệnh nhân chỉ tìm PHI
+            # trên tư liệu của chính họ, không dò được tên trong dữ liệu được chia sẻ.
             if can_see_patient_info(request.user):
-                filters |= Q(patient__name__icontains=q) | Q(
-                    patient__patient_code__icontains=q
-                )
+                filters |= patient_filters
+            elif request.user.role == Role.PATIENT:
+                filters |= Q(uploaded_by=request.user) & patient_filters
             qs = qs.filter(filters)
 
         category = request.query_params.get("category")
@@ -162,8 +165,11 @@ class AssetListView(APIView):
             qs = qs.filter(data_type=data_type)
 
         patient = request.query_params.get("patient")
-        if patient and can_see_patient_info(request.user):
-            qs = qs.filter(patient_id=patient)
+        if patient:
+            if can_see_patient_info(request.user):
+                qs = qs.filter(patient_id=patient)
+            elif request.user.role == Role.PATIENT:
+                qs = qs.filter(patient_id=patient, uploaded_by=request.user)
 
         uploaded_by = request.query_params.get("uploaded_by")
         if uploaded_by:
@@ -197,8 +203,16 @@ class ScanSourceImportView(APIView):
         data = ser.validated_data
 
         with transaction.atomic():
+            # `scoped_scans()` dùng DISTINCT để gộp quan hệ chia sẻ. PostgreSQL
+            # không cho SELECT FOR UPDATE trên DISTINCT, nên xác nhận phạm vi trước
+            # rồi mới khóa bản ghi gốc bằng một truy vấn riêng.
+            if not scoped_scans(request.user).filter(pk=scan_id).exists():
+                raise Http404
             scan = get_object_or_404(
-                scoped_scans(request.user).select_for_update(), pk=scan_id
+                Scan.objects.select_related("patient", "uploaded_by").select_for_update(
+                    of=("self",)
+                ),
+                pk=scan_id,
             )
             if not can_manage_scan(request.user, scan):
                 return Response(
@@ -249,12 +263,19 @@ class GingivitisSourceImportView(APIView):
         data = ser.validated_data
 
         with transaction.atomic():
+            # Tương tự phim 3D: `scoped_images()` có DISTINCT nên không thể khóa
+            # trực tiếp trên PostgreSQL. Giữ 404 ngoài phạm vi ở truy vấn đầu, sau
+            # đó khóa đúng Image trong bảng gốc.
+            visible_image = scoped_images(request.user).filter(
+                case_id=case_id, order_index=image_index
+            ).values_list("pk", flat=True).first()
+            if visible_image is None:
+                raise Http404
             image = get_object_or_404(
-                scoped_images(request.user)
+                Image.objects
                 .select_related("case__patient", "case__created_by", "caption")
-                .select_for_update(),
-                case_id=case_id,
-                order_index=image_index,
+                .select_for_update(of=("self",)),
+                pk=visible_image,
             )
             if case_permission_for(request.user, image.case) not in ("owner", "admin"):
                 return Response(
@@ -351,19 +372,23 @@ class AssetUploadInitView(APIView):
         )
 
     def _resolve_patient(self, request, d):
-        """Tạo/tìm bệnh nhân từ metadata — trả None khi không khai gì.
-
-        Bệnh nhân (vai trò `patient`) KHÔNG gắn được hồ sơ bệnh nhân vào tư liệu: họ
-        không được xem khối PHI thì cũng không được ghi vào đó. Dữ liệu gửi kèm bị bỏ
-        qua lặng lẽ thay vì báo lỗi — giao diện của họ vốn không có ô nào để nhập.
-        """
-        if not can_see_patient_info(request.user):
-            return None
-
+        """Tạo/tìm bệnh nhân từ metadata — trả None khi người dùng không khai gì."""
         name = d.get("patient_name", "").strip()
         code = d.get("patient_code", "").strip()
         if not name and not code:
             return None
+
+        # Patient không được phép gắn mã đã tồn tại rồi đọc ngược hồ sơ của người
+        # khác. Giao diện không hỏi mã ở vai trò này; server luôn sinh mã riêng.
+        if request.user.role == Role.PATIENT:
+            if not name:
+                return None
+            return Patient.objects.create(
+                name=name,
+                patient_code=f"LIB-{uuid4().hex[:8].upper()}",
+                gender=d.get("gender", ""),
+                birth_year=d.get("birth_year"),
+            )
 
         if code:
             patient, created = Patient.objects.get_or_create(
@@ -506,7 +531,7 @@ class AssetDetailView(APIView):
         # `condition_note` thuộc khối PHI — người không được xem thì cũng không ghi đè
         # được (nếu không, một tài khoản được chia sẻ quyền edit có thể xoá trắng mô tả
         # mình chưa từng đọc).
-        if not can_see_patient_info(request.user):
+        if not can_see_patient_info(request.user, asset):
             data.pop("condition_note", None)
 
         ser = AssetUpdateSerializer(asset, data=data, partial=True)

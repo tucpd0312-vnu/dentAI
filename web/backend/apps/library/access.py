@@ -73,13 +73,18 @@ def asset_permission_for(user, asset) -> str:
     return share.permission if share else "none"
 
 
-def can_see_patient_info(user) -> bool:
-    """Khối "Thông tin bệnh nhân" (tên, tuổi, giới tính, mô tả tình trạng) là PHI —
-    chỉ chuyên môn được đọc, kể cả trên tư liệu do chính mình tải lên.
+def can_see_patient_info(user, asset=None) -> bool:
+    """Quyền đọc khối PHI của một tư liệu.
 
-    Chốt ở backend (serializer bỏ hẳn field), không chỉ ẩn ở giao diện: gõ thẳng
-    `/api/library/assets/{id}/` cũng không thấy.
+    Bác sĩ/admin đọc được PHI trong phạm vi tư liệu họ truy cập. Bệnh nhân chỉ đọc
+    được PHI trên tư liệu do chính họ tải lên; nhận chia sẻ từ người khác không làm
+    lộ tên, tuổi, giới tính hay mô tả tình trạng của bệnh nhân khác.
+
+    ``asset=None`` dùng cho bộ lọc danh sách toàn cục và chỉ trả ``True`` cho vai
+    trò chuyên môn, vì ở đó không có một tư liệu cụ thể để kiểm tra chủ sở hữu.
     """
-    return bool(
-        user and user.is_authenticated and user.role in (Role.ADMIN, Role.DOCTOR)
-    )
+    if not (user and user.is_authenticated):
+        return False
+    if user.role in (Role.ADMIN, Role.DOCTOR):
+        return True
+    return bool(asset is not None and asset.uploaded_by_id == user.pk)

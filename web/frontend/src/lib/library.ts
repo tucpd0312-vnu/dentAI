@@ -56,12 +56,12 @@ export interface DataAsset {
   id: number;
   title: string;
   /**
-   * null khi tư liệu không gắn bệnh nhân **hoặc** khi người xem không được đọc PHI
-   * (vai trò bệnh nhân) — backend cắt hẳn field, không chỉ ẩn ở giao diện.
+   * null khi tư liệu không gắn bệnh nhân **hoặc** khi người xem không được đọc PHI.
+   * Bệnh nhân đọc được dữ liệu do chính mình tải nhưng không đọc PHI qua chia sẻ.
    * Trang chi tiết dùng `can_see_patient_info` để phân biệt hai trường hợp.
    */
   patient: AssetPatient | null;
-  /** Cùng nhóm PHI với `patient` ⇒ vắng mặt hẳn trong response của bệnh nhân. */
+  /** Cùng nhóm PHI với `patient` ⇒ vắng mặt khi người xem không có quyền đọc PHI. */
   condition_note?: string;
   category: number;
   category_name: string;
