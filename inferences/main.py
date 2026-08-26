@@ -5,7 +5,7 @@ Flow:
     image → get_mask (full) → get_roi → get_box (ROI crops, mapped to original)
           → build_teeth_data / build_boxes_data
           → TeethDiseaseMatcher + confidence_gate
-          → (ok) build_t5_input → generate_caption
+          → (ok) build_t5_input → generate_caption (T5 or rule fallback)
           → draw_box_on_mask → annotated image
           → CSV output
 """

@@ -50,7 +50,7 @@
 | Backend  | **Python 3** · Django 4.2 · Django REST Framework · SimpleJWT                            | `web/backend/`                                    |
 | Hàng đợi | Celery 5 + Redis 7 (chạy AI bất đồng bộ)                                                 | `backend/config/celery.py`, `apps/cases/tasks.py` |
 | CSDL     | **PostgreSQL 15**                                                                        | service `db`                                      |
-| AI       | Python · PyTorch · YOLOv9 (detect + segment) · T5 (HuggingFace)                          | `inferences/`                                     |
+| AI       | Python · PyTorch · YOLOv9 (detect + segment) · T5/rule caption                          | `inferences/`                                     |
 | Đóng gói | Docker Compose                                                                           | `web/docker-compose.yml`                          |
 
 ---
@@ -65,7 +65,7 @@ Trình duyệt :3001 ──► frontend (Next.js)
                           │                             ▲
                           │ đẩy task nặng               │ ghi kết quả
                           ▼                             │
-                     redis :6380 ──► worker (Celery + GPU) ──► inferences/ (YOLOv9 + T5)
+                     redis :6380 ──► worker (Celery + GPU) ──► inferences/ (YOLOv9 + T5/rule)
 ```
 
 | Service    | Vai trò                   | Port trên máy bạn               |
@@ -87,7 +87,7 @@ Bác sĩ upload ảnh + thông tin bệnh nhân
   → Django tạo Case + Image (status = queued), đẩy task vào Celery, trả về ngay
   → Màn hình Processing poll trạng thái mỗi 2 giây
   → Worker chạy YOLOv9 (phát hiện viêm lợi + mask răng) → ghép răng ↔ vùng viêm
-    → T5 sinh mô tả lâm sàng → lưu box/mask/caption/ảnh annotated vào DB
+    → backend T5/rule sinh mô tả lâm sàng → lưu box/mask/caption/ảnh annotated vào DB
   → Bác sĩ xem kết quả, sửa box & caption (bản AI gốc KHÔNG bị ghi đè)
   → Xuất ZIP (ảnh annotated + nhãn YOLO + caption)
 ```

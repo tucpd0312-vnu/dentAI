@@ -169,12 +169,12 @@ def confidence_gate(
     threshold: float = CONFIDENCE_THRESHOLD,
 ) -> Tuple[bool, str]:
     """
-    Checks whether the Hungarian matching result is reliable enough to feed T5.
+    Checks whether the Hungarian matching result is reliable enough to generate a caption.
 
     Returns:
         (ok, warning)
-        ok=True  → proceed to T5 caption generation
-        ok=False → surface warning, do NOT call T5
+        ok=True  → proceed to caption generation
+        ok=False → surface warning, do NOT call the caption backend
     """
     if not matches:
         return False, "Low confidence: no tooth-disease matches found — retake photo or perform clinical exam."

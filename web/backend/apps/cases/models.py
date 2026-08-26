@@ -130,7 +130,7 @@ class Mask(models.Model):
 
 class Caption(models.Model):
     image = models.OneToOneField(Image, on_delete=models.CASCADE, related_name="caption")
-    ai_text = models.TextField()         # T5 output — KHÔNG bao giờ ghi đè
+    ai_text = models.TextField()         # Caption AI/rule gốc — KHÔNG bao giờ ghi đè
     edited_text = models.TextField(blank=True, null=True)
     is_edited = models.BooleanField(default=False)
     updated_at = models.DateTimeField(auto_now=True)

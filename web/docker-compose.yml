@@ -118,6 +118,9 @@ services:
       INFERENCE_DEVICE: "0"            # đổi "cpu" nếu không có GPU
       INFERENCES_DIR:   /inferences
       YOLOV9_DIR:       /yolov9
+      CAPTION_MODE:     ${CAPTION_MODE:-auto}
+      T5_MODEL_DIR:     ${T5_MODEL_DIR:-/inferences/t5_training/t5_gingivitis_model}
+      T5_DEVICE:        ${T5_DEVICE:-auto}
     volumes:
       - ./backend:/app
       - ./media:/app/media

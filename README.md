@@ -16,8 +16,8 @@ Thay vì phân loại nhị phân toàn ảnh (có/không viêm lợi), dentAI *
 từng răng** theo thang **Modified Gingival Index (MGI 0–4)** trên 12 răng cửa
 (hàm trên: 13, 12, 11, 21, 22, 23; hàm dưới: 43, 42, 41, 31, 32, 33 — ký hiệu FDI).
 
-Kết quả từng răng được biểu diễn dưới dạng **chuỗi cấu trúc**, rồi mới đưa qua mô hình ngôn ngữ
-để sinh mô tả lâm sàng (**structured-to-text**), thay vì sinh caption trực tiếp từ ảnh
+Kết quả từng răng được biểu diễn dưới dạng **chuỗi cấu trúc**, rồi đưa qua backend T5 hoặc
+bộ luật dự phòng để sinh mô tả lâm sàng (**structured-to-text**), thay vì sinh caption trực tiếp từ ảnh
 (image-to-text). Nhờ vậy mô tả lâm sàng luôn **truy vết được tới từng răng** và **giảm đáng kể
 hallucination**.
 
@@ -41,7 +41,7 @@ Tooth–Disease Matching  (ghép vùng viêm ↔ răng)
 Confidence gate (ngưỡng 0.5)
     ├── FAIL → cảnh báo độ tin cậy thấp, đề nghị chụp lại / khám lâm sàng
     └── PASS ↓
-[T5]  seq2seq — sinh mô tả lâm sàng
+[Caption backend]  auto: T5 khi có checkpoint, nếu không dùng bộ luật
     Input:  "Tooth gingivitis levels: 2, 1, 0, 1, 2, 0, 3, 2, 1, 0, 1, 2"
     Output: mô tả lâm sàng bằng ngôn ngữ tự nhiên
     ↓
@@ -55,7 +55,7 @@ Confidence gate (ngưỡng 0.5)
 | `inferences/main.py` | Orchestrator toàn pipeline, entry point |
 | `inferences/get_image.py` | `get_mask` / `get_roi` / `get_box` / `draw_box_on_mask` |
 | `inferences/matching.py` | Hungarian matching + confidence gate |
-| `inferences/get_caption.py` | Load T5, build input, sinh caption (beam search width=5) |
+| `inferences/get_caption.py` | Build input, tự chọn T5 hoặc caption theo luật |
 | `inferences/detect_dual_custom.py` | Wrapper YOLOv9 detection |
 | `inferences/evaluate_captions.py` | Đánh giá caption: BLEU-1→4, ROUGE-L, METEOR |
 | `inferences/models/` | Trọng số: `best_vqt.pt`, `best_vl.pt`, `best_seg.pt` |
@@ -65,7 +65,9 @@ Confidence gate (ngưỡng 0.5)
 
 - Thứ tự răng trong chuỗi T5: `13, 12, 11, 21, 22, 23, 43, 42, 41, 31, 32, 33`
   (hàm trên phải→trái, hàm dưới phải→trái). Răng không ghép được → mặc định MGI `0`.
-- Sinh caption tất định: `num_beams=5`, `do_sample=False`.
+- Backend T5 sinh caption tất định: `num_beams=5`, `do_sample=False`.
+- `CAPTION_MODE=auto` (mặc định) chỉ nạp T5 khi checkpoint đầy đủ; nếu thiếu hoặc lỗi thì
+  tự chuyển sang caption theo luật và pipeline vẫn hoàn thành.
 - Khoảng cách tâm luôn được chuẩn hoá theo kích thước ảnh để không phụ thuộc độ phân giải.
 
 ### 1.5. Đánh giá
@@ -163,7 +165,8 @@ GET/PATCH /api/settings/                          # Ngưỡng confidence
 - **Detection** — box viêm lợi: `tooth_fdi`, `mgi_level` (0–4), toạ độ YOLO normalized,
   `source` (`ai` / `doctor`), `is_modified`, `is_deleted` (soft delete), `match_score`.
 - **Mask** — polygon răng (chỉ hiển thị, không chỉnh sửa).
-- **Caption** — `ai_text` (bản gốc T5, không bao giờ ghi đè) và `edited_text` (bản bác sĩ sửa).
+- **Caption** — `ai_text` (bản gốc do T5/rule sinh, không bao giờ ghi đè) và
+  `edited_text` (bản bác sĩ sửa).
 
 ---
 
@@ -176,15 +179,16 @@ GET/PATCH /api/settings/                          # Ngưỡng confidence
   (có thể chạy CPU nhưng rất chậm).
 - **Conda** (Miniconda/Anaconda) — dùng cho worker chạy trực tiếp trên host (khuyến nghị,
   vì worker cần truy cập GPU và trọng số mô hình).
-- Trọng số mô hình đã đặt sẵn tại `inferences/models/` và `inferences/t5_training/`
-  (không được commit vào git — copy thủ công).
+- Trọng số YOLO đã đặt tại `inferences/models/`. Checkpoint T5 trong
+  `inferences/t5_training/t5_gingivitis_model/` là tuỳ chọn khi dùng `CAPTION_MODE=auto`
+  (trọng số không được commit vào git — copy thủ công).
 - Mã nguồn YOLOv9 tại `yolov9/` ở thư mục gốc project.
 
 Kiểm tra trước khi chạy:
 
 ```bash
 ls inferences/models/            # best_vqt.pt  best_vl.pt  best_seg.pt
-ls inferences/t5_training/t5_gingivitis_model/
+ls inferences/t5_training/t5_gingivitis_model/  # T5 cần model.safetensors hoặc pytorch_model.bin
 ls yolov9/                       # repo YOLOv9 (nếu chưa có thì clone từ github <https://github.com/ultralytics/yolov9>)
 ```
 
@@ -232,6 +236,8 @@ export MEDIA_ROOT=$(cd .. && pwd)/media
 export INFERENCES_DIR=$(cd ../.. && pwd)/inferences
 export YOLOV9_DIR=$(cd ../.. && pwd)/yolov9
 export INFERENCE_DEVICE=0        # "cpu" nếu không có GPU
+export CAPTION_MODE=auto         # tự dùng T5 nếu checkpoint đầy đủ, nếu không dùng rule
+export T5_DEVICE=auto            # hoặc cpu / cuda / cuda:0
 
 celery -A config.celery worker --loglevel=info --concurrency=1 -Q inference
 ```
@@ -259,6 +265,9 @@ Image worker tự cài PyTorch CUDA theo `requirements.worker.txt`;
 | `INFERENCES_DIR` | `/inferences` | Đường dẫn pipeline AI |
 | `YOLOV9_DIR` | `/yolov9` | Đường dẫn mã nguồn YOLOv9 |
 | `INFERENCE_DEVICE` | `cpu` | `0` = GPU đầu tiên, `cpu` = CPU |
+| `CAPTION_MODE` | `auto` | `auto` = T5 nếu có, fallback rule; hoặc ép `rule` / `t5` |
+| `T5_MODEL_DIR` | `inferences/t5_training/t5_gingivitis_model` | Thư mục checkpoint HuggingFace T5 |
+| `T5_DEVICE` | `auto` | `auto`, `cpu`, `cuda`, `cuda:0` hoặc số GPU |
 | `NEXT_PUBLIC_API_URL` | `http://backend:8000` | Frontend proxy tới backend |
 | `SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS` | dev defaults | Cấu hình Django |
 
@@ -293,7 +302,8 @@ docker compose exec backend python manage.py export_labels --out /app/media/labe
 | Triệu chứng | Nguyên nhân / cách xử lý |
 |-------------|--------------------------|
 | Ảnh mãi ở trạng thái `queued` | Worker chưa chạy, hoặc trỏ sai `CELERY_BROKER_URL` (nhớ cổng 6380 khi chạy trên host) |
-| Worker báo `FileNotFoundError` trọng số | Thiếu file trong `inferences/models/` hoặc `INFERENCES_DIR` sai |
+| Worker báo `FileNotFoundError` trọng số YOLO | Thiếu file trong `inferences/models/` hoặc `INFERENCES_DIR` sai |
+| Log báo thiếu trọng số T5 | Với `CAPTION_MODE=auto`, đây là cảnh báo và hệ thống dùng rule. Muốn dùng T5, chép `model.safetensors` hoặc `pytorch_model.bin` vào `T5_MODEL_DIR` rồi restart worker |
 | `CUDA out of memory` | Đặt `INFERENCE_DEVICE=cpu`, hoặc giữ `--concurrency=1` |
 | Frontend gọi API lỗi 502 | Backend chưa sẵn sàng — kiểm tra `docker compose logs backend` |
 | Ảnh annotated không hiển thị | `MEDIA_ROOT` của worker và backend phải trỏ cùng thư mục `web/media` |

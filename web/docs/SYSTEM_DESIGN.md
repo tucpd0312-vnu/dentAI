@@ -35,7 +35,7 @@ nằm ngoài phạm vi tài liệu này:
 
 | Thành phần | Vị trí | Vai trò |
 |---|---|---|
-| Pipeline suy luận | `../inferences/` | YOLOv9 (ROI → detection → segmentation) + T5 sinh caption |
+| Pipeline suy luận | `../inferences/` | YOLOv9 (ROI → detection → segmentation) + caption lai T5/rule |
 | FALC | `../falc/` | Continual learning từ phản hồi bác sĩ sau triển khai |
 | YOLOv9 | `../yolov9/` | Mã nguồn mô hình |
 
@@ -80,7 +80,7 @@ graph TB
     end
 
     subgraph ro["Mount chỉ đọc (ngoài web/)"]
-        INF["../inferences/<br/>YOLOv9 + T5"]
+        INF["../inferences/<br/>YOLOv9 + T5/rule"]
         FALC["../falc/<br/>FeedbackStore"]
         YOLO["../yolov9/"]
     end
@@ -104,7 +104,7 @@ graph TB
 
 ### 2.2 Nguyên tắc kiến trúc
 
-1. **Suy luận chạy bất đồng bộ.** Pipeline YOLOv9 + T5 mất vài giây tới vài chục giây mỗi
+1. **Suy luận chạy bất đồng bộ.** Pipeline YOLOv9 + caption mất vài giây tới vài chục giây mỗi
    ảnh. Request HTTP trả về ngay sau khi tạo bản ghi, việc nặng đẩy sang Celery.
 2. **Worker xử lý tuần tự** (`--concurrency=1`). Hai mô hình đều nặng; chạy song song trên
    một GPU dễ OOM.
@@ -298,7 +298,7 @@ erDiagram
     CAPTION {
         int id PK
         int image_id FK UK
-        text ai_text "T5 output - BẤT BIẾN"
+        text ai_text "AI/rule output - BẤT BIẾN"
         text edited_text
         bool is_edited
     }
@@ -585,9 +585,9 @@ sequenceDiagram
     WK->>AI: Hungarian matching + cổng tin cậy
     alt điểm ghép cao nhất < ngưỡng
         WK->>DB: Image.status = low_confidence
-        Note over WK: KHÔNG gọi T5 — chặn lan truyền kết quả không chắc chắn
+        Note over WK: KHÔNG gọi caption backend — chặn lan truyền kết quả không chắc chắn
     else đạt ngưỡng
-        WK->>AI: T5 sinh mô tả lâm sàng
+        WK->>AI: Caption backend tự chọn T5 hoặc rule
         WK->>DB: Detection + Mask + Caption
         WK->>DB: Image.status = done
     end
