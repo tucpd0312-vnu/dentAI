@@ -28,11 +28,11 @@ const NAV: NavEntry[] = [
   { href: '/dashboard', icon: 'dashboard', label: 'Tổng quan', prefix: '/dashboard' },
   {
     label: 'AI chẩn đoán lâm sàng',
-    icon: 'neurology',
+    icon: 'auto_awesome',
     children: [
-      { href: '/analysis/new', icon: 'add_circle', label: 'Chẩn đoán viêm lợi', prefix: '/analysis' },
-      { href: '/scans',        icon: 'view_in_ar', label: 'Răng nanh ngầm 3D',  prefix: '/scans',  roles: ['admin', 'doctor'] },
-      { href: '/plaque',       icon: 'dentistry',  label: 'Mảng bám niềng răng', prefix: '/plaque', roles: ['admin', 'doctor'] },
+      { href: '/analysis/new', icon: 'oral_disease', label: 'Chẩn đoán viêm lợi',  prefix: '/analysis' },
+      { href: '/scans',        icon: 'radiology',    label: 'Răng nanh ngầm 3D',   prefix: '/scans',  roles: ['admin', 'doctor'] },
+      { href: '/plaque',       icon: 'dentistry',    label: 'Mảng bám niềng răng', prefix: '/plaque', roles: ['admin', 'doctor'] },
     ],
   },
   { href: '/users',      icon: 'group',        label: 'Quản lý người dùng', prefix: '/users',      roles: ['admin'] },
