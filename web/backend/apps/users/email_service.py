@@ -27,6 +27,12 @@ def send_otp_email(user, code: str, purpose: str) -> None:
             f"Trân trọng,\nDentAI Team"
         )
 
+    # Debug: in OTP ra console để developer thấy ngay khi chưa cấu hình SMTP thật
+    print(f"\n{'='*50}")
+    print(f"  Mã xác thực email của bạn là: {code}")
+    print(f"  Gửi đến: {user.email}")
+    print(f"{'='*50}\n")
+
     threading.Thread(
         target=_send,
         args=(subject, body, user.email),

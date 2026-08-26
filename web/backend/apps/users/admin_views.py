@@ -146,10 +146,17 @@ class UserDetailView(APIView):
         downgraded = 0
         if updated.role == Role.PATIENT:
             from apps.cases.models import CaseShare
+            from apps.scans.models import ScanShare
 
             downgraded = CaseShare.objects.filter(
                 shared_with=updated, permission=CaseShare.Permission.EDIT
             ).update(permission=CaseShare.Permission.VIEW)
+            # CBCT có thể tái tạo khuôn mặt và module RNNHT không mở cho bệnh nhân.
+            # Thu hồi hoàn toàn để việc nâng vai trò về sau không làm sống lại quyền cũ.
+            revoked_scan_shares = ScanShare.objects.filter(shared_with=updated).count()
+            ScanShare.objects.filter(shared_with=updated).delete()
+        else:
+            revoked_scan_shares = 0
 
         after = AdminUserSerializer(updated).data
         changes = diff_fields(before, after)
@@ -164,6 +171,8 @@ class UserDetailView(APIView):
 
         if downgraded:
             changes["shares_downgraded_to_view"] = downgraded
+        if revoked_scan_shares:
+            changes["scan_shares_revoked"] = revoked_scan_shares
 
         log_activity(
             LogCategory.ADMIN, action,

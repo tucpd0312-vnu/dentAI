@@ -28,7 +28,7 @@ const NAV: NavEntry[] = [
   { href: '/dashboard', icon: 'dashboard', label: 'Tổng quan', prefix: '/dashboard' },
   // Nhóm "AI": nơi CHẠY một lượt chẩn đoán. Nơi XEM lại dữ liệu đã có nằm ở nhóm "Lưu trữ".
   {
-    label: 'AI chẩn đoán lâm sàng',
+    label: 'AI hỗ trợ chẩn đoán lâm sàng',
     icon: 'auto_awesome',
     children: [
       { href: '/analysis/new', icon: 'oral_disease', label: 'Chẩn đoán viêm lợi',      prefix: '/analysis' },

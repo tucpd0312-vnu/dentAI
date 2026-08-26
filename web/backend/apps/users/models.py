@@ -122,6 +122,8 @@ class LogAction(models.TextChoices):
     SCAN_DOWNLOADED = "scan_downloaded", "Phim đã được tải về máy"
     SCAN_DELETE = "scan_delete", "Xoá phim"
     SEGMENTATION_UPLOAD = "segmentation_upload", "Nộp kết quả phân vùng"
+    SCAN_SHARE = "scan_share", "Chia sẻ phim"
+    SCAN_UNSHARE = "scan_unshare", "Thu hồi chia sẻ phim"
     # ── business: kho dữ liệu ────────────────────────────────────────────────
     ASSET_UPLOAD = "asset_upload", "Tải dữ liệu lên kho"
     ASSET_DOWNLOAD = "asset_download", "Tải dữ liệu từ kho"

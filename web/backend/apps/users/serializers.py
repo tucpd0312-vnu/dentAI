@@ -124,6 +124,26 @@ class ResendOTPSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
 
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    code = serializers.RegexField(r"^\d{6}$", max_length=6, min_length=6)
+    password = serializers.CharField(
+        write_only=True, min_length=8, validators=[_validate_password]
+    )
+    confirm_password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        if data["password"] != data["confirm_password"]:
+            raise serializers.ValidationError(
+                {"confirm_password": "Mật khẩu xác nhận không khớp."}
+            )
+        return data
+
+
 class UserSerializer(serializers.ModelSerializer):
     """Hồ sơ của chính người đang đăng nhập (`/auth/me/`).
 

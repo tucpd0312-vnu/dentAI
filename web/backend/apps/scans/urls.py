@@ -1,8 +1,12 @@
 from django.urls import re_path
 
-from . import views
+from . import share_views, views
 
 urlpatterns = [
+    re_path(
+        r"^downloads/slicer-bridge/?$", views.SlicerBridgeDownloadView.as_view(),
+        name="slicer-bridge-download",
+    ),
     # "download/{token}" phải đứng TRƯỚC pattern `(?P<pk>\d+)` cho rõ ý định — token
     # không phải số nên không thực sự đụng nhau, nhưng giữ đúng quy ước cases/urls.py.
     re_path(
@@ -10,6 +14,10 @@ urlpatterns = [
         views.ScanDownloadView.as_view(), name="scan-download",
     ),
     re_path(r"^scans/?$", views.ScanListView.as_view(), name="scan-list"),
+    re_path(
+        r"^scans/shared-with-me/?$", share_views.ScansSharedWithMeView.as_view(),
+        name="scans-shared-with-me",
+    ),
     # ── Chunked upload (§4.2) ──────────────────────────────────────────────────
     re_path(
         r"^scans/uploads/?$", views.ScanUploadInitView.as_view(), name="scan-upload-init",
@@ -27,6 +35,14 @@ urlpatterns = [
         views.ScanUploadStatusView.as_view(), name="scan-upload-status",
     ),
     re_path(r"^scans/(?P<pk>\d+)/?$", views.ScanDetailView.as_view(), name="scan-detail"),
+    re_path(
+        r"^scans/(?P<scan_id>\d+)/shares/?$",
+        share_views.ScanShareListCreateView.as_view(), name="scan-share-list",
+    ),
+    re_path(
+        r"^scan-shares/(?P<share_id>\d+)/?$",
+        share_views.ScanShareDetailView.as_view(), name="scan-share-detail",
+    ),
     re_path(r"^scans/(?P<pk>\d+)/status/?$", views.ScanStatusView.as_view(), name="scan-status"),
     re_path(
         r"^scans/(?P<pk>\d+)/preview/(?P<index>\d+)/?$",

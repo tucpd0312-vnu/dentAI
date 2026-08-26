@@ -130,7 +130,14 @@ def get_roi(weights, image_path, temp_output_dir, imgsz=640, conf_thres=0.25, io
 
     # Tạo roi_xywh đã sắp xếp
     roi_xywh = []
+    saved_classes = set()
+    roi_idx = 0
     for _, (x, y, w, h, class_id) in roi_with_y:
+        # Nếu class đã lưu rồi, bỏ qua (tránh duplicate)
+        if class_id in saved_classes:
+            continue
+        saved_classes.add(class_id)
+
         roi_xywh.append((x, y, w, h))
         
         # Tính tọa độ để cắt ảnh (clamp để không âm hoặc vượt kích thước ảnh)
@@ -139,11 +146,12 @@ def get_roi(weights, image_path, temp_output_dir, imgsz=640, conf_thres=0.25, io
         x2 = min(w_img, int(x + w/2))
         y2 = min(h_img, int(y + h/2))
 
-        # Cắt ảnh
+        # Cắt ảnh — dùng index để LoadImages đọc đúng thứ tự
         roi_image = image[y1:y2, x1:x2]
         
-        temp_image_path = os.path.join(temp_output_dir, f'roi_image_{class_id}.jpg')
+        temp_image_path = os.path.join(temp_output_dir, f'roi_{roi_idx:02d}.jpg')
         cv2.imwrite(temp_image_path, roi_image)
+        roi_idx += 1
 
     return roi_xywh, temp_output_dir
 
@@ -179,6 +187,8 @@ def get_box(weights, image_path, image_folder, roi_xywh, imgsz=640, conf_thres=0
     # print(roi_xywh)
     # Duyệt qua từng ROI
     for roi_idx, roi in enumerate(roi_xywh):
+        if roi_idx >= len(all_boxes_img):
+            break
         roi_x, roi_y, roi_w, roi_h = roi  # Đã là tọa độ pixel trong ảnh gốc
         
         for box in all_boxes_img[roi_idx]:

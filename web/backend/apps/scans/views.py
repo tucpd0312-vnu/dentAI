@@ -1,6 +1,8 @@
 import hashlib
+import io
 import os
 import secrets
+import zipfile
 from datetime import timedelta
 from urllib.parse import urlencode
 from uuid import uuid4
@@ -24,7 +26,7 @@ from apps.users.admin_serializers import ActivityLogSerializer
 from apps.users.models import ActivityLog, LogAction, LogCategory
 from apps.users.permissions import IsActiveUser, IsAdminOrDoctor
 
-from .access import can_view_scan, scoped_scans
+from .access import can_contribute_scan, can_manage_scan, scoped_scans
 from .models import Scan, ScanAccessToken, Segmentation
 from .serializers import (
     ScanDetailSerializer,
@@ -43,7 +45,7 @@ def _get_uploading_scan(request, pk):
     ước 404-thay-403 toàn dự án; KHÔNG lọc theo `is_deleted` qua `scoped_scans()` vì
     phim đang upload luôn chưa từng bị xoá."""
     scan = get_object_or_404(Scan.objects.select_related("patient"), pk=pk)
-    if not can_view_scan(request.user, scan):
+    if not can_manage_scan(request.user, scan):
         raise Http404
     return scan
 
@@ -52,6 +54,45 @@ class ScanPagination(PageNumberPagination):
     page_size = 20
     page_size_query_param = "page_size"
     max_page_size = 100
+
+
+class SlicerBridgeDownloadView(APIView):
+    """Đóng gói bridge từ nguồn hiện hành để trang web luôn tải đúng phiên bản.
+
+    Danh sách file cố định, không nhận đường dẫn từ request nên không có traversal.
+    Gói này không chứa dữ liệu y tế và có thể tải trước khi đăng nhập.
+    """
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    FILES = (
+        "README.md",
+        "open_scan.py",
+        "install_windows.ps1",
+        "install_linux.sh",
+        "install_macos.sh",
+    )
+
+    def get(self, request):
+        root = settings.SLICER_BRIDGE_ROOT
+        paths = [(name, os.path.join(root, name)) for name in self.FILES]
+        if any(not os.path.isfile(path) for _, path in paths):
+            return Response(
+                {"detail": "Gói DentAI Slicer Bridge chưa được cấu hình trên server."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+            for name, path in paths:
+                bundle.write(path, arcname=f"dentai-slicer-bridge/{name}")
+        archive.seek(0)
+        return FileResponse(
+            archive,
+            as_attachment=True,
+            filename="dentai-slicer-bridge.zip",
+            content_type="application/zip",
+        )
 
 
 class ScanListView(APIView):
@@ -76,7 +117,9 @@ class ScanListView(APIView):
 
         paginator = ScanPagination()
         page = paginator.paginate_queryset(qs, request, view=self)
-        return paginator.get_paginated_response(ScanListSerializer(page, many=True).data)
+        return paginator.get_paginated_response(
+            ScanListSerializer(page, many=True, context={"request": request}).data
+        )
 
 
 class ScanUploadInitView(APIView):
@@ -215,13 +258,15 @@ class ScanDetailView(APIView):
         # Ngoài phạm vi → 404, không phải 403 — cùng quy ước apps.cases (§9 CLAUDE.md):
         # 403 vô tình xác nhận phim đó tồn tại, rò rỉ thông tin với dữ liệu y tế.
         scan = get_object_or_404(scoped_scans(request.user), pk=pk)
-        return Response(ScanDetailSerializer(scan).data)
+        return Response(ScanDetailSerializer(scan, context={"request": request}).data)
 
     def delete(self, request, pk):
         """Xoá mềm — giữ vết cho ActivityLog/Segmentation đã tạo. KHÔNG xoá file vật
         lý (SCANS_ROOT/{pk}/): chưa có endpoint restore nên đây gần như vĩnh viễn về
         mặt hiển thị, nhưng dọn đĩa là việc vận hành riêng, không tự ý làm ở đây."""
         scan = get_object_or_404(scoped_scans(request.user), pk=pk)
+        if not can_manage_scan(request.user, scan):
+            raise Http404
         scan.soft_delete()
         log_activity(
             LogCategory.BUSINESS, LogAction.SCAN_DELETE,
@@ -360,6 +405,11 @@ class ScanSegmentationListCreateView(APIView):
 
     def post(self, request, pk):
         scan = get_object_or_404(scoped_scans(request.user), pk=pk)
+        if not can_contribute_scan(request.user, scan):
+            return Response(
+                {"detail": "Bạn chỉ có quyền xem phim này."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         ser = SegmentationUploadSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         d = ser.validated_data
@@ -418,6 +468,8 @@ class ScanActivityLogView(APIView):
 
     def get(self, request, pk):
         scan = get_object_or_404(scoped_scans(request.user), pk=pk)
+        if not can_manage_scan(request.user, scan):
+            raise Http404
         logs = (
             ActivityLog.objects.filter(target_scan=scan)
             .select_related("actor", "target_user")
