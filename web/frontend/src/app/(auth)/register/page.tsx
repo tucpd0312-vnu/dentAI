@@ -70,6 +70,8 @@ export default function RegisterPage() {
     organization: '',
     note: '',
   });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -279,30 +281,60 @@ export default function RegisterPage() {
 
         <div>
           <label className="mb-1.5 block text-xs font-medium text-gray-600">Mật khẩu</label>
-          <input
-            type="password"
-            value={form.password}
-            onChange={e => update('password', e.target.value)}
-            placeholder="Tối thiểu 8 ký tự"
-            required
-            disabled={submitting}
-            className={inputCls}
-          />
+          <div className="relative">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={form.password}
+              onChange={e => update('password', e.target.value)}
+              placeholder="Tối thiểu 8 ký tự"
+              required
+              minLength={8}
+              disabled={submitting}
+              className={`${inputCls} pr-10`}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(value => !value)}
+              disabled={submitting}
+              aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+              title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:opacity-40"
+            >
+              <span className="material-symbols-outlined block text-[19px]">
+                {showPassword ? 'visibility_off' : 'visibility'}
+              </span>
+            </button>
+          </div>
         </div>
 
         <div>
           <label className="mb-1.5 block text-xs font-medium text-gray-600">
             Xác nhận mật khẩu
           </label>
-          <input
-            type="password"
-            value={form.confirmPassword}
-            onChange={e => update('confirmPassword', e.target.value)}
-            placeholder="Nhập lại mật khẩu"
-            required
-            disabled={submitting}
-            className={inputCls}
-          />
+          <div className="relative">
+            <input
+              type={showConfirmPassword ? 'text' : 'password'}
+              value={form.confirmPassword}
+              onChange={e => update('confirmPassword', e.target.value)}
+              placeholder="Nhập lại mật khẩu"
+              required
+              minLength={8}
+              disabled={submitting}
+              className={`${inputCls} pr-10`}
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword(value => !value)}
+              disabled={submitting}
+              aria-label={showConfirmPassword ? 'Ẩn mật khẩu xác nhận' : 'Hiện mật khẩu xác nhận'}
+              title={showConfirmPassword ? 'Ẩn mật khẩu xác nhận' : 'Hiện mật khẩu xác nhận'}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:opacity-40"
+            >
+              <span className="material-symbols-outlined block text-[19px]">
+                {showConfirmPassword ? 'visibility_off' : 'visibility'}
+              </span>
+            </button>
+          </div>
         </div>
 
         <p className="text-xs text-gray-400">
