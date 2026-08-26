@@ -16,6 +16,7 @@ function getTitle(pathname: string): string {
   if (pathname === '/scans/new') return 'Tải phim CBCT';
   if (/^\/scans\/[^/]+/.test(pathname)) return 'Chi tiết phim CBCT';
   if (pathname.startsWith('/scans')) return 'Răng nanh ngầm 3D';
+  if (pathname.startsWith('/plaque')) return 'Mảng bám niềng răng';
   if (pathname.startsWith('/users')) return 'Quản lý người dùng';
   if (pathname.startsWith('/system-log')) return 'Lịch sử hệ thống';
   if (pathname.startsWith('/settings')) return 'Cài đặt';

@@ -1,37 +1,8 @@
-# Quy tắc code — dentAI
-
-> Đọc 10 phút, dùng cả Phase 2.
-> **Mục 8 là bảng kiểm trước khi gửi PR** — chỉ cần nhớ mục đó là tránh được 80% lỗi bị trả lại.
+#. Coding rules
 
 ---
 
-## 0. Nguyên tắc chung
-
-**1. Bắt chước code có sẵn.** Mở một file cùng loại ra xem rồi viết giống vậy. Đừng mang phong cách
-từ dự án khác vào.
-
-**2. Đang làm tính năng thì đừng đổi kiến trúc.** Muốn thêm ViewSet, React Query, đổi cách quản lý
-state → nói trong nhóm trước.
-
-**3. Ngôn ngữ:** chữ người dùng nhìn thấy (nút bấm, message lỗi API) → **tiếng Việt có dấu**.
-Tên biến, hàm, file, commit, comment → **tiếng Anh**.
-
-**4. Comment nói *vì sao*, không nói *cái gì*.** Code đã nói nó làm gì rồi.
-
-```python
-# ĐÚNG
-# source stays 'ai' when a doctor edits an AI box; this flag records the edit
-is_modified = models.BooleanField(default=False)
-
-# SAI — nhắc lại điều code đã nói
-# Trường boolean đánh dấu đã sửa
-is_modified = models.BooleanField(default=False)
-```
-
----
-
-## 1. Stack đang dùng
-
+## 1. Stack
 | Tầng        | Công nghệ                            | Ghi chú                                       |
 | ----------- | ------------------------------------ | --------------------------------------------- |
 | Backend     | Django 4.2 + DRF 3.15                | View kiểu **`APIView`**, không ViewSet/Router |
@@ -498,7 +469,7 @@ docker compose exec frontend npm run build
 
 ---
 
-## 8. Những điều cấm
+## 8. Chú ý
 
 **Backend**
 - Cấm view không khai báo `permission_classes` (mặc định toàn cục là `AllowAny`).
@@ -526,18 +497,3 @@ docker compose exec frontend npm run build
   `docker-compose.override.yml`.
 - Cấm sửa `.env` / cấu hình local của người khác.
 - Cấm đưa dependency mới vào mà không thống nhất trong nhóm.
-
----
-
-## 9. Cảnh báo riêng cho module đào tạo
-
-Điểm số và hồ sơ sinh viên là dữ liệu nhạy cảm. Ba điều tuyệt đối không được quên:
-
-1. **Mọi endpoint phải kiểm tra quyền ở cả hai tầng**: role (`has_permission`) và object
-   (`has_object_permission`). Giảng viên chỉ chạm được môn mình được cấp quyền; sinh viên chỉ
-   thấy dữ liệu của chính mình.
-2. **File nhạy cảm không được serve qua `MEDIA_URL`.** `config/urls.py` đang serve toàn bộ
-   `MEDIA_ROOT` công khai — ai biết URL là tải được. Đề thi, đáp án, hồ sơ bệnh án của sinh viên
-   phải đi qua view có kiểm tra quyền rồi trả `FileResponse`.
-3. **Mọi thay đổi điểm phải để lại vết**: ai sửa, sửa lúc nào, từ giá trị nào sang giá trị nào.
-   Ghi vào bảng lịch sử, không ghi đè.
