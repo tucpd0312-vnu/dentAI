@@ -26,18 +26,28 @@ function isGroup(entry: NavEntry): entry is NavGroup {
 
 const NAV: NavEntry[] = [
   { href: '/dashboard', icon: 'dashboard', label: 'Tổng quan', prefix: '/dashboard' },
+  // Nhóm "AI": nơi CHẠY một lượt chẩn đoán. Nơi XEM lại dữ liệu đã có nằm ở nhóm "Lưu trữ".
   {
     label: 'AI chẩn đoán lâm sàng',
     icon: 'auto_awesome',
     children: [
-      { href: '/analysis/new', icon: 'oral_disease', label: 'Chẩn đoán viêm lợi',  prefix: '/analysis' },
-      { href: '/scans',        icon: 'radiology',    label: 'Răng nanh ngầm 3D',   prefix: '/scans',  roles: ['admin', 'doctor'] },
-      { href: '/plaque',       icon: 'dentistry',    label: 'Mảng bám niềng răng', prefix: '/plaque', roles: ['admin', 'doctor'] },
+      { href: '/analysis/new', icon: 'oral_disease', label: 'Chẩn đoán viêm lợi',      prefix: '/analysis' },
+      { href: '/plaque',       icon: 'dentistry',    label: 'Chẩn đoán mảng bám răng', prefix: '/plaque', roles: ['admin', 'doctor'] },
     ],
   },
-  // Kho dữ liệu mở cho MỌI vai trò (không khai `roles`) — phạm vi dữ liệu do backend
-  // giới hạn qua `apps.library.access.scoped_assets`, không phải bằng việc ẩn mục này.
-  { href: '/library',    icon: 'inventory_2',  label: 'Kho dữ liệu',        prefix: '/library'   },
+  {
+    label: 'Lưu trữ',
+    icon: 'folder',
+    children: [
+      // Kho dữ liệu mở cho MỌI vai trò (không khai `roles`) — phạm vi dữ liệu do backend
+      // giới hạn qua `apps.library.access.scoped_assets`, không phải bằng việc ẩn mục này.
+      { href: '/library',    icon: 'inventory_2',   label: 'Kho dữ liệu',            prefix: '/library'    },
+      { href: '/scans',      icon: 'radiology',     label: 'Phim răng nanh ngầm 3D', prefix: '/scans', roles: ['admin', 'doctor'] },
+      // Phim viêm lợi mở cho mọi vai trò như /analysis — backend cắt phạm vi qua
+      // `apps.cases.access.scoped_cases` (ca của mình + ca được chia sẻ; admin thấy tất cả).
+      { href: '/gingivitis', icon: 'photo_library', label: 'Phim viêm lợi',          prefix: '/gingivitis' },
+    ],
+  },
   { href: '/users',      icon: 'group',        label: 'Quản lý người dùng', prefix: '/users',      roles: ['admin'] },
   { href: '/history',    icon: 'history',      label: 'Lịch sử',            prefix: '/history'   },
   { href: '/system-log', icon: 'receipt_long', label: 'Lịch sử hệ thống',   prefix: '/system-log', roles: ['admin'] },

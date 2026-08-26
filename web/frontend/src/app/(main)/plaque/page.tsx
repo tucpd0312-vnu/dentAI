@@ -3,10 +3,10 @@
 import { useRequireRole } from '@/lib/useRequireRole';
 
 /**
- * Chẩn đoán mảng bám trên bệnh nhân niềng răng.
+ * Chẩn đoán mảng bám răng (bệnh nhân niềng răng).
  *
  * Nội dung để trống có chủ đích: backend chưa có endpoint cho module này,
- * trang chỉ giữ chỗ cho mục "Mảng bám niềng răng" trong nhóm AI chẩn đoán lâm sàng.
+ * trang chỉ giữ chỗ cho mục "Chẩn đoán mảng bám răng" trong nhóm AI chẩn đoán lâm sàng.
  */
 export default function PlaquePage() {
   const { allowed, checking } = useRequireRole(['admin', 'doctor']);
