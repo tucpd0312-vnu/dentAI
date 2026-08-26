@@ -102,8 +102,29 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate(self, data):
-        user = authenticate(username=data["username"], password=data["password"])
+        # API giữ tên field `username` để không phá client cũ, nhưng giá trị có thể
+        # là tên đăng nhập hoặc email. Chuẩn hoá về username thật trước khi gọi
+        # authentication backend mặc định của Django.
+        identifier = data["username"].strip()
+        candidate = User.objects.filter(username__iexact=identifier).first()
+        if candidate is None:
+            candidate = User.objects.filter(email__iexact=identifier).first()
+
+        auth_username = candidate.username if candidate else identifier
+        user = authenticate(username=auth_username, password=data["password"])
         if not user:
+            # ModelBackend loại tài khoản inactive ngay trong authenticate(). Chỉ
+            # hiện hướng dẫn kích hoạt khi chính mật khẩu cũng đúng; như vậy không
+            # làm lộ trạng thái tài khoản cho người không biết mật khẩu.
+            if (
+                candidate
+                and not candidate.is_deleted
+                and not candidate.is_active
+                and candidate.check_password(data["password"])
+            ):
+                raise serializers.ValidationError(
+                    "Tài khoản chưa được kích hoạt. Vui lòng xác thực email."
+                )
             raise serializers.ValidationError("Tên đăng nhập hoặc mật khẩu không đúng.")
         # Tài khoản đã xoá mềm: trả về đúng thông điệp như khi sai mật khẩu, không
         # tiết lộ rằng username đó từng tồn tại.

@@ -71,12 +71,14 @@ export default function LoginPage() {
         )}
 
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1.5">Tên đăng nhập</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1.5">
+            Tên đăng nhập hoặc email
+          </label>
           <input
             type="text"
             value={username}
             onChange={e => setUsername(e.target.value)}
-            placeholder="Nhập tên đăng nhập"
+            placeholder="Nhập tên đăng nhập hoặc email"
             required
             disabled={submitting}
             className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:bg-gray-50 disabled:text-gray-400 transition-colors"

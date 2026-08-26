@@ -3,7 +3,72 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import EmailOTP, Role, User
+from .models import EmailOTP, Role, RoleRequest, User
+
+
+class LoginTests(APITestCase):
+    def setUp(self):
+        self.password = "DoctorPass123"
+        self.user = User.objects.create_user(
+            username="TestDoctor",
+            email="doctor@example.com",
+            password=self.password,
+            role=Role.PATIENT,
+            is_active=True,
+            email_verified=True,
+        )
+
+    def test_login_accepts_username_or_email_case_insensitively(self):
+        for identifier in ("TestDoctor", "testdoctor", "doctor@example.com", "DOCTOR@EXAMPLE.COM"):
+            with self.subTest(identifier=identifier):
+                response = self.client.post(
+                    "/api/auth/login/",
+                    {"username": identifier, "password": self.password},
+                )
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(response.data["user"]["id"], self.user.id)
+
+    def test_doctor_approval_preserves_password_and_email_login(self):
+        password_hash_before = self.user.password
+        admin = User.objects.create_user(
+            username="approval-admin",
+            email="admin@example.com",
+            password="AdminPass123",
+            role=Role.ADMIN,
+            is_active=True,
+            email_verified=True,
+        )
+        request = RoleRequest.objects.create(
+            user=self.user,
+            requested_role=Role.DOCTOR,
+            organization="Dental Clinic",
+        )
+
+        request.approve(admin)
+        self.user.refresh_from_db()
+
+        self.assertEqual(self.user.role, Role.DOCTOR)
+        self.assertEqual(self.user.password, password_hash_before)
+        self.assertTrue(self.user.check_password(self.password))
+
+        response = self.client.post(
+            "/api/auth/login/",
+            {"username": "doctor@example.com", "password": self.password},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["user"]["role"], Role.DOCTOR)
+
+    def test_inactive_user_with_correct_password_gets_activation_message(self):
+        self.user.is_active = False
+        self.user.save(update_fields=["is_active"])
+
+        response = self.client.post(
+            "/api/auth/login/",
+            {"username": self.user.email, "password": self.password},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("chưa được kích hoạt", response.data["non_field_errors"][0])
 
 
 class PasswordResetTests(APITestCase):
