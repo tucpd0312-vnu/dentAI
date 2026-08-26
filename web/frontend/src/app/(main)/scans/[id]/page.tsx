@@ -25,6 +25,7 @@ import {
 } from '@/lib/scans';
 import { apiErrorMessage } from '@/lib/users';
 import { useRequireRole } from '@/lib/useRequireRole';
+import { isSlicerSetupConfirmed } from '@/lib/slicer';
 import ShareModal from '@/components/results/ShareModal';
 
 const POLL_MS = 2000;
@@ -51,6 +52,7 @@ export default function ScanDetailPage() {
   const [openBusy, setOpenBusy] = useState(false);
   const [openError, setOpenError] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [slicerReady, setSlicerReady] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [savingToLibrary, setSavingToLibrary] = useState(false);
   const slicerFallbackTimer = useRef<number | null>(null);
@@ -75,6 +77,10 @@ export default function ScanDetailPage() {
   }, []);
 
   useEffect(() => {
+    setSlicerReady(isSlicerSetupConfirmed());
+  }, []);
+
+  useEffect(() => {
     if (allowed) void load();
   }, [allowed, load]);
 
@@ -94,6 +100,10 @@ export default function ScanDetailPage() {
   }, [scan, id, load]);
 
   async function handleOpenSlicer() {
+    if (!slicerReady) {
+      router.push(`/downloads/3d-slicer/?return=${encodeURIComponent(`/scans/${id}/`)}`);
+      return;
+    }
     setOpenBusy(true);
     setOpenError(null);
     try {
@@ -262,13 +272,36 @@ export default function ScanDetailPage() {
           </Card>
 
           <Card title="Mở trong 3D Slicer">
+            {!slicerReady ? (
+              <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                <div className="flex items-start gap-2">
+                  <span className="material-symbols-outlined mt-0.5 text-[18px]">warning</span>
+                  <div>
+                    <p className="font-semibold">Cần thiết lập trước khi mở phim</p>
+                    <p className="mt-1 leading-relaxed text-amber-700">
+                      Cài 3D Slicer, đăng ký DentAI Slicer Bridge và xác nhận kết quả kiểm tra
+                      trên trang thiết lập.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="mb-3 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
+                <span className="material-symbols-outlined text-[17px]">verified</span>
+                Máy này đã được xác nhận thiết lập Slicer Bridge.
+              </div>
+            )}
             <button
               onClick={handleOpenSlicer}
               disabled={scan.status !== 'ready' || openBusy}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <span className="material-symbols-outlined text-[18px]">view_in_ar</span>
-              {openBusy ? 'Đang gửi lệnh…' : 'Mở phim DICOM'}
+              {openBusy
+                ? 'Đang gửi lệnh…'
+                : slicerReady
+                  ? 'Mở phim DICOM'
+                  : 'Thiết lập 3D Slicer'}
             </button>
             {scan.status !== 'ready' && (
               <p className="mt-1.5 text-[11px] text-gray-400">
@@ -276,6 +309,14 @@ export default function ScanDetailPage() {
               </p>
             )}
             {openError && <p className="mt-1.5 text-xs text-red-600">{openError}</p>}
+            {slicerReady && !openState && (
+              <Link
+                href={`/downloads/3d-slicer/?return=${encodeURIComponent(`/scans/${id}/`)}`}
+                className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-primary underline underline-offset-2"
+              >
+                Kiểm tra hoặc cài đặt lại 3D Slicer
+              </Link>
+            )}
 
             {openState && (
               <div className="mt-3 space-y-1.5 rounded-lg bg-gray-50 p-3 text-xs text-gray-600">

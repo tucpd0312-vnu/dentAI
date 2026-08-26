@@ -2,6 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+
+import {
+  clearSlicerSetupConfirmation,
+  confirmSlicerSetup,
+  isSlicerSetupConfirmed,
+} from '@/lib/slicer';
 
 type DesktopOS = 'windows' | 'macos' | 'linux' | 'unknown';
 
@@ -20,9 +27,11 @@ const INSTALL_COMMAND: Record<DesktopOS, string> = {
 };
 
 export default function SlicerDownloadPage() {
+  const router = useRouter();
   const [os, setOS] = useState<DesktopOS>('unknown');
   const [returnTo, setReturnTo] = useState('/scans/');
   const [testState, setTestState] = useState<'idle' | 'waiting' | 'left' | 'stayed'>('idle');
+  const [confirmed, setConfirmed] = useState(false);
 
   useEffect(() => {
     const platform = `${navigator.userAgent} ${navigator.platform}`.toLowerCase();
@@ -33,7 +42,20 @@ export default function SlicerDownloadPage() {
     const candidate = new URLSearchParams(window.location.search).get('return');
     // Chỉ chấp nhận đường dẫn nội bộ để không biến nút quay lại thành open redirect.
     if (candidate?.startsWith('/') && !candidate.startsWith('//')) setReturnTo(candidate);
+    setConfirmed(isSlicerSetupConfirmed());
   }, []);
+
+  function finishSetup() {
+    confirmSlicerSetup();
+    setConfirmed(true);
+    router.push(returnTo);
+  }
+
+  function resetSetup() {
+    clearSlicerSetupConfirmation();
+    setConfirmed(false);
+    setTestState('idle');
+  }
 
   function testIntegration() {
     setTestState('waiting');
@@ -62,6 +84,39 @@ export default function SlicerDownloadPage() {
           Máy được nhận diện gần đúng là <strong className="text-gray-700">{OS_LABEL[os]}</strong>.
           Hoàn thành hai bước dưới đây một lần trên mỗi máy.
         </p>
+      </div>
+
+      <div
+        className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 ${
+          confirmed
+            ? 'border-green-200 bg-green-50 text-green-800'
+            : 'border-amber-200 bg-amber-50 text-amber-800'
+        }`}
+      >
+        <div className="flex items-center gap-2.5 text-sm">
+          <span className="material-symbols-outlined text-[20px]">
+            {confirmed ? 'verified' : 'warning'}
+          </span>
+          <div>
+            <p className="font-semibold">
+              {confirmed
+                ? 'Máy này đã được xác nhận thiết lập 3D Slicer'
+                : 'Máy này chưa được xác nhận thiết lập 3D Slicer'}
+            </p>
+            <p className="text-xs opacity-80">
+              Trạng thái được lưu riêng trong trình duyệt hiện tại.
+            </p>
+          </div>
+        </div>
+        {confirmed && (
+          <button
+            type="button"
+            onClick={resetSetup}
+            className="text-xs font-medium underline underline-offset-2"
+          >
+            Kiểm tra/cài đặt lại
+          </button>
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -130,7 +185,8 @@ export default function SlicerDownloadPage() {
 
         {testState === 'left' && (
           <p className="mt-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-            Trình duyệt đã chuyển tiêu điểm ra ngoài. Hãy kiểm tra cửa sổ 3D Slicer và hộp thoại HTTP 404.
+            Trình duyệt đã chuyển tiêu điểm ra ngoài. Nếu 3D Slicer đã mở, hãy bấm
+            <strong> Xác nhận đã cài đặt</strong> bên dưới.
           </p>
         )}
         {testState === 'stayed' && (
@@ -150,13 +206,14 @@ export default function SlicerDownloadPage() {
       </section>
 
       <div className="flex justify-end">
-        <Link
-          href={returnTo}
+        <button
+          type="button"
+          onClick={finishSetup}
           className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-600"
         >
-          Tôi đã cài xong · Quay lại phim
+          Xác nhận đã cài đặt · Quay lại phim
           <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-        </Link>
+        </button>
       </div>
     </div>
   );
