@@ -27,7 +27,7 @@ function isGroup(entry: NavEntry): entry is NavGroup {
 const NAV: NavEntry[] = [
   { href: '/dashboard', icon: 'dashboard', label: 'Tổng quan', prefix: '/dashboard' },
   {
-    label: 'AI chẩn đoán lâm sàng',
+    label: 'AI hỗ trợ chẩn đoán lâm sàng',
     icon: 'auto_awesome',
     children: [
       { href: '/analysis/new', icon: 'oral_disease', label: 'Chẩn đoán viêm lợi',  prefix: '/analysis' },

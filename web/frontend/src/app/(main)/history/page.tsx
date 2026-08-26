@@ -6,6 +6,7 @@ import api, { CaseListItem } from '@/lib/api';
 import { useAuth } from '@/components/providers/AuthProvider';
 import {
   fetchScans,
+  fetchScansSharedWithMe,
   SCAN_STATUS_CLASS,
   SCAN_STATUS_LABEL,
   type ScanListItem,
@@ -95,6 +96,7 @@ export default function HistoryPage() {
   const [cases, setCases]           = useState<CaseListItem[]>([]);
   const [shared, setShared]         = useState<CaseListItem[]>([]);
   const [scans, setScans]           = useState<ScanListItem[]>([]);
+  const [sharedScans, setSharedScans] = useState<ScanListItem[]>([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(false);
   const [search, setSearch]         = useState('');
@@ -113,11 +115,13 @@ export default function HistoryPage() {
       api.get<CaseListItem[]>('/cases/'),
       api.get<CaseListItem[]>('/cases/shared-with-me/'),
       canSeeScans ? fetchScans({ pageSize: 100 }) : Promise.resolve(null),
+      canSeeScans ? fetchScansSharedWithMe() : Promise.resolve([]),
     ])
-      .then(([all, sh, sc]) => {
+      .then(([all, sh, sc, shared3d]) => {
         setCases(all.data);
         setShared(sh.data);
         setScans(sc ? sc.results : []);
+        setSharedScans(shared3d);
         setLoading(false);
       })
       .catch(() => { setError(true); setLoading(false); });
@@ -127,11 +131,15 @@ export default function HistoryPage() {
   useEffect(() => { setPage(1); }, [search, status, type, tab]);
 
   const sharedIds = new Set(shared.map(c => c.id));
+  const sharedScanIds = new Set(sharedScans.map(scan => scan.id));
   const mineRows: Row[] = [
     ...cases.filter(c => !sharedIds.has(c.id)).map((c): Row => ({ kind: 'gingivitis', case: c })),
-    ...scans.map((s): Row => ({ kind: 'canine3d', scan: s })),
+    ...scans.filter(scan => !sharedScanIds.has(scan.id)).map((s): Row => ({ kind: 'canine3d', scan: s })),
   ];
-  const sharedRows: Row[] = shared.map((c): Row => ({ kind: 'gingivitis', case: c }));
+  const sharedRows: Row[] = [
+    ...shared.map((c): Row => ({ kind: 'gingivitis', case: c })),
+    ...sharedScans.map((scan): Row => ({ kind: 'canine3d', scan })),
+  ];
 
   const source = (tab === 'shared' ? sharedRows : mineRows)
     .slice()

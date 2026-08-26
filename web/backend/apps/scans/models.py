@@ -80,6 +80,40 @@ class Scan(models.Model):
         self.save(update_fields=["is_deleted", "deleted_at"])
 
 
+class ScanShare(models.Model):
+    """Chia sẻ phim CBCT cho một tài khoản chuyên môn đã có trên hệ thống.
+
+    Không hỗ trợ link công khai. Quyền ``edit`` chỉ cho phép nộp thêm một phiên bản
+    phân vùng; quyền xoá phim và chia sẻ tiếp luôn thuộc chủ sở hữu/admin.
+    """
+
+    class Permission(models.TextChoices):
+        VIEW = "view", "Chỉ xem"
+        EDIT = "edit", "Xem và nộp phân vùng"
+
+    scan = models.ForeignKey(Scan, on_delete=models.CASCADE, related_name="shares")
+    shared_with = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="shared_scans"
+    )
+    shared_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+",
+    )
+    permission = models.CharField(
+        max_length=8, choices=Permission.choices, default=Permission.VIEW
+    )
+    note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("scan", "shared_with")
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Scan #{self.scan_id} → {self.shared_with} ({self.permission})"
+
+
 class ScanAccessToken(models.Model):
     """Vé một lần để 3D Slicer tải phim — Slicer không có phiên JWT của web.
 

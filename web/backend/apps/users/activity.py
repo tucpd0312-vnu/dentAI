@@ -32,6 +32,7 @@ _GINGIVITIS_ACTIONS = frozenset({
 _CANINE3D_ACTIONS = frozenset({
     "scan_upload", "scan_open_requested", "scan_downloaded",
     "scan_delete", "segmentation_upload",
+    "scan_share", "scan_unshare",
 })
 
 

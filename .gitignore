@@ -12,6 +12,9 @@ build/
 develop-eggs/
 dist/
 downloads/
+# Route mã nguồn Next.js, không phải thư mục artifact tải về.
+!web/frontend/src/app/downloads/
+!web/frontend/src/app/downloads/**
 eggs/
 .eggs/
 parts/

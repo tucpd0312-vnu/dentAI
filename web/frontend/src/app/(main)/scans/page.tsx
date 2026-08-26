@@ -101,7 +101,7 @@ export default function ScansPage() {
           <h1 className="font-serif text-xl font-semibold text-gray-900">Răng nanh ngầm 3D</h1>
           <p className="mt-0.5 text-sm text-gray-500">
             {loading ? 'Đang tải…' : `${count} phim CBCT`}
-            {!isAdmin && ' · chỉ hiện phim bạn đã tải lên'}
+            {!isAdmin && ' · gồm phim của bạn và phim được chia sẻ'}
           </p>
         </div>
         <Link
@@ -179,6 +179,11 @@ export default function ScansPage() {
                       <span className="mt-0.5 inline-block rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] text-gray-400">
                         {s.patient.patient_code}
                       </span>
+                      {(s.access_level === 'view' || s.access_level === 'edit') && (
+                        <span className="ml-1.5 inline-block rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600">
+                          Được chia sẻ · {s.access_level === 'edit' ? 'có thể nộp phân vùng' : 'chỉ xem'}
+                        </span>
+                      )}
                     </td>
                     {isAdmin && (
                       <td className="px-4 py-3 text-gray-600">
@@ -213,13 +218,15 @@ export default function ScansPage() {
                         >
                           <span className="material-symbols-outlined text-[18px]">visibility</span>
                         </Link>
-                        <button
-                          onClick={() => handleDelete(s)}
-                          title="Xoá"
-                          className="rounded-lg p-1.5 text-red-500 transition-colors hover:bg-red-50"
-                        >
-                          <span className="material-symbols-outlined text-[18px]">delete</span>
-                        </button>
+                        {s.can_manage_shares && (
+                          <button
+                            onClick={() => handleDelete(s)}
+                            title="Xoá"
+                            className="rounded-lg p-1.5 text-red-500 transition-colors hover:bg-red-50"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">delete</span>
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

@@ -5,11 +5,16 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ROLE_LABEL } from '@/lib/auth';
 import {
   PERMISSION_LABEL,
+  createScanShare,
   createShare,
+  deleteScanShare,
   deleteShare,
+  fetchScanShares,
   fetchShares,
+  updateScanShare,
   updateShare,
   type CaseShare,
+  type ScanShare,
   type SharePermission,
 } from '@/lib/shares';
 import { apiErrorMessage, searchUsers, type UserSuggestion } from '@/lib/users';
@@ -24,16 +29,18 @@ const MIN_QUERY = 2;
  * lạ. Autocomplete trả email đã che một phần (`ngu***@gmail.com`) nên cửa sổ này
  * không dùng để thu thập email nội bộ được.
  */
-export default function ShareModal({
-  caseId,
-  patientName,
-  onClose,
-}: {
-  caseId: number | string;
-  patientName?: string;
-  onClose: () => void;
-}) {
-  const [shares, setShares] = useState<CaseShare[]>([]);
+type ShareModalProps =
+  | { caseId: number | string; scanId?: never; patientName?: string; onClose: () => void }
+  | { scanId: number | string; caseId?: never; patientName?: string; onClose: () => void };
+
+type ShareRecord = CaseShare | ScanShare;
+
+export default function ShareModal(props: ShareModalProps) {
+  const isScan = props.scanId !== undefined;
+  const resourceId = isScan ? props.scanId : props.caseId;
+  const resourceLabel = isScan ? 'phim' : 'ca';
+  const { patientName, onClose } = props;
+  const [shares, setShares] = useState<ShareRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -51,13 +58,13 @@ export default function ShareModal({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setShares(await fetchShares(caseId));
+      setShares(isScan ? await fetchScanShares(resourceId) : await fetchShares(resourceId));
     } catch (err) {
-      setError(apiErrorMessage(err, 'Không tải được danh sách chia sẻ.'));
+      setError(apiErrorMessage(err, `Không tải được danh sách chia sẻ ${resourceLabel}.`));
     } finally {
       setLoading(false);
     }
-  }, [caseId]);
+  }, [isScan, resourceId, resourceLabel]);
 
   useEffect(() => {
     void load();
@@ -80,7 +87,8 @@ export default function ShareModal({
     setSearching(true);
     const t = setTimeout(async () => {
       try {
-        setResults(await searchUsers(q));
+        const users = await searchUsers(q);
+        setResults(isScan ? users.filter(user => user.role !== 'patient') : users);
       } catch {
         setResults([]);
       } finally {
@@ -88,7 +96,7 @@ export default function ShareModal({
       }
     }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [query, picked]);
+  }, [query, picked, isScan]);
 
   // Bệnh nhân không nhận được quyền sửa — backend trả 400, nên tự hạ về 'view'
   // ngay khi chọn để người dùng không phải chạm vào lỗi.
@@ -107,7 +115,8 @@ export default function ShareModal({
     setSaving(true);
     setError(null);
     try {
-      await createShare(caseId, picked.id, permission, note);
+      if (isScan) await createScanShare(resourceId, picked.id, permission, note);
+      else await createShare(resourceId, picked.id, permission, note);
       flash(`Đã chia sẻ cho ${picked.full_name || picked.username}.`);
       setPicked(null);
       setQuery('');
@@ -115,26 +124,28 @@ export default function ShareModal({
       setPermission('view');
       await load();
     } catch (err) {
-      setError(apiErrorMessage(err, 'Không chia sẻ được ca này.'));
+      setError(apiErrorMessage(err, `Không chia sẻ được ${resourceLabel} này.`));
     } finally {
       setSaving(false);
     }
   }
 
-  async function changePermission(share: CaseShare, next: SharePermission) {
+  async function changePermission(share: ShareRecord, next: SharePermission) {
     setError(null);
     try {
-      await updateShare(share.id, next);
+      if (isScan) await updateScanShare(share.id, next);
+      else await updateShare(share.id, next);
       await load();
     } catch (err) {
       setError(apiErrorMessage(err, 'Không đổi được quyền chia sẻ.'));
     }
   }
 
-  async function revoke(share: CaseShare) {
+  async function revoke(share: ShareRecord) {
     setError(null);
     try {
-      await deleteShare(share.id);
+      if (isScan) await deleteScanShare(share.id);
+      else await deleteShare(share.id);
       flash(`Đã thu hồi chia sẻ với ${share.shared_with_username}.`);
       await load();
     } catch (err) {
@@ -148,7 +159,7 @@ export default function ShareModal({
         <div className="flex items-start justify-between border-b border-gray-100 px-5 py-3.5">
           <div>
             <h2 className="font-serif text-[15px] font-semibold text-gray-900">
-              Chia sẻ ca chẩn đoán
+              {isScan ? 'Chia sẻ phim RNNHT 3D' : 'Chia sẻ ca chẩn đoán'}
             </h2>
             {patientName && <p className="text-xs text-gray-500">Bệnh nhân: {patientName}</p>}
           </div>
@@ -266,7 +277,9 @@ export default function ShareModal({
 
                   {!searching && query.trim().length >= MIN_QUERY && results.length === 0 && (
                     <p className="mt-1 text-[11px] text-amber-600">
-                      Không tìm thấy tài khoản nào. Người nhận phải có tài khoản trên hệ thống.
+                      {isScan
+                        ? 'Không tìm thấy bác sĩ hoặc quản trị viên phù hợp.'
+                        : 'Không tìm thấy tài khoản nào. Người nhận phải có tài khoản trên hệ thống.'}
                     </p>
                   )}
                 </>
@@ -297,7 +310,7 @@ export default function ShareModal({
                               : 'border-gray-300 text-gray-600 hover:bg-gray-50'
                           } disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent`}
                         >
-                          {PERMISSION_LABEL[p]}
+                          {isScan && p === 'edit' ? 'Xem và nộp phân vùng' : PERMISSION_LABEL[p]}
                         </button>
                       );
                     })}
@@ -348,7 +361,7 @@ export default function ShareModal({
               </div>
             ) : shares.length === 0 ? (
               <p className="py-3 text-center text-sm text-gray-400">
-                Ca này chưa được chia sẻ với ai.
+                {isScan ? 'Phim này chưa được chia sẻ với ai.' : 'Ca này chưa được chia sẻ với ai.'}
               </p>
             ) : (
               <ul className="space-y-2">
@@ -376,7 +389,7 @@ export default function ShareModal({
                     >
                       <option value="view">{PERMISSION_LABEL.view}</option>
                       <option value="edit" disabled={s.shared_with_role === 'patient'}>
-                        {PERMISSION_LABEL.edit}
+                        {isScan ? 'Xem và nộp phân vùng' : PERMISSION_LABEL.edit}
                       </option>
                     </select>
                     <button

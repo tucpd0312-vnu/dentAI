@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 import type { ActivityLog } from '@/lib/activity';
@@ -23,6 +23,7 @@ import {
 } from '@/lib/scans';
 import { apiErrorMessage } from '@/lib/users';
 import { useRequireRole } from '@/lib/useRequireRole';
+import ShareModal from '@/components/results/ShareModal';
 
 const POLL_MS = 2000;
 
@@ -36,6 +37,7 @@ function fmtDateTime(iso: string | null): string {
 export default function ScanDetailPage() {
   const { allowed, checking } = useRequireRole(['admin', 'doctor']);
   const params = useParams();
+  const router = useRouter();
   const id = params.id as string;
 
   const [scan, setScan] = useState<ScanDetail | null>(null);
@@ -47,13 +49,15 @@ export default function ScanDetailPage() {
   const [openBusy, setOpenBusy] = useState(false);
   const [openError, setOpenError] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const slicerFallbackTimer = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [s, sg, lg] = await Promise.all([
-        fetchScan(id),
+      const s = await fetchScan(id);
+      const [sg, lg] = await Promise.all([
         fetchSegmentations(id),
-        fetchScanLogs(id),
+        s.can_manage_shares ? fetchScanLogs(id) : Promise.resolve([]),
       ]);
       setScan(s);
       setSegs(sg);
@@ -62,6 +66,10 @@ export default function ScanDetailPage() {
       setLoadError(true);
     }
   }, [id]);
+
+  useEffect(() => () => {
+    if (slicerFallbackTimer.current !== null) window.clearTimeout(slicerFallbackTimer.current);
+  }, []);
 
   useEffect(() => {
     if (allowed) void load();
@@ -88,9 +96,18 @@ export default function ScanDetailPage() {
     try {
       const res = await openScanToken(id);
       setOpenState(res);
-      // Điều hướng tới scheme tuỳ chỉnh KHÔNG làm mất trang hiện tại nếu trình
-      // duyệt không có handler đăng ký — an toàn khi gọi trực tiếp như dưới.
+      let desktopOpened = false;
+      const markOpened = () => { desktopOpened = true; };
+      window.addEventListener('blur', markOpened, { once: true });
+      document.addEventListener('visibilitychange', markOpened, { once: true });
       window.location.href = res.open_url;
+      slicerFallbackTimer.current = window.setTimeout(() => {
+        window.removeEventListener('blur', markOpened);
+        document.removeEventListener('visibilitychange', markOpened);
+        if (!desktopOpened && document.visibilityState === 'visible') {
+          router.push(`/downloads/3d-slicer/?return=${encodeURIComponent(`/scans/${id}/`)}`);
+        }
+      }, 2800);
     } catch (err) {
       setOpenError(apiErrorMessage(err, 'Không mở được phim. Vui lòng thử lại.'));
     } finally {
@@ -130,6 +147,7 @@ export default function ScanDetailPage() {
   }
 
   return (
+    <>
     <div className="space-y-4">
       {/* ── Header ── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -144,14 +162,26 @@ export default function ScanDetailPage() {
           <h1 className="font-serif text-xl font-semibold text-gray-900">{scan.patient.name}</h1>
           <p className="font-mono text-xs text-gray-400">{scan.patient.patient_code}</p>
         </div>
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${SCAN_STATUS_CLASS[scan.status]}`}
-        >
-          {(scan.status === 'processing' || scan.status === 'uploading') && (
-            <span className="material-symbols-outlined animate-spin text-[13px]">autorenew</span>
+        <div className="flex items-center gap-2">
+          {scan.can_manage_shares && (
+            <button
+              type="button"
+              onClick={() => setSharing(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <span className="material-symbols-outlined text-[16px]">person_add</span>
+              Chia sẻ
+            </button>
           )}
-          {SCAN_STATUS_LABEL[scan.status]}
-        </span>
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${SCAN_STATUS_CLASS[scan.status]}`}
+          >
+            {(scan.status === 'processing' || scan.status === 'uploading') && (
+              <span className="material-symbols-outlined animate-spin text-[13px]">autorenew</span>
+            )}
+            {SCAN_STATUS_LABEL[scan.status]}
+          </span>
+        </div>
       </div>
 
       {scan.status === 'failed' && scan.error_message && (
@@ -245,12 +275,17 @@ export default function ScanDetailPage() {
                 </div>
                 {showHelp && (
                   <p className="rounded-md bg-white p-2 text-[11px] leading-relaxed text-gray-500">
-                    Cần chạy một script cài đặt một lần trên máy này để nút &quot;Mở phim
-                    DICOM&quot; tự động mở 3D Slicer. Tính năng này sẽ có trong bản cập nhật
-                    tiếp theo — hiện tại có thể tải file ZIP về và mở thủ công trong 3D
-                    Slicer.
+                    Cần cài 3D Slicer và đăng ký DentAI Slicer Bridge một lần trên máy.
+                    Xem trang hướng dẫn để tải đúng gói cho hệ điều hành; nếu vẫn không mở
+                    được, hãy tải ZIP và mở thủ công trong Slicer.
                   </p>
                 )}
+                <Link
+                  href={`/downloads/3d-slicer/?return=${encodeURIComponent(`/scans/${id}/`)}`}
+                  className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2"
+                >
+                  Mở trang cài đặt 3D Slicer
+                </Link>
                 <p className="text-[10px] text-gray-400">
                   Đường dẫn hết hạn lúc {fmtDateTime(openState.expires_at)} — dùng được một
                   lần.
@@ -313,6 +348,14 @@ export default function ScanDetailPage() {
         </div>
       </div>
     </div>
+    {sharing && (
+      <ShareModal
+        scanId={scan.id}
+        patientName={scan.patient.name}
+        onClose={() => setSharing(false)}
+      />
+    )}
+    </>
   );
 }
 

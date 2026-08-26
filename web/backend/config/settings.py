@@ -79,6 +79,12 @@ MEDIA_URL = os.environ.get("MEDIA_URL", "/media/")
 # được ra ngoài qua view có kiểm quyền. Xem PLAN_3D_CANINE.md §4.1.
 SCANS_ROOT = os.environ.get("SCANS_ROOT", str(BASE_DIR / "scans_storage"))
 
+# Bộ script tích hợp desktop chỉ được đọc và đóng gói qua endpoint download công
+# khai; không chứa dữ liệu bệnh nhân hay secret.
+SLICER_BRIDGE_ROOT = os.environ.get(
+    "SLICER_BRIDGE_ROOT", str(BASE_DIR.parent / "slicer_bridge")
+)
+
 # Địa chỉ backend "nhìn từ desktop bác sĩ" — dùng để build open_url
 # (dentai://open?token=...&server=...) cho 3D Slicer gọi thẳng `download/{token}/`,
 # KHÔNG đi qua trình duyệt/Next.js proxy. CỐ Ý không suy từ request.build_absolute_uri():

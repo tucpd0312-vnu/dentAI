@@ -116,13 +116,16 @@ def _run_pipeline(image_path: str, case_id: int, image_id: int) -> dict:
         device=device,
     )
 
-    center_boxes, bboxes_xyxy = get_box(
-        weights=weights_vl,
-        image_path=image_path,
-        image_folder=media_temp,
-        roi_xywh=roi_xywh,
-        device=device,
-    )
+    if roi_xywh:
+        center_boxes, bboxes_xyxy = get_box(
+            weights=weights_vl,
+            image_path=image_path,
+            image_folder=media_temp,
+            roi_xywh=roi_xywh,
+            device=device,
+        )
+    else:
+        center_boxes, bboxes_xyxy = [], []
 
     teeth_data = build_teeth_data(all_masks, center_tooth, img_w, img_h)
     boxes_data  = build_boxes_data(center_boxes, bboxes_xyxy, img_w, img_h)

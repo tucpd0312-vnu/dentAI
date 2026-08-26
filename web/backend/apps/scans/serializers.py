@@ -4,6 +4,7 @@ from rest_framework import serializers
 
 from apps.cases.serializers import PatientSerializer
 
+from .access import can_manage_scan, scan_permission_for
 from .models import Scan, Segmentation
 
 
@@ -38,22 +39,35 @@ class _UploaderMixin:
             "role": obj.uploaded_by.role,
         }
 
+    def get_access_level(self, obj):
+        request = self.context.get("request")
+        return scan_permission_for(getattr(request, "user", None), obj)
+
+    def get_can_manage_shares(self, obj):
+        request = self.context.get("request")
+        return can_manage_scan(getattr(request, "user", None), obj)
+
 
 class ScanListSerializer(_UploaderMixin, serializers.ModelSerializer):
     patient = PatientSerializer(read_only=True)
     uploaded_by = serializers.SerializerMethodField()
+    access_level = serializers.SerializerMethodField()
+    can_manage_shares = serializers.SerializerMethodField()
 
     class Meta:
         model = Scan
         fields = [
             "id", "patient", "status", "modality", "n_slices", "file_size",
-            "uploaded_by", "note", "created_at", "updated_at",
+            "uploaded_by", "access_level", "can_manage_shares", "note",
+            "created_at", "updated_at",
         ]
 
 
 class ScanDetailSerializer(_UploaderMixin, serializers.ModelSerializer):
     patient = PatientSerializer(read_only=True)
     uploaded_by = serializers.SerializerMethodField()
+    access_level = serializers.SerializerMethodField()
+    can_manage_shares = serializers.SerializerMethodField()
     # Số PNG preview thực tế đã sinh (<= 60, xem apps.scans.tasks.MAX_PREVIEW_SLICES) —
     # frontend dùng để biết phạm vi index hợp lệ cho GET .../preview/{n}/, không tự đoán.
     preview_count = serializers.SerializerMethodField()
@@ -68,7 +82,8 @@ class ScanDetailSerializer(_UploaderMixin, serializers.ModelSerializer):
         fields = [
             "id", "patient", "status", "modality", "n_slices", "file_size",
             "study_uid", "series_uid", "acquired_at", "is_anonymized",
-            "uploaded_by", "note", "error_message", "preview_count",
+            "uploaded_by", "access_level", "can_manage_shares", "note",
+            "error_message", "preview_count",
             "created_at", "updated_at",
         ]
         # zip_path/preview_dir/thumbnail_path CỐ Ý không có ở đây — không lộ đường dẫn

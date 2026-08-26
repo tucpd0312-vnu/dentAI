@@ -32,6 +32,8 @@ export interface ScanListItem {
   /** null với phim tạo trước khi có hệ thống tài khoản — không xảy ra thực tế ở
    * module này (upload luôn gắn request.user) nhưng khớp shape backend. */
   uploaded_by: ScanUploader | null;
+  access_level: 'admin' | 'owner' | 'edit' | 'view' | 'none';
+  can_manage_shares: boolean;
   note: string;
   created_at: string;
   updated_at: string;
@@ -102,6 +104,11 @@ export async function fetchScans(filters: ScanFilters = {}): Promise<Paginated<S
 
 export async function fetchScan(id: number | string): Promise<ScanDetail> {
   const res = await api.get<ScanDetail>(`/scans/${id}/`);
+  return res.data;
+}
+
+export async function fetchScansSharedWithMe(): Promise<ScanListItem[]> {
+  const res = await api.get<ScanListItem[]>('/scans/shared-with-me/');
   return res.data;
 }
 

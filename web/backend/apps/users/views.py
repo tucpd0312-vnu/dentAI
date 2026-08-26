@@ -1,10 +1,13 @@
 from django.contrib.auth.models import update_last_login
+from django.db import transaction
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .activity import log_activity
@@ -15,6 +18,8 @@ from .serializers import (
     LoginSerializer,
     VerifyOTPSerializer,
     ResendOTPSerializer,
+    ForgotPasswordSerializer,
+    ResetPasswordSerializer,
     UserSerializer,
     ChangePasswordSerializer,
 )
@@ -27,6 +32,14 @@ def _make_tokens(user) -> dict:
         "access": str(refresh.access_token),
         "refresh": str(refresh),
     }
+
+
+class ForgotPasswordThrottle(AnonRateThrottle):
+    rate = "5/hour"
+
+
+class ResetPasswordThrottle(AnonRateThrottle):
+    rate = "10/hour"
 
 
 class RegisterView(APIView):
@@ -116,6 +129,76 @@ class ResendOTPView(APIView):
         otp = EmailOTP.generate(user, purpose="verify")
         send_otp_email(user, otp.code, "verify")
         return Response({"detail": "Mã OTP mới đã được gửi đến email của bạn."})
+
+
+class ForgotPasswordView(APIView):
+    """Gửi OTP đặt lại mật khẩu mà không tiết lộ email có tồn tại hay không."""
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [ForgotPasswordThrottle]
+    GENERIC_DETAIL = (
+        "Nếu email thuộc một tài khoản đang hoạt động, mã đặt lại mật khẩu đã được gửi."
+    )
+
+    def post(self, request):
+        ser = ForgotPasswordSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        user = User.objects.filter(
+            email__iexact=ser.validated_data["email"],
+            is_active=True,
+            is_deleted=False,
+        ).first()
+        if user:
+            otp = EmailOTP.generate(user, purpose="reset")
+            send_otp_email(user, otp.code, "reset")
+        return Response({"detail": self.GENERIC_DETAIL})
+
+
+class ResetPasswordView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [ResetPasswordThrottle]
+
+    def post(self, request):
+        ser = ResetPasswordSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        with transaction.atomic():
+            user = User.objects.select_for_update().filter(
+                email__iexact=data["email"], is_active=True, is_deleted=False
+            ).first()
+            if not user:
+                return Response(
+                    {"detail": "Mã OTP không hợp lệ hoặc đã hết hạn."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            otp = EmailOTP.objects.select_for_update().filter(
+                user=user, purpose="reset", used=False
+            ).order_by("-created_at").first()
+            if not otp or not otp.is_valid() or otp.code != data["code"]:
+                return Response(
+                    {"detail": "Mã OTP không hợp lệ hoặc đã hết hạn."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            user.set_password(data["password"])
+            user.save(update_fields=["password"])
+            EmailOTP.objects.filter(user=user, purpose="reset", used=False).update(used=True)
+
+        # Thu hồi toàn bộ refresh token cũ; access token đang tồn tại tự hết hạn theo
+        # SIMPLE_JWT.ACCESS_TOKEN_LIFETIME.
+        for outstanding in OutstandingToken.objects.filter(user=user):
+            BlacklistedToken.objects.get_or_create(token=outstanding)
+
+        log_activity(
+            LogCategory.AUTH, LogAction.PASSWORD_CHANGE,
+            actor=user, request=request, target_user=user,
+            detail={"method": "otp_reset"},
+        )
+        return Response({"detail": "Đặt lại mật khẩu thành công. Bạn có thể đăng nhập."})
 
 
 class LoginView(APIView):

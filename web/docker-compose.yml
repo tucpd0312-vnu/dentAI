@@ -7,10 +7,11 @@ x-django-env: &django-env
   DEBUG:                  "1"
   ALLOWED_HOSTS:          "*"
   MEDIA_ROOT:             /app/media
+  SLICER_BRIDGE_ROOT:     /slicer_bridge
   CELERY_BROKER_URL:      redis://redis:6379/0
   CELERY_RESULT_BACKEND:  redis://redis:6379/0
 
-  EMAIL_BACKEND:          django.core.mail.backends.smtp.EmailBackend
+  EMAIL_BACKEND:          django.core.mail.backends.console.EmailBackend
   EMAIL_HOST:             smtp.gmail.com
   EMAIL_PORT:             "587"
   EMAIL_USE_TLS:          "True"
@@ -71,6 +72,7 @@ services:
       - ./backend:/app                 # hot-reload code
       - ./media:/app/media
       - ../falc:/falc:ro               # FALC bridge (FeedbackStore)
+      - ./slicer_bridge:/slicer_bridge:ro
     depends_on:
       db:
         condition: service_healthy

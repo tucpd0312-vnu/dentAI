@@ -261,3 +261,23 @@ export async function logout(reason?: 'idle_timeout'): Promise<void> {
   }
   clearSession();
 }
+
+export async function requestPasswordReset(email: string): Promise<{ detail: string }> {
+  const res = await api.post<{ detail: string }>('/auth/forgot-password/', { email });
+  return res.data;
+}
+
+export async function resetPassword(
+  email: string,
+  code: string,
+  password: string,
+  confirmPassword: string,
+): Promise<{ detail: string }> {
+  const res = await api.post<{ detail: string }>('/auth/reset-password/', {
+    email,
+    code,
+    password,
+    confirm_password: confirmPassword,
+  });
+  return res.data;
+}
