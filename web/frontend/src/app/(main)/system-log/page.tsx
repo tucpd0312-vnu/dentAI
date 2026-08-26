@@ -21,7 +21,7 @@ import { apiErrorMessage } from '@/lib/users';
 import { useRequireRole } from '@/lib/useRequireRole';
 
 const CATEGORIES: LogCategory[] = ['admin', 'auth', 'business', 'error'];
-const MODULES: LogModule[] = ['gingivitis', 'canine3d', 'system'];
+const MODULES: LogModule[] = ['gingivitis', 'canine3d', 'library', 'system'];
 
 const inputCls =
   'rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors ' +

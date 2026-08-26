@@ -7,6 +7,11 @@ x-django-env: &django-env
   DEBUG:                  "1"
   ALLOWED_HOSTS:          "*"
   MEDIA_ROOT:             /app/media
+  # SCANS_ROOT / LIBRARY_ROOT CỐ Ý nằm ngoài MEDIA_ROOT (không serve qua static()) và
+  # nằm trong /app — vốn đã bind-mount từ ./backend nên backend và scans_worker thấy
+  # CÙNG một thư mục trên máy host, và dữ liệu sống qua các lần dựng lại container.
+  SCANS_ROOT:             /app/scans_storage
+  LIBRARY_ROOT:           /app/library_storage
   CELERY_BROKER_URL:      redis://redis:6379/0
   CELERY_RESULT_BACKEND:  redis://redis:6379/0
 

@@ -74,9 +74,19 @@ class ImageSerializer(_CasePermissionMixin, serializers.ModelSerializer):
 
 
 class PatientSerializer(serializers.ModelSerializer):
+    gender_display = serializers.CharField(source="get_gender_display", read_only=True)
+    # Suy từ `birth_year` lúc đọc, KHÔNG lưu trong DB — xem comment ở Patient.birth_year.
+    age = serializers.SerializerMethodField()
+
+    def get_age(self, obj):
+        return obj.age()
+
     class Meta:
         model = Patient
-        fields = ["id", "name", "patient_code", "notes", "created_at"]
+        fields = [
+            "id", "name", "patient_code", "notes",
+            "gender", "gender_display", "birth_year", "age", "created_at",
+        ]
 
 
 class CaseCreateSerializer(serializers.Serializer):

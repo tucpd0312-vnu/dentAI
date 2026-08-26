@@ -122,6 +122,10 @@ class LogAction(models.TextChoices):
     SCAN_DOWNLOADED = "scan_downloaded", "Phim đã được tải về máy"
     SCAN_DELETE = "scan_delete", "Xoá phim"
     SEGMENTATION_UPLOAD = "segmentation_upload", "Nộp kết quả phân vùng"
+    # ── business: kho dữ liệu ────────────────────────────────────────────────
+    ASSET_UPLOAD = "asset_upload", "Tải dữ liệu lên kho"
+    ASSET_DOWNLOAD = "asset_download", "Tải dữ liệu từ kho"
+    ASSET_DELETE = "asset_delete", "Xoá dữ liệu khỏi kho"
     # ── error ────────────────────────────────────────────────────────────────
     TASK_ERROR = "task_error", "Lỗi tác vụ nền"
     PIPELINE_ERROR = "pipeline_error", "Lỗi pipeline AI"
@@ -138,6 +142,7 @@ class LogModule(models.TextChoices):
 
     GINGIVITIS = "gingivitis", "Viêm lợi · 2D"
     CANINE3D = "canine3d", "Răng nanh ngầm · 3D"
+    LIBRARY = "library", "Kho dữ liệu"
     SYSTEM = "system", "Hệ thống"
 
 

@@ -35,6 +35,9 @@ const NAV: NavEntry[] = [
       { href: '/plaque',       icon: 'dentistry',    label: 'Mảng bám niềng răng', prefix: '/plaque', roles: ['admin', 'doctor'] },
     ],
   },
+  // Kho dữ liệu mở cho MỌI vai trò (không khai `roles`) — phạm vi dữ liệu do backend
+  // giới hạn qua `apps.library.access.scoped_assets`, không phải bằng việc ẩn mục này.
+  { href: '/library',    icon: 'inventory_2',  label: 'Kho dữ liệu',        prefix: '/library'   },
   { href: '/users',      icon: 'group',        label: 'Quản lý người dùng', prefix: '/users',      roles: ['admin'] },
   { href: '/history',    icon: 'history',      label: 'Lịch sử',            prefix: '/history'   },
   { href: '/system-log', icon: 'receipt_long', label: 'Lịch sử hệ thống',   prefix: '/system-log', roles: ['admin'] },

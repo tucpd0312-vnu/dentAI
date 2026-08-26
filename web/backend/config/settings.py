@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     "apps.settings_app",
     "apps.dashboard",
     "apps.scans",
+    "apps.library",
 ]
 
 AUTH_USER_MODEL = "users.User"
@@ -90,9 +91,30 @@ SCANS_PUBLIC_BASE_URL = os.environ.get("SCANS_PUBLIC_BASE_URL", "http://localhos
 # Chunked upload (§4.2) — dưới xa ngưỡng 100MB/request cứng của Cloudflare Tunnel
 # (dentai.datasphere.id.vn), còn nhiều dư địa nếu hạ tầng đổi.
 SCANS_UPLOAD_CHUNK_SIZE = int(os.environ.get("SCANS_UPLOAD_CHUNK_SIZE", 20 * 1024 * 1024))
-# ScanUploadChunkView đọc request.body thô (không multipart) — Django chặn DATA_UPLOAD_
-# MAX_MEMORY_SIZE (mặc định 2.5MB) TRƯỚC khi vào view, phải nới theo đúng chunk size.
-DATA_UPLOAD_MAX_MEMORY_SIZE = max(2621440, SCANS_UPLOAD_CHUNK_SIZE + 1024 * 1024)
+# ── Library (kho dữ liệu) ─────────────────────────────────────────────────────
+# CÙNG LÝ DO với SCANS_ROOT ở trên: nằm NGOÀI MEDIA_ROOT vì config/urls.py serve
+# MEDIA_ROOT qua static() KHÔNG kiểm quyền gì cả. Kho dữ liệu chứa PHI (ảnh mặt bệnh
+# nhân, DICOM còn header) → mọi byte chỉ ra ngoài qua view có permission_classes.
+LIBRARY_ROOT = os.environ.get("LIBRARY_ROOT", str(BASE_DIR / "library_storage"))
+
+# Dùng chung hằng số chunk với apps.scans (cùng một giới hạn hạ tầng Cloudflare
+# Tunnel), nhưng khai riêng để đổi độc lập được nếu về sau hai module khác nhu cầu.
+LIBRARY_UPLOAD_CHUNK_SIZE = int(
+    os.environ.get("LIBRARY_UPLOAD_CHUNK_SIZE", SCANS_UPLOAD_CHUNK_SIZE)
+)
+# Trần dung lượng một mục dữ liệu. Không có trần = sớm muộn có người thả nguyên ổ đĩa
+# vào kho; 2GB đủ cho một chuỗi CBCT đầy đủ (§J câu 6).
+LIBRARY_MAX_ASSET_SIZE = int(
+    os.environ.get("LIBRARY_MAX_ASSET_SIZE", 2 * 1024 * 1024 * 1024)
+)
+
+# View nhận chunk đọc `request.body` thô (không multipart) — Django chặn theo
+# DATA_UPLOAD_MAX_MEMORY_SIZE (mặc định 2.5MB) TRƯỚC khi request vào view, nên phải
+# nới theo chunk size LỚN NHẤT trong hai module, không chỉ của apps.scans.
+DATA_UPLOAD_MAX_MEMORY_SIZE = max(
+    2621440,
+    max(SCANS_UPLOAD_CHUNK_SIZE, LIBRARY_UPLOAD_CHUNK_SIZE) + 1024 * 1024,
+)
 
 STATIC_URL = "/static/"
 
@@ -149,13 +171,15 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_TRACK_STARTED = True
 # apps.scans dùng queue "scans" riêng, KHÔNG chung "inference": xử lý ZIP CBCT
 # (giải nén/đọc header/sinh preview) là việc CPU-thuần, không cần GPU, nên không nên
-# xếp hàng sau các job YOLO/T5 nặng — và ngược lại. Worker service hiện chỉ nghe
-# "inference" (`-Q inference`, profile worker-docker, cần GPU); "scans" CHƯA có
-# consumer nào ở dev — nối dây worker CPU tiêu thụ queue này là việc hạ tầng của
-# bước sau (không chặn việc test logic task qua .run() đồng bộ).
+# xếp hàng sau các job YOLO/T5 nặng — và ngược lại. Hai consumer riêng biệt trong
+# docker-compose.yml: `worker` (GPU, `-Q inference`, profile worker-docker) và
+# `scans_worker` (CPU, `-Q scans`, chạy cùng `docker compose up`).
 CELERY_TASK_ROUTES = {
     "apps.cases.tasks.*": {"queue": "inference"},
     "apps.scans.tasks.*": {"queue": "scans"},
+    # Kho dữ liệu dùng CHUNG queue "scans": cũng là việc CPU thuần (giải nén, đọc
+    # header DICOM, resize ảnh) và đã có sẵn scans_worker tiêu thụ queue đó.
+    "apps.library.tasks.*": {"queue": "scans"},
 }
 
 # ── AI pipeline paths ─────────────────────────

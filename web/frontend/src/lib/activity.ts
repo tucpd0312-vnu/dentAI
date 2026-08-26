@@ -4,7 +4,7 @@ import type { Paginated } from './users';
 export type LogCategory = 'admin' | 'auth' | 'business' | 'error';
 
 /** Loại chẩn đoán dòng log thuộc về — 'system' cho sự kiện không gắn module nào. */
-export type LogModule = 'gingivitis' | 'canine3d' | 'system';
+export type LogModule = 'gingivitis' | 'canine3d' | 'library' | 'system';
 
 export interface ActivityLog {
   id: number;
@@ -63,12 +63,14 @@ export const CATEGORY_ICON: Record<LogCategory, string> = {
 export const MODULE_LABEL: Record<LogModule, string> = {
   gingivitis: 'Viêm lợi · 2D',
   canine3d: 'Răng nanh ngầm · 3D',
+  library: 'Kho dữ liệu',
   system: 'Hệ thống',
 };
 
 export const MODULE_STYLE: Record<LogModule, string> = {
   gingivitis: 'bg-primary-50 text-primary',
   canine3d: 'bg-indigo-50 text-indigo-600',
+  library: 'bg-amber-50 text-amber-700',
   system: 'bg-gray-100 text-gray-500',
 };
 
@@ -101,6 +103,9 @@ export const ACTIONS_BY_CATEGORY: Record<LogCategory, { value: string; label: st
     { value: 'case_export', label: 'Tải kết quả' },
     { value: 'case_share', label: 'Chia sẻ ca' },
     { value: 'case_unshare', label: 'Thu hồi chia sẻ' },
+    { value: 'asset_upload', label: 'Tải dữ liệu lên kho' },
+    { value: 'asset_download', label: 'Tải dữ liệu từ kho' },
+    { value: 'asset_delete', label: 'Xoá dữ liệu khỏi kho' },
   ],
   error: [
     { value: 'task_error', label: 'Lỗi tác vụ nền' },

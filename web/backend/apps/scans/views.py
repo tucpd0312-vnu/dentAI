@@ -1,8 +1,6 @@
 import hashlib
-import math
 import os
 import secrets
-import shutil
 from datetime import timedelta
 from urllib.parse import urlencode
 from uuid import uuid4
@@ -20,6 +18,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.cases.models import Patient
+from apps.common import chunked_upload
 from apps.users.activity import get_client_ip, log_activity
 from apps.users.admin_serializers import ActivityLogSerializer
 from apps.users.models import ActivityLog, LogAction, LogCategory
@@ -37,10 +36,6 @@ from .serializers import (
 from .tasks import process_scan_upload
 
 OPEN_TOKEN_TTL = timedelta(minutes=5)
-
-
-def _chunks_dir(scan_id) -> str:
-    return os.path.join(settings.SCANS_ROOT, str(scan_id), "chunks")
 
 
 def _get_uploading_scan(request, pk):
@@ -114,7 +109,7 @@ class ScanUploadInitView(APIView):
 
         chunk_size = settings.SCANS_UPLOAD_CHUNK_SIZE
         total_size = d["total_size"]
-        total_chunks = math.ceil(total_size / chunk_size)
+        total_chunks = chunked_upload.plan_chunks(total_size, chunk_size)
 
         scan = Scan.objects.create(
             patient=patient, uploaded_by=request.user,
@@ -123,7 +118,7 @@ class ScanUploadInitView(APIView):
             upload_chunk_size=chunk_size,
             upload_total_size=total_size,
         )
-        os.makedirs(_chunks_dir(scan.pk), exist_ok=True)
+        chunked_upload.start_upload(settings.SCANS_ROOT, scan.pk)
 
         return Response(
             {"scan_id": scan.pk, "chunk_size": chunk_size, "total_chunks": total_chunks},
@@ -135,7 +130,8 @@ class ScanUploadChunkView(APIView):
     """Bước 2/3 — nhận từng chunk thô (`Content-Type: application/octet-stream`, KHÔNG
     multipart — tránh chi phí ghi tạm 2 lần của `MultiPartParser` cho vô ích với chunk
     chỉ ~20MB). Ghi đè idempotent theo `index`: client gửi lại một chunk lỗi thoải mái,
-    không cần hỏi trước qua GET .../ ."""
+    không cần hỏi trước qua GET .../ . Cơ chế ghi/đọc chunk nằm ở
+    `apps/common/chunked_upload.py` — dùng chung với apps.library."""
 
     permission_classes = [IsAdminOrDoctor]
 
@@ -152,11 +148,7 @@ class ScanUploadChunkView(APIView):
                 {"detail": "Chỉ số chunk không hợp lệ."}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        chunks_dir = _chunks_dir(scan.pk)
-        os.makedirs(chunks_dir, exist_ok=True)
-        chunk_path = os.path.join(chunks_dir, f"{index:06d}.part")
-        with open(chunk_path, "wb") as f:
-            f.write(request.body)
+        chunked_upload.write_chunk(settings.SCANS_ROOT, scan.pk, index, request.body)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -168,18 +160,8 @@ class ScanUploadStatusView(APIView):
 
     def get(self, request, pk):
         scan = _get_uploading_scan(request, pk)
-        chunks_dir = _chunks_dir(scan.pk)
-        received = []
-        if os.path.isdir(chunks_dir):
-            for name in os.listdir(chunks_dir):
-                if name.endswith(".part"):
-                    try:
-                        received.append(int(name[:-len(".part")]))
-                    except ValueError:
-                        continue
-        received.sort()
         return Response({
-            "received_chunks": received,
+            "received_chunks": chunked_upload.received_chunks(settings.SCANS_ROOT, scan.pk),
             "total_chunks": scan.upload_total_chunks,
             "chunk_size": scan.upload_chunk_size,
         })
@@ -198,30 +180,22 @@ class ScanUploadCompleteView(APIView):
                 {"detail": "Phiên tải lên đã đóng."}, status=status.HTTP_409_CONFLICT
             )
 
-        chunks_dir = _chunks_dir(scan.pk)
         total = scan.upload_total_chunks
-        missing = [
-            i for i in range(total)
-            if not os.path.exists(os.path.join(chunks_dir, f"{i:06d}.part"))
-        ]
+        missing = chunked_upload.missing_chunks(settings.SCANS_ROOT, scan.pk, total)
         if missing:
             return Response(
                 {"detail": "Thiếu chunk, chưa thể ghép file.", "missing_chunks": missing},
                 status=status.HTTP_409_CONFLICT,
             )
 
-        scan_dir = os.path.join(settings.SCANS_ROOT, str(scan.pk))
-        zip_path = os.path.join(scan_dir, "original.zip")
-        with open(zip_path, "wb") as out:
-            for i in range(total):
-                chunk_path = os.path.join(chunks_dir, f"{i:06d}.part")
-                with open(chunk_path, "rb") as part:
-                    shutil.copyfileobj(part, out)
-        shutil.rmtree(chunks_dir, ignore_errors=True)
-
+        zip_path = os.path.join(
+            chunked_upload.object_dir(settings.SCANS_ROOT, scan.pk), "original.zip"
+        )
+        scan.file_size = chunked_upload.assemble(
+            settings.SCANS_ROOT, scan.pk, total, zip_path
+        )
         scan.zip_path = zip_path
         scan.status = Scan.Status.PROCESSING
-        scan.file_size = os.path.getsize(zip_path)
         scan.save(update_fields=["zip_path", "status", "file_size"])
 
         process_scan_upload.apply_async(args=[scan.pk], queue="scans")

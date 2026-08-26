@@ -33,6 +33,9 @@ _CANINE3D_ACTIONS = frozenset({
     "scan_upload", "scan_open_requested", "scan_downloaded",
     "scan_delete", "segmentation_upload",
 })
+_LIBRARY_ACTIONS = frozenset({
+    "asset_upload", "asset_download", "asset_delete",
+})
 
 
 def _default_module(action) -> str:
@@ -43,6 +46,8 @@ def _default_module(action) -> str:
         return LogModule.GINGIVITIS
     if action in _CANINE3D_ACTIONS:
         return LogModule.CANINE3D
+    if action in _LIBRARY_ACTIONS:
+        return LogModule.LIBRARY
     return LogModule.SYSTEM
 
 
