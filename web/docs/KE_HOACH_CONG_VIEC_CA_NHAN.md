@@ -15,8 +15,9 @@ Phạm vi phụ trách: từ **chia sẻ RNNHT 3D** đến các hạng mục gia
 - [x] Trang quản lý RNNHT 3D, tải CBCT theo chunk, xem lát cắt, mở Slicer, tải ZIP dự phòng và lưu phiên bản phân vùng đã có.
 - [x] Chia sẻ ca viêm lợi cho tài khoản cá nhân đã có.
 - [x] Phân quyền nền tảng theo ba vai trò admin, bác sĩ, bệnh nhân đã có.
-- [ ] Kho dữ liệu dùng chung chưa có model, API, màn hình hay chính sách duyệt dữ liệu.
+- [x] Kho dữ liệu đã có model, API tải lên theo chunk, xem, tải xuống, phân loại, phân quyền và giao diện cho mọi vai trò.
 - [x] Chia sẻ cá nhân cho RNNHT 3D đã được bổ sung trong đợt triển khai này.
+- [x] Tiền điều kiện `source_scan`, `source_case`, `source_image` của Kho dữ liệu đã được đồng nghiệp bổ sung và merge vào `develop`.
 
 ## Các việc có thể thực hiện ngay
 
@@ -53,6 +54,31 @@ Phạm vi phụ trách: từ **chia sẻ RNNHT 3D** đến các hạng mục gia
 - [x] Ghi nhật ký chia sẻ/thu hồi thuộc module Răng nanh ngầm 3D.
 - Tiêu chí hoàn thành: kiểm thử ma trận chủ sở hữu/người xem/người sửa/người ngoài/admin.
 
+### SHARE-3D-02 — Chia sẻ RNNHT 3D lên Kho dữ liệu
+
+- [x] Thêm API sao chép phim CBCT đã xử lý vào danh mục **Răng nanh ngầm**.
+- [x] Chỉ chủ phim hoặc admin được thực hiện; người nhận quyền `view/edit` không được sao chép tiếp.
+- [x] Chỉ nhận phim ở trạng thái `ready` và đã khử PHI.
+- [x] File trong kho là bản sao độc lập, có `source_scan` để truy vết và chống tạo trùng.
+- [x] Chạy lại pipeline Kho dữ liệu để tạo preview/thumbnail và kiểm tra DICOM.
+- [x] Thêm nút **Lưu vào Kho dữ liệu** và modal metadata trên trang chi tiết phim.
+
+### REPOSITORY-01 — Chia sẻ kết quả Viêm lợi lên Kho dữ liệu
+
+- [x] Thêm API sao chép ảnh kết quả vào danh mục **Viêm lợi**.
+- [x] Cho chọn ảnh gốc hoặc ảnh có chú thích; tự điền mô tả lâm sàng từ caption cuối cùng.
+- [x] Gắn `source_case` và `source_image`, sao chép file độc lập và chống tạo trùng theo người dùng/ảnh nguồn.
+- [x] Chỉ chủ ca hoặc admin được thực hiện; người nhận ca được chia sẻ không được sao chép tiếp.
+- [x] Vai trò bệnh nhân được lưu ca do chính họ tạo, nhưng API Kho dữ liệu vẫn cắt PHI theo chính sách vai trò.
+- [x] Thêm nút **Lưu vào Kho dữ liệu** và modal chọn bản ảnh trên trang kết quả viêm lợi.
+
+### DASHBOARD-01 — Thiết kế lại Tổng quan
+
+- [x] Thiết kế khối chào mừng và lối tắt tạo chẩn đoán/tải dữ liệu.
+- [x] Bổ sung thẻ RNNHT 3D và Kho dữ liệu với số tổng, sẵn sàng, đang xử lý và được chia sẻ.
+- [x] Mọi số liệu dùng chung chính sách phạm vi của backend; bệnh nhân không nhận thống kê phim CBCT.
+- [x] Giữ các KPI lâm sàng MGI hiện có, không tự phát minh số liệu y tế mới.
+
 ### SLICER-01 — Trang tải và kiểm tra tích hợp
 
 - [x] Tạo trang hướng dẫn cài 3D Slicer theo hệ điều hành.
@@ -63,11 +89,13 @@ Phạm vi phụ trách: từ **chia sẻ RNNHT 3D** đến các hạng mục gia
 
 ### VERIFY-01 — Kiểm tra kỹ thuật
 
-- [x] Tạo và chạy migration `scans.0003` và `users.0006`.
-- [x] `manage.py check` đạt; 8/8 test backend mới đạt.
-- [x] Type-check và production build frontend đạt, gồm đủ 19 route.
+- [x] Chuỗi migration sau merge hợp lệ: `scans.0003` và `users.0006 → users.0007`; tính năng chia sẻ lên kho không cần đổi schema.
+- [x] `manage.py check` và `makemigrations --check --dry-run` đạt.
+- [x] 33/33 test `apps.library` đạt, gồm quyền nguồn, chống tạo trùng và sao chép file độc lập.
+- [x] Toàn bộ 48/48 test backend đạt, gồm cả phân quyền số liệu Tổng quan.
+- [x] Type-check và production build frontend đạt, sinh đủ 22 trang/route.
 - [ ] ESLint độc lập — `next lint` đang yêu cầu khởi tạo cấu hình tương tác vì dự án chưa có file cấu hình ESLint; không tự chọn chuẩn thay nhóm.
-- [x] `git diff --check -- web` đạt; không ghi đè các thay đổi cục bộ có sẵn của nhóm.
+- [x] `git diff --check` đạt; không có dấu xung đột hoặc khoảng trắng lỗi trong thay đổi mới.
 
 Kết quả smoke-test giao diện:
 
@@ -76,19 +104,7 @@ Kết quả smoke-test giao diện:
 - [x] Trang `/downloads/3d-slicer/` nhận diện Windows, hiển thị đủ hai bước, link chính thức và link tải Bridge.
 - [x] Endpoint Bridge trả HTTP 200, `application/zip`, dung lượng 11.285 byte.
 
-## Các việc đang thiếu tiền điều kiện
-
-### REPOSITORY-01 — Chia sẻ dữ liệu viêm lợi lên Kho dữ liệu — BLOCKED
-
-- [ ] Cần model/API Kho dữ liệu và định danh bản ghi đích.
-- [ ] Cần chốt dữ liệu nào được sao chép hay chỉ liên kết: ảnh gốc, ảnh chú thích, detection, caption, thông tin bệnh nhân.
-- [ ] Cần chốt ẩn danh hóa, người duyệt, quyền thu hồi, thời hạn lưu và audit log.
-- Có thể bắt đầu sau khi các hợp đồng API và chính sách trên được duyệt.
-
-### DASHBOARD-01 — Thiết kế lại Tổng quan — BLOCKED một phần
-
-- [ ] Cần chốt KPI theo từng vai trò, nguồn dữ liệu, khoảng thời gian mặc định và mockup được duyệt.
-- Có thể làm ngay sau khi có danh sách KPI; không nên tự đặt số liệu y tế hoặc quyền nhìn dữ liệu.
+## Các giới hạn môi trường còn lại
 
 ### SLICER-02 — Xác nhận cài đặt tuyệt đối — BLOCKED bởi nền tảng trình duyệt
 
@@ -102,8 +118,10 @@ Kết quả smoke-test giao diện:
 
 ## Thứ tự thực hiện
 
-1. UI-01 và AUTH-01.
-2. AUTH-02.
-3. SHARE-3D-01 (backend trước, frontend sau).
-4. SLICER-01.
-5. VERIFY-01; chỉ đánh dấu `[x]` khi kiểm tra tương ứng đạt.
+1. [x] UI-01, AUTH-01 và AUTH-02.
+2. [x] SHARE-3D-01 và SLICER-01.
+3. [x] Merge Kho dữ liệu từ `origin/develop` và xử lý migration xung đột.
+4. [x] SHARE-3D-02 và REPOSITORY-01.
+5. [x] DASHBOARD-01.
+6. [x] VERIFY-01; toàn bộ kiểm tra tự động đã đạt.
+7. [x] Commit hoàn thiện trên `develop`.

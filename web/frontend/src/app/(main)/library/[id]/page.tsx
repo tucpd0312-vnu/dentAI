@@ -417,7 +417,7 @@ export default function AssetDetailPage() {
                 </Link>
               ) : (
                 <Link
-                  href={`/analysis/${asset.source.id}/results/0/`}
+                  href={`/analysis/${asset.source.id}/results/${asset.source.image_index ?? 0}/`}
                   className="inline-flex items-center gap-1.5 text-xs text-primary underline underline-offset-2"
                 >
                   <span className="material-symbols-outlined text-[16px]">oral_disease</span>

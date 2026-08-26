@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import api, { CaseStatus, ImageResult } from '@/lib/api';
+import SaveToLibraryModal from '@/components/library/SaveToLibraryModal';
 import ShareModal from '@/components/results/ShareModal';
 
 /* Konva must not SSR */
@@ -52,6 +53,7 @@ export default function ResultsPage() {
   const [showBoxes, setShowBoxes] = useState(true);
   const [showMasks, setShowMasks] = useState(true);
   const [sharing, setSharing] = useState(false);
+  const [savingToLibrary, setSavingToLibrary] = useState(false);
 
   // Chỉ chủ sở hữu và admin được chia sẻ — người ĐƯỢC chia sẻ không share tiếp.
   const canShare =
@@ -121,6 +123,9 @@ export default function ResultsPage() {
 
   const activeDetections = imgData.detections.filter(d => !d.is_deleted);
   const caption = imgData.caption;
+  const captionText = caption
+    ? (caption.is_edited ? caption.edited_text : caption.ai_text) || ''
+    : '';
   const imageUrl = toMediaUrl(imgData.original_path || imgData.annotated_path);
 
   const sharedReadOnly = imgData.case_permission === 'view';
@@ -128,6 +133,17 @@ export default function ResultsPage() {
   return (
     <div className="space-y-4">
       {sharing && <ShareModal caseId={caseId} onClose={() => setSharing(false)} />}
+      {savingToLibrary && (
+        <SaveToLibraryModal
+          kind="gingivitis"
+          caseId={caseId}
+          imageIndex={idx}
+          hasAnnotated={Boolean(imgData.annotated_path)}
+          defaultTitle={`Kết quả viêm lợi · Ca #${caseId} · Ảnh ${idx + 1}`}
+          defaultConditionNote={captionText}
+          onClose={() => setSavingToLibrary(false)}
+        />
+      )}
 
       {/* Ca của người khác chia sẻ cho tôi, chỉ được xem */}
       {sharedReadOnly && (
@@ -187,16 +203,28 @@ export default function ResultsPage() {
         <div className="flex items-center gap-2">
           {/* Chỉ chủ sở hữu và admin mới chia sẻ được — backend chặn độc lập. */}
           {canShare && (
-            <button
-              onClick={() => setSharing(true)}
-              className="
-                flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
-                border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors
-              "
-            >
-              <span className="material-symbols-outlined text-[16px]">share</span>
-              Chia sẻ
-            </button>
+            <>
+              <button
+                onClick={() => setSharing(true)}
+                className="
+                  flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
+                  border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors
+                "
+              >
+                <span className="material-symbols-outlined text-[16px]">person_add</span>
+                Chia sẻ cá nhân
+              </button>
+              <button
+                onClick={() => setSavingToLibrary(true)}
+                className="
+                  flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
+                  border border-primary/30 bg-primary-50 text-primary hover:bg-primary/10 transition-colors
+                "
+              >
+                <span className="material-symbols-outlined text-[16px]">inventory_2</span>
+                Lưu vào Kho dữ liệu
+              </button>
+            </>
           )}
           {/* can_edit do backend tính (vai trò + quyền trên ca) — bệnh nhân và
               người được chia sẻ 'view' không thấy nút này. */}

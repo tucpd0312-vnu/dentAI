@@ -128,6 +128,24 @@ class AssetUploadInitSerializer(serializers.Serializer):
         return attrs
 
 
+class AssetSourceImportSerializer(serializers.Serializer):
+    """Metadata cho dữ liệu được sao chép từ module nghiệp vụ sang Kho dữ liệu."""
+
+    title = serializers.CharField(
+        max_length=255, required=False, allow_blank=True, default=""
+    )
+    condition_note = serializers.CharField(
+        required=False, allow_blank=True
+    )
+
+
+class GingivitisSourceImportSerializer(AssetSourceImportSerializer):
+    variant = serializers.ChoiceField(
+        choices=[("original", "Ảnh gốc"), ("annotated", "Ảnh có chú thích")],
+        default="annotated",
+    )
+
+
 class AssetUpdateSerializer(serializers.ModelSerializer):
     """Sửa metadata — CỐ Ý không cho đổi file: đổi file nghĩa là dữ liệu khác, hãy tải
     lên một mục mới để không mất dấu bản đã chia sẻ/đã tham chiếu."""
@@ -222,6 +240,9 @@ class AssetDetailSerializer(_AssetBaseSerializer):
                 "kind": "case",
                 "id": obj.source_case_id,
                 "image_id": obj.source_image_id,
+                "image_index": (
+                    obj.source_image.order_index if obj.source_image_id else None
+                ),
             }
         return None
 

@@ -12,6 +12,16 @@ urlpatterns = [
     ),
     re_path(r"^library/assets/?$", views.AssetListView.as_view(), name="library-asset-list"),
 
+    # ── Sao chép dữ liệu đã xử lý từ module nghiệp vụ ───────────────────────
+    re_path(
+        r"^library/imports/scans/(?P<scan_id>\d+)/?$",
+        views.ScanSourceImportView.as_view(), name="library-import-scan",
+    ),
+    re_path(
+        r"^library/imports/cases/(?P<case_id>\d+)/images/(?P<image_index>\d+)/?$",
+        views.GingivitisSourceImportView.as_view(), name="library-import-gingivitis",
+    ),
+
     # ── Chunked upload (3 bước) ───────────────────────────────────────────────
     re_path(
         r"^library/assets/uploads/?$",

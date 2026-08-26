@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+import SaveToLibraryModal from '@/components/library/SaveToLibraryModal';
 import SliceViewer from '@/components/viewer/SliceViewer';
 import type { ActivityLog } from '@/lib/activity';
 import {
@@ -51,6 +52,7 @@ export default function ScanDetailPage() {
   const [openError, setOpenError] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [savingToLibrary, setSavingToLibrary] = useState(false);
   const slicerFallbackTimer = useRef<number | null>(null);
 
   const load = useCallback(async () => {
@@ -165,14 +167,30 @@ export default function ScanDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           {scan.can_manage_shares && (
-            <button
-              type="button"
-              onClick={() => setSharing(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <span className="material-symbols-outlined text-[16px]">person_add</span>
-              Chia sẻ
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setSharing(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+              >
+                <span className="material-symbols-outlined text-[16px]">person_add</span>
+                Chia sẻ cá nhân
+              </button>
+              <button
+                type="button"
+                onClick={() => setSavingToLibrary(true)}
+                disabled={scan.status !== 'ready' || !scan.is_anonymized}
+                title={
+                  scan.status === 'ready' && scan.is_anonymized
+                    ? 'Tạo bản sao trong Kho dữ liệu'
+                    : 'Phim phải xử lý và khử thông tin cá nhân xong'
+                }
+                className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary-50 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <span className="material-symbols-outlined text-[16px]">inventory_2</span>
+                Lưu vào Kho dữ liệu
+              </button>
+            </>
           )}
           <span
             className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${SCAN_STATUS_CLASS[scan.status]}`}
@@ -357,6 +375,16 @@ export default function ScanDetailPage() {
         scanId={scan.id}
         patientName={scan.patient.name}
         onClose={() => setSharing(false)}
+      />
+    )}
+    {savingToLibrary && (
+      <SaveToLibraryModal
+        kind="scan"
+        scanId={scan.id}
+        patientName={scan.patient.name}
+        defaultTitle={`Phim RNNHT 3D · Scan #${scan.id}`}
+        defaultConditionNote={scan.note}
+        onClose={() => setSavingToLibrary(false)}
       />
     )}
     </>

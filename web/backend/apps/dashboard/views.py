@@ -16,6 +16,10 @@ from rest_framework.views import APIView
 from apps.cases.access import scoped_cases
 from apps.cases.models import Case, Detection, Image
 from apps.cases.serializers import CaseListSerializer
+from apps.library.access import scoped_assets
+from apps.library.models import DataAsset
+from apps.scans.access import scoped_scans
+from apps.scans.models import Scan
 from apps.users.models import ActivityLog, LogCategory, Role, RoleRequest, User
 from apps.users.permissions import IsActiveUser
 
@@ -37,6 +41,8 @@ class DashboardView(APIView):
         user = request.user
         is_admin = user.role == Role.ADMIN
         cases = scoped_cases(user)
+        scans = scoped_scans(user)
+        assets = scoped_assets(user)
 
         images = Image.objects.filter(case__in=cases)
         recent = cases.order_by("-created_at")[:RECENT_CASES]
@@ -54,6 +60,20 @@ class DashboardView(APIView):
                 ).data,
             },
             "mgi": self._mgi_distribution(cases),
+            "scans": {
+                "total": scans.count(),
+                "by_status": _counts(scans, "status", Scan.Status.values),
+                "shared_with_me": Scan.objects.filter(
+                    is_deleted=False, shares__shared_with=user
+                ).distinct().count(),
+            },
+            "library": {
+                "total": assets.count(),
+                "by_status": _counts(assets, "status", DataAsset.Status.values),
+                "shared_with_me": DataAsset.objects.filter(
+                    is_deleted=False, shares__shared_with=user
+                ).distinct().count(),
+            },
         }
 
         if is_admin:

@@ -15,6 +15,7 @@ import os
 from uuid import uuid4
 
 from django.conf import settings
+from django.db import transaction
 from django.db.models import Count, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
@@ -24,8 +25,11 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.cases.models import Patient
+from apps.cases.access import case_permission_for, scoped_images
+from apps.cases.models import Image, Patient
 from apps.common import chunked_upload
+from apps.scans.access import can_manage_scan, scoped_scans
+from apps.scans.models import Scan
 from apps.users.activity import log_activity
 from apps.users.models import LogAction, LogCategory, Role
 from apps.users.permissions import IsActiveUser, IsAdminOrDoctor
@@ -36,14 +40,17 @@ from .access import (
     can_view_asset,
     scoped_assets,
 )
+from .imports import SourceImportError, import_gingivitis_image, import_scan
 from .models import DataAsset, DataCategory
 from .serializers import (
     AssetDetailSerializer,
     AssetListSerializer,
+    AssetSourceImportSerializer,
     AssetUpdateSerializer,
     AssetUploadInitSerializer,
     DataCategoryCreateSerializer,
     DataCategorySerializer,
+    GingivitisSourceImportSerializer,
 )
 from .tasks import process_asset_task
 
@@ -68,6 +75,18 @@ class AssetPagination(PageNumberPagination):
     page_size = 20
     page_size_query_param = "page_size"
     max_page_size = 100
+
+
+def _import_response(request, asset, created):
+    return Response(
+        {
+            "created": created,
+            "asset": AssetDetailSerializer(
+                asset, context={"request": request}
+            ).data,
+        },
+        status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+    )
 
 
 # ── Phân loại ────────────────────────────────────────────────────────────────
@@ -163,6 +182,126 @@ class AssetListView(APIView):
         return paginator.get_paginated_response(
             AssetListSerializer(page, many=True, context={"request": request}).data
         )
+
+
+# ── Sao chép từ module nghiệp vụ vào Kho dữ liệu ─────────────────────────────
+
+class ScanSourceImportView(APIView):
+    """Lưu một phim RNNHT 3D đã khử PHI vào Kho dữ liệu của người gửi."""
+
+    permission_classes = [IsActiveUser]
+
+    def post(self, request, scan_id):
+        ser = AssetSourceImportSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        with transaction.atomic():
+            scan = get_object_or_404(
+                scoped_scans(request.user).select_for_update(), pk=scan_id
+            )
+            if not can_manage_scan(request.user, scan):
+                return Response(
+                    {"detail": "Chỉ chủ phim hoặc quản trị viên được lưu phim vào Kho dữ liệu."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            if scan.status != Scan.Status.READY or not scan.is_anonymized:
+                return Response(
+                    {"detail": "Phim phải xử lý và khử thông tin cá nhân xong trước khi chia sẻ."},
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+            try:
+                asset, created = import_scan(
+                    scan=scan,
+                    user=request.user,
+                    title=data.get("title", ""),
+                    condition_note=data.get("condition_note", scan.note or ""),
+                )
+            except SourceImportError as exc:
+                return Response(
+                    {"detail": str(exc)}, status=status.HTTP_409_CONFLICT
+                )
+
+        if created:
+            process_asset_task.apply_async(args=[asset.pk], queue="scans")
+            log_activity(
+                LogCategory.BUSINESS, LogAction.ASSET_UPLOAD,
+                actor=request.user, request=request,
+                detail={
+                    "asset_id": asset.pk,
+                    "source": "rnnht_3d",
+                    "source_scan_id": scan.pk,
+                    "file_size": asset.file_size,
+                },
+            )
+        return _import_response(request, asset, created)
+
+
+class GingivitisSourceImportView(APIView):
+    """Lưu ảnh gốc hoặc ảnh chú thích của một kết quả viêm lợi vào Kho dữ liệu."""
+
+    permission_classes = [IsActiveUser]
+
+    def post(self, request, case_id, image_index):
+        ser = GingivitisSourceImportSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        with transaction.atomic():
+            image = get_object_or_404(
+                scoped_images(request.user)
+                .select_related("case__patient", "case__created_by", "caption")
+                .select_for_update(),
+                case_id=case_id,
+                order_index=image_index,
+            )
+            if case_permission_for(request.user, image.case) not in ("owner", "admin"):
+                return Response(
+                    {"detail": "Chỉ chủ ca hoặc quản trị viên được lưu kết quả vào Kho dữ liệu."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            if image.status not in (Image.Status.DONE, Image.Status.LOW_CONFIDENCE):
+                return Response(
+                    {"detail": "Ảnh chưa xử lý xong nên chưa thể chia sẻ."},
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+            caption = getattr(image, "caption", None)
+            default_note = ""
+            if caption:
+                default_note = (
+                    caption.edited_text if caption.is_edited else caption.ai_text
+                ) or ""
+            try:
+                asset, created = import_gingivitis_image(
+                    image=image,
+                    user=request.user,
+                    variant=data["variant"],
+                    title=data.get("title", ""),
+                    condition_note=data.get("condition_note", default_note),
+                )
+            except SourceImportError as exc:
+                return Response(
+                    {"detail": str(exc)}, status=status.HTTP_409_CONFLICT
+                )
+
+        if created:
+            process_asset_task.apply_async(args=[asset.pk], queue="scans")
+            log_activity(
+                LogCategory.BUSINESS, LogAction.ASSET_UPLOAD,
+                actor=request.user, request=request,
+                target_case=image.case,
+                detail={
+                    "asset_id": asset.pk,
+                    "source": "gingivitis",
+                    "source_case_id": image.case_id,
+                    "source_image_id": image.pk,
+                    "variant": data["variant"],
+                    "file_size": asset.file_size,
+                },
+            )
+        return _import_response(request, asset, created)
 
 
 # ── Chunked upload (3 bước) ──────────────────────────────────────────────────

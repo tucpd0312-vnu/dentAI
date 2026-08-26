@@ -81,6 +81,62 @@ function Section({
   );
 }
 
+function ModuleCard({
+  href,
+  icon,
+  title,
+  description,
+  total,
+  ready,
+  processing,
+  shared,
+}: {
+  href: string;
+  icon: string;
+  title: string;
+  description: string;
+  total: number;
+  ready: number;
+  processing: number;
+  shared: number;
+}) {
+  const stats: Array<[string, number]> = [
+    ['Tổng', total],
+    ['Sẵn sàng', ready],
+    ['Đang xử lý', processing],
+    ['Được chia sẻ', shared],
+  ];
+  return (
+    <Link
+      href={href}
+      className="group rounded-2xl border border-gray-200 bg-white p-4 transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary">
+          <span className="material-symbols-outlined text-[23px]">{icon}</span>
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="font-serif text-sm font-semibold text-gray-900">{title}</h3>
+            <span className="material-symbols-outlined text-[18px] text-gray-300 transition-transform group-hover:translate-x-0.5 group-hover:text-primary">
+              arrow_forward
+            </span>
+          </div>
+          <p className="mt-0.5 text-xs text-gray-500">{description}</p>
+        </div>
+      </div>
+      <div className="mt-4 grid grid-cols-4 gap-2 border-t border-gray-100 pt-3 text-center">
+        {stats.map(([label, value]) => (
+          <div key={label}>
+            <p className="text-base font-semibold tabular-nums text-gray-900">{value}</p>
+            <p className="truncate text-[10px] text-gray-400">{label}</p>
+          </div>
+        ))}
+      </div>
+    </Link>
+  );
+}
+
 /** Biểu đồ cột MGI — SVG/CSS thuần, không thêm thư viện đồ thị. */
 function MgiChart({ data }: { data: Record<string, number> }) {
   const total = MGI_LEVELS.reduce((s, l) => s + (data[l] ?? 0), 0);
@@ -280,19 +336,43 @@ export default function DashboardPage() {
     );
   }
 
-  const { cases, mgi, users, activity } = data;
+  const { cases, scans, library, mgi, users, activity } = data;
+  const canUseScans = user?.role === 'admin' || user?.role === 'doctor';
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <div>
-        <h1 className="font-serif text-xl font-semibold text-gray-900">
-          Xin chào, {user?.full_name || user?.username}
-        </h1>
-        <p className="mt-0.5 text-sm text-gray-500">
-          {data.scope === 'all'
-            ? 'Bạn đang xem số liệu của toàn hệ thống.'
-            : 'Bạn đang xem số liệu của các ca do bạn tạo và được chia sẻ.'}
-        </p>
+      <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary-600 to-teal-700 px-5 py-5 text-white shadow-sm sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wider text-white/70">
+              Trung tâm điều hành DentAI
+            </p>
+            <h1 className="mt-1 font-serif text-2xl font-semibold">
+              Xin chào, {user?.full_name || user?.username}
+            </h1>
+            <p className="mt-1 max-w-xl text-sm text-white/75">
+              {data.scope === 'all'
+                ? 'Theo dõi toàn bộ hoạt động chẩn đoán và lưu trữ của hệ thống.'
+                : 'Theo dõi dữ liệu do bạn tạo và những nội dung được chia sẻ với bạn.'}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/analysis/new/"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-xs font-semibold text-primary shadow-sm hover:bg-primary-50"
+            >
+              <span className="material-symbols-outlined text-[17px]">add_photo_alternate</span>
+              Chẩn đoán mới
+            </Link>
+            <Link
+              href="/library/new/"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-3.5 py-2 text-xs font-semibold text-white hover:bg-white/20"
+            >
+              <span className="material-symbols-outlined text-[17px]">cloud_upload</span>
+              Tải dữ liệu lên
+            </Link>
+          </div>
+        </div>
       </div>
 
       <RoleRequestBanner request={user?.my_role_request ?? null} currentRole={user?.role} />
@@ -313,6 +393,31 @@ export default function DashboardPage() {
           label="Được chia sẻ với tôi"
           value={cases.shared_with_me}
           tone="green"
+        />
+      </div>
+
+      <div className={`grid gap-4 ${canUseScans ? 'lg:grid-cols-2' : ''}`}>
+        {canUseScans && (
+          <ModuleCard
+            href="/scans/"
+            icon="view_in_ar"
+            title="Răng nanh ngầm 3D"
+            description="Phim CBCT, phân vùng và chia sẻ 3D Slicer"
+            total={scans.total}
+            ready={scans.by_status.ready}
+            processing={(scans.by_status.uploading ?? 0) + (scans.by_status.processing ?? 0)}
+            shared={scans.shared_with_me}
+          />
+        )}
+        <ModuleCard
+          href="/library/"
+          icon="inventory_2"
+          title="Kho dữ liệu"
+          description="DICOM, ảnh trong miệng, Pano và tài liệu"
+          total={library.total}
+          ready={library.by_status.ready}
+          processing={(library.by_status.uploading ?? 0) + (library.by_status.processing ?? 0)}
+          shared={library.shared_with_me}
         />
       </div>
 

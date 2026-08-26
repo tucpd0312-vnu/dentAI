@@ -22,11 +22,19 @@ export interface DashboardUsers {
   pending_role_requests: number;
 }
 
+export interface DashboardStorageModule {
+  total: number;
+  by_status: Record<'uploading' | 'processing' | 'ready' | 'failed', number>;
+  shared_with_me: number;
+}
+
 export type LogCategory = 'admin' | 'auth' | 'business' | 'error';
 
 export interface DashboardData {
   scope: 'all' | 'own';
   cases: DashboardCases;
+  scans: DashboardStorageModule;
+  library: DashboardStorageModule;
   /** Khoá là mức MGI dạng chuỗi: '0'…'4'. */
   mgi: Record<string, number>;
   /** Chỉ có trong response của admin. */

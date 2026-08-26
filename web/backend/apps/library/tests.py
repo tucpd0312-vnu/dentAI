@@ -13,6 +13,7 @@ import io
 import os
 import shutil
 import tempfile
+from unittest import mock
 
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
@@ -351,3 +352,173 @@ class DownloadAndEditTests(LibraryTestCase):
         )
         # File vật lý CỐ Ý giữ lại — dọn đĩa là việc vận hành riêng.
         self.assertTrue(os.path.exists(self.asset.file_path))
+
+
+class SourceImportTests(LibraryTestCase):
+    def setUp(self):
+        super().setUp()
+        from apps.cases.models import Caption, Case, Image, Patient
+        from apps.scans.models import Scan
+
+        source_dir = os.path.join(TEMP_ROOT, "test-sources")
+        os.makedirs(source_dir, exist_ok=True)
+
+        self.source_patient = Patient.objects.create(
+            name="Bệnh nhân nguồn", patient_code="SRC-001"
+        )
+        self.case = Case.objects.create(
+            patient=self.source_patient,
+            created_by=self.doctor,
+            status=Case.Status.DONE,
+        )
+        self.original_path = os.path.join(source_dir, "original.png")
+        self.annotated_path = os.path.join(source_dir, "annotated.png")
+        with open(self.original_path, "wb") as f:
+            f.write(_png_bytes())
+        with open(self.annotated_path, "wb") as f:
+            f.write(_png_bytes(size=(10, 10)))
+        self.image = Image.objects.create(
+            case=self.case,
+            order_index=0,
+            original_path=self.original_path,
+            annotated_path=self.annotated_path,
+            status=Image.Status.DONE,
+        )
+        Caption.objects.create(
+            image=self.image,
+            ai_text="Viêm lợi nhẹ vùng răng cửa.",
+        )
+
+        self.scan_path = os.path.join(source_dir, "scan.zip")
+        with open(self.scan_path, "wb") as f:
+            f.write(b"test-zip-content")
+        self.scan = Scan.objects.create(
+            patient=self.source_patient,
+            uploaded_by=self.doctor,
+            status=Scan.Status.READY,
+            zip_path=self.scan_path,
+            is_anonymized=True,
+            note="Răng nanh ngầm hàm trên.",
+        )
+
+    def test_owner_imports_gingivitis_image_as_independent_asset(self):
+        with mock.patch("apps.library.views.process_asset_task.apply_async") as enqueue:
+            res = self.client_for(self.doctor).post(
+                f"/api/library/imports/cases/{self.case.pk}/images/0/",
+                {"variant": "annotated", "title": "Ảnh viêm lợi đã duyệt"},
+                format="json",
+            )
+
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertTrue(res.data["created"])
+        asset = DataAsset.objects.get(pk=res.data["asset"]["id"])
+        self.assertEqual(asset.source_case, self.case)
+        self.assertEqual(asset.source_image, self.image)
+        self.assertEqual(asset.category.slug, "viem-loi")
+        self.assertEqual(asset.condition_note, "Viêm lợi nhẹ vùng răng cửa.")
+        self.assertNotEqual(asset.file_path, self.annotated_path)
+        self.assertTrue(os.path.exists(asset.file_path))
+        self.assertEqual(res.data["asset"]["source"]["kind"], "case")
+        self.assertEqual(res.data["asset"]["source"]["image_index"], 0)
+        enqueue.assert_called_once_with(args=[asset.pk], queue="scans")
+
+    def test_import_is_idempotent_for_same_user_and_source(self):
+        url = f"/api/library/imports/cases/{self.case.pk}/images/0/"
+        with mock.patch("apps.library.views.process_asset_task.apply_async"):
+            first = self.client_for(self.doctor).post(
+                url, {"variant": "original"}, format="json"
+            )
+        with mock.patch("apps.library.views.process_asset_task.apply_async") as enqueue:
+            second = self.client_for(self.doctor).post(
+                url, {"variant": "annotated"}, format="json"
+            )
+
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(second.status_code, 200)
+        self.assertFalse(second.data["created"])
+        self.assertEqual(first.data["asset"]["id"], second.data["asset"]["id"])
+        self.assertEqual(DataAsset.objects.filter(source_image=self.image).count(), 1)
+        enqueue.assert_not_called()
+
+    def test_recipient_of_shared_case_cannot_copy_it_to_library(self):
+        from apps.cases.models import CaseShare
+
+        CaseShare.objects.create(
+            case=self.case,
+            shared_with=self.other_doctor,
+            shared_by=self.doctor,
+            permission=CaseShare.Permission.EDIT,
+        )
+        res = self.client_for(self.other_doctor).post(
+            f"/api/library/imports/cases/{self.case.pk}/images/0/",
+            {"variant": "original"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 403)
+
+    def test_annotated_variant_requires_annotated_file(self):
+        self.image.annotated_path = ""
+        self.image.save(update_fields=["annotated_path"])
+        res = self.client_for(self.doctor).post(
+            f"/api/library/imports/cases/{self.case.pk}/images/0/",
+            {"variant": "annotated"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 409)
+        self.assertEqual(DataAsset.objects.filter(source_image=self.image).count(), 0)
+
+    def test_patient_can_import_a_case_they_own(self):
+        from apps.cases.models import Case, Image
+
+        patient_case = Case.objects.create(
+            patient=self.source_patient,
+            created_by=self.patient,
+            status=Case.Status.DONE,
+        )
+        Image.objects.create(
+            case=patient_case,
+            order_index=0,
+            original_path=self.original_path,
+            status=Image.Status.DONE,
+        )
+        with mock.patch("apps.library.views.process_asset_task.apply_async"):
+            res = self.client_for(self.patient).post(
+                f"/api/library/imports/cases/{patient_case.pk}/images/0/",
+                {"variant": "original"},
+                format="json",
+            )
+        self.assertEqual(res.status_code, 201, res.data)
+        # PHI vẫn bị cắt ở serializer với vai trò bệnh nhân.
+        self.assertIsNone(res.data["asset"]["patient"])
+        self.assertNotIn("condition_note", res.data["asset"])
+
+    def test_scan_owner_imports_ready_anonymized_scan(self):
+        with mock.patch("apps.library.views.process_asset_task.apply_async") as enqueue:
+            res = self.client_for(self.doctor).post(
+                f"/api/library/imports/scans/{self.scan.pk}/",
+                {"title": "CBCT RNNHT đã chọn"},
+                format="json",
+            )
+        self.assertEqual(res.status_code, 201, res.data)
+        asset = DataAsset.objects.get(pk=res.data["asset"]["id"])
+        self.assertEqual(asset.source_scan, self.scan)
+        self.assertEqual(asset.category.slug, "rang-nanh-ngam")
+        self.assertEqual(asset.data_type, DataAsset.DataType.DICOM_SERIES)
+        self.assertNotEqual(asset.file_path, self.scan_path)
+        enqueue.assert_called_once_with(args=[asset.pk], queue="scans")
+
+    def test_shared_scan_recipient_cannot_import_to_library(self):
+        from apps.scans.models import ScanShare
+
+        ScanShare.objects.create(
+            scan=self.scan,
+            shared_with=self.other_doctor,
+            shared_by=self.doctor,
+            permission=ScanShare.Permission.EDIT,
+        )
+        res = self.client_for(self.other_doctor).post(
+            f"/api/library/imports/scans/{self.scan.pk}/",
+            {},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 403)

@@ -88,7 +88,10 @@ export interface DataAssetDetail extends DataAsset {
   error_message: string;
   can_see_patient_info: boolean;
   /** Nguồn gốc khi tư liệu đến từ module khác; null với dữ liệu tải thẳng lên kho. */
-  source: { kind: 'scan'; id: number } | { kind: 'case'; id: number; image_id: number | null } | null;
+  source:
+    | { kind: 'scan'; id: number }
+    | { kind: 'case'; id: number; image_id: number | null; image_index: number | null }
+    | null;
 }
 
 export interface AssetFilters {
@@ -114,6 +117,17 @@ export interface UploadAssetPayload {
   gender?: Gender | '';
   conditionNote?: string;
   file: File;
+}
+
+export interface SourceImportResponse {
+  /** false khi nguồn này đã có sẵn trong Kho dữ liệu của người dùng. */
+  created: boolean;
+  asset: DataAssetDetail;
+}
+
+export interface SourceImportPayload {
+  title?: string;
+  conditionNote?: string;
 }
 
 // ── Nhãn hiển thị dùng chung ─────────────────────────────────────────────────
@@ -224,6 +238,33 @@ export async function fetchAssets(filters: AssetFilters = {}): Promise<Paginated
 
 export async function fetchAsset(id: number | string): Promise<DataAssetDetail> {
   const res = await api.get<DataAssetDetail>(`/library/assets/${id}/`);
+  return res.data;
+}
+
+export async function importScanToLibrary(
+  scanId: number | string,
+  payload: SourceImportPayload,
+): Promise<SourceImportResponse> {
+  const res = await api.post<SourceImportResponse>(`/library/imports/scans/${scanId}/`, {
+    title: payload.title ?? '',
+    condition_note: payload.conditionNote ?? '',
+  });
+  return res.data;
+}
+
+export async function importGingivitisToLibrary(
+  caseId: number | string,
+  imageIndex: number,
+  payload: SourceImportPayload & { variant: 'original' | 'annotated' },
+): Promise<SourceImportResponse> {
+  const res = await api.post<SourceImportResponse>(
+    `/library/imports/cases/${caseId}/images/${imageIndex}/`,
+    {
+      title: payload.title ?? '',
+      condition_note: payload.conditionNote ?? '',
+      variant: payload.variant,
+    },
+  );
   return res.data;
 }
 
