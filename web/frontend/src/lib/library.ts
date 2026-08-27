@@ -85,6 +85,8 @@ export interface DataAsset {
   status_display: string;
   file_size: number;
   original_filename: string;
+  /** Rỗng với upload trực tiếp hoặc bản ảnh cũ chưa xác định được. */
+  source_variant: 'original' | 'annotated' | '';
   preview_count: number;
   uploaded_by: AssetUploader | null;
   permission: AssetPermission;
@@ -138,7 +140,7 @@ export interface UploadAssetPayload {
 }
 
 export interface SourceImportResponse {
-  /** false khi nguồn này đã có sẵn trong Kho dữ liệu của người dùng. */
+  /** false khi đúng nguồn và bản ảnh này đã có trong Kho dữ liệu của người dùng. */
   created: boolean;
   asset: DataAssetDetail;
 }

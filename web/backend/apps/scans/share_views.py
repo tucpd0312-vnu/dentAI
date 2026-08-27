@@ -1,6 +1,8 @@
 """API chia sẻ phim RNNHT 3D cho tài khoản chuyên môn trên hệ thống."""
 
+from django.db import transaction
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -10,7 +12,7 @@ from apps.users.models import LogAction, LogCategory, Role, User
 from apps.users.permissions import IsActiveUser, IsAdminOrDoctor
 
 from .access import can_manage_scan, scoped_scans
-from .models import Scan, ScanShare
+from .models import Scan, ScanAccessToken, ScanShare
 from .serializers import ScanListSerializer
 
 
@@ -137,6 +139,7 @@ class ScanShareDetailView(APIView):
         )
         return Response(ScanShareSerializer(share).data)
 
+    @transaction.atomic
     def delete(self, request, share_id):
         share = self._get_share(request, share_id)
         if share is None:
@@ -146,6 +149,12 @@ class ScanShareDetailView(APIView):
             )
         scan, recipient, permission = share.scan, share.shared_with, share.permission
         share.delete()
+        # Hết hạn vé chưa dùng, không ghi used_at vì chưa có lượt tải thành công.
+        # Chia sẻ lại sau đó cũng không làm sống lại vé đã thu hồi.
+        revoked_at = timezone.now()
+        ScanAccessToken.objects.filter(
+            scan=scan, user=recipient, used_at__isnull=True, expires_at__gt=revoked_at,
+        ).update(expires_at=revoked_at)
         log_activity(
             LogCategory.BUSINESS, LogAction.SCAN_UNSHARE,
             actor=request.user, request=request, target_scan=scan, target_user=recipient,

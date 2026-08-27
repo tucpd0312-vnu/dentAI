@@ -25,7 +25,7 @@ from apps.common import chunked_upload
 from apps.users.activity import get_client_ip, log_activity
 from apps.users.admin_serializers import ActivityLogSerializer
 from apps.users.models import ActivityLog, LogAction, LogCategory
-from apps.users.permissions import IsActiveUser, IsAdminOrDoctor
+from apps.users.permissions import IsActiveUser, IsAdminOrDoctor, is_usable
 
 from .access import can_contribute_scan, can_manage_scan, scoped_scans
 from .models import Scan, ScanAccessToken, Segmentation
@@ -410,6 +410,19 @@ class ScanDownloadView(APIView):
             if not token_obj.is_valid():
                 return Response(
                     {"detail": "Đường dẫn tải phim đã hết hạn hoặc đã được dùng."},
+                    status=status.HTTP_410_GONE,
+                )
+
+            # Token chỉ thay thế phiên đăng nhập của Slicer, không giữ lại quyền
+            # đã bị thu hồi hoặc cho phép dùng tài khoản/phim đã bị vô hiệu hoá.
+            if (
+                not is_usable(token_obj.user)
+                or not scoped_scans(token_obj.user).filter(pk=token_obj.scan_id).exists()
+            ):
+                token_obj.expires_at = timezone.now()
+                token_obj.save(update_fields=["expires_at"])
+                return Response(
+                    {"detail": "Đường dẫn tải phim không còn quyền truy cập."},
                     status=status.HTTP_410_GONE,
                 )
 

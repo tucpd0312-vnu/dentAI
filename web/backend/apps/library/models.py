@@ -64,6 +64,10 @@ class DataAsset(models.Model):
         PRIVATE = "private", "Riêng tư"
         SHARED = "shared", "Đã chia sẻ"
 
+    class SourceVariant(models.TextChoices):
+        ORIGINAL = "original", "Ảnh gốc"
+        ANNOTATED = "annotated", "Ảnh có chú thích"
+
     title = models.CharField(max_length=255)
     patient = models.ForeignKey(
         "cases.Patient", on_delete=models.SET_NULL, null=True, blank=True,
@@ -117,6 +121,11 @@ class DataAsset(models.Model):
     source_image = models.ForeignKey(
         "cases.Image", on_delete=models.SET_NULL, null=True, blank=True,
         related_name="library_assets",
+    )
+    # Hai bản của cùng ảnh nguồn là hai snapshot riêng. Rỗng với upload trực tiếp
+    # hoặc dữ liệu cũ không xác định được bản ảnh; không suy đoán là ảnh gốc.
+    source_variant = models.CharField(
+        max_length=16, choices=SourceVariant.choices, blank=True, default="",
     )
     source_scan = models.ForeignKey(
         "scans.Scan", on_delete=models.SET_NULL, null=True, blank=True,

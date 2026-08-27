@@ -418,6 +418,16 @@ export default function AssetDetailPage() {
 
           {asset.source && (
             <Card title="Nguồn dữ liệu">
+              {asset.source.kind === 'case' && (
+                <InfoRow
+                  label="Bản ảnh"
+                  value={asset.source_variant === 'original'
+                    ? 'Ảnh gốc'
+                    : asset.source_variant === 'annotated'
+                      ? 'Ảnh có chú thích'
+                      : 'Chưa xác định (dữ liệu cũ)'}
+                />
+              )}
               {asset.source.kind === 'scan' ? (
                 <Link
                   href={`/scans/${asset.source.id}/`}

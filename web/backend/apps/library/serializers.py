@@ -141,8 +141,8 @@ class AssetSourceImportSerializer(serializers.Serializer):
 
 class GingivitisSourceImportSerializer(AssetSourceImportSerializer):
     variant = serializers.ChoiceField(
-        choices=[("original", "Ảnh gốc"), ("annotated", "Ảnh có chú thích")],
-        default="annotated",
+        choices=DataAsset.SourceVariant.choices,
+        default=DataAsset.SourceVariant.ANNOTATED,
     )
 
 
@@ -223,7 +223,7 @@ class AssetListSerializer(_AssetBaseSerializer):
         fields = [
             "id", "title", "patient", "condition_note",
             "category", "category_name", "category_slug", "data_type", "data_type_display",
-            "status", "status_display", "file_size", "original_filename",
+            "status", "status_display", "file_size", "original_filename", "source_variant",
             "preview_count", "uploaded_by", "permission", "can_edit", "diagnosis_target",
             "created_at", "updated_at",
         ]
@@ -257,7 +257,7 @@ class AssetDetailSerializer(_AssetBaseSerializer):
             "id", "title", "patient", "condition_note", "can_see_patient_info",
             "category", "category_name", "category_slug", "data_type", "data_type_other",
             "data_type_display", "status", "status_display", "visibility",
-            "file_size", "original_filename", "mime_type",
+            "file_size", "original_filename", "mime_type", "source_variant",
             "preview_count", "is_anonymized", "error_message",
             "uploaded_by", "permission", "can_edit", "diagnosis_target", "source",
             "created_at", "updated_at",

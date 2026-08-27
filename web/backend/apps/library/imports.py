@@ -73,8 +73,14 @@ def import_scan(*, scan, user, title: str, condition_note: str):
 def import_gingivitis_image(
     *, image, user, variant: str, title: str, condition_note: str,
 ):
+    if variant not in DataAsset.SourceVariant.values:
+        raise SourceImportError("Bản ảnh không hợp lệ.")
+
+    # View giữ khoá Image trong transaction: hai yêu cầu cùng bản ảnh được tuần
+    # tự hoá; khác bản ảnh phải tạo snapshot riêng, không dùng lại/ghi đè bản cũ.
     existing = DataAsset.objects.filter(
         source_image=image,
+        source_variant=variant,
         uploaded_by=user,
         is_deleted=False,
     ).first()
@@ -107,5 +113,6 @@ def import_gingivitis_image(
         uploaded_by=user,
         source_case=image.case,
         source_image=image,
+        source_variant=variant,
     )
     return asset, True

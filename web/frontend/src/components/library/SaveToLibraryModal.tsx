@@ -98,10 +98,15 @@ export default function SaveToLibraryModal(props: SaveToLibraryModalProps) {
                 <p className="font-semibold">
                   {created ? 'Đã thêm vào Kho dữ liệu' : 'Dữ liệu đã có trong kho'}
                 </p>
+                {asset.source_variant && (
+                  <p className="mt-0.5 text-xs font-medium">
+                    Bản ảnh: {asset.source_variant === 'original' ? 'Ảnh gốc' : 'Ảnh có chú thích'}
+                  </p>
+                )}
                 <p className="mt-0.5 text-xs text-green-700">
                   {created
                     ? 'Máy chủ đang tạo bản xem trước. Bản sao trong kho độc lập với dữ liệu nguồn.'
-                    : 'Hệ thống không tạo thêm bản trùng và đã mở lại mục hiện có.'}
+                    : 'Đúng bản dữ liệu này đã có trong kho. Hệ thống giữ nguyên tệp và thông tin đã lưu, không tạo trùng hoặc ghi đè.'}
                 </p>
               </div>
             </div>
@@ -157,6 +162,8 @@ export default function SaveToLibraryModal(props: SaveToLibraryModalProps) {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
+                    disabled={saving}
+                    aria-pressed={variant === 'original'}
                     onClick={() => setVariant('original')}
                     className={`rounded-lg border px-3 py-2 text-sm font-medium ${
                       variant === 'original'
@@ -168,7 +175,8 @@ export default function SaveToLibraryModal(props: SaveToLibraryModalProps) {
                   </button>
                   <button
                     type="button"
-                    disabled={!props.hasAnnotated}
+                    disabled={saving || !props.hasAnnotated}
+                    aria-pressed={variant === 'annotated'}
                     onClick={() => setVariant('annotated')}
                     className={`rounded-lg border px-3 py-2 text-sm font-medium ${
                       variant === 'annotated'
@@ -179,6 +187,10 @@ export default function SaveToLibraryModal(props: SaveToLibraryModalProps) {
                     Ảnh có chú thích
                   </button>
                 </div>
+                <p className="mt-2 text-xs leading-relaxed text-gray-500">
+                  Ảnh gốc và ảnh có chú thích được lưu thành hai mục riêng. Lưu lại
+                  cùng một bản sẽ mở mục đã có, không ghi đè. Nên dùng ảnh gốc để chẩn đoán lại.
+                </p>
               </div>
             )}
 
