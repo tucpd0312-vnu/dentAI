@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -9,6 +9,8 @@ import {
   ASSET_STATUS_LABEL,
   DATA_TYPE_ICON,
   DATA_TYPE_LABEL,
+  DIAGNOSIS_ROUTES,
+  diagnosisUrl,
   deleteAsset,
   downloadAsset,
   fetchAssets,
@@ -24,7 +26,7 @@ import { apiErrorMessage } from '@/lib/users';
 const PAGE_SIZE = 20;
 
 /** Tab lọc — `all` với người không phải admin nghĩa là "mọi thứ tôi truy cập được". */
-type Tab = 'all' | 'mine' | 'shared';
+type Tab = 'all' | 'mine' | 'shared' | 'others';
 
 const TABS: { value: Tab; label: string }[] = [
   { value: 'all', label: 'Tất cả' },
@@ -61,8 +63,10 @@ export default function LibraryPage() {
   const [dataType, setDataType] = useState<DataType | ''>('');
   const [tab, setTab] = useState<Tab>('all');
   const [page, setPage] = useState(1);
+  const requestVersion = useRef(0);
 
   const load = useCallback(async () => {
+    const version = ++requestVersion.current;
     setLoading(true);
     setError(null);
     try {
@@ -72,19 +76,25 @@ export default function LibraryPage() {
         data_type: dataType || undefined,
         mine: tab === 'mine',
         shared: tab === 'shared',
+        others: tab === 'others',
         page,
       });
+      if (version !== requestVersion.current) return;
       setRows(data.results);
       setCount(data.count);
     } catch (err) {
+      if (version !== requestVersion.current) return;
+      setRows([]);
+      setCount(0);
       setError(apiErrorMessage(err, 'Không tải được kho dữ liệu.'));
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
   }, [q, category, dataType, tab, page]);
 
   useEffect(() => {
     void load();
+    return () => { requestVersion.current += 1; };
   }, [load]);
 
   useEffect(() => {
@@ -152,7 +162,9 @@ export default function LibraryPage() {
           <h1 className="font-serif text-xl font-semibold text-gray-900">Kho dữ liệu</h1>
           <p className="mt-0.5 text-sm text-gray-500">
             {loading ? 'Đang tải…' : `${count} mục dữ liệu`}
-            {!isAdmin && ' · dữ liệu của bạn và dữ liệu được chia sẻ cho bạn'}
+            {isAdmin
+              ? ' · quyền quản trị cho phép xem toàn hệ thống'
+              : ' · dữ liệu của bạn và dữ liệu được chia sẻ cho bạn'}
           </p>
         </div>
         <Link
@@ -179,10 +191,11 @@ export default function LibraryPage() {
 
       {/* ── Bộ lọc ── */}
       <div className="space-y-3 rounded-xl border border-gray-200 bg-white p-3">
-        <div className="flex gap-1 border-b border-gray-100 pb-2">
-          {TABS.map(t => (
+        <div className="flex flex-wrap gap-1 border-b border-gray-100 pb-2">
+          {(isAdmin ? [...TABS, { value: 'others' as Tab, label: 'Của người khác' }] : TABS).map(t => (
             <button
               key={t.value}
+              aria-pressed={tab === t.value}
               onClick={() => {
                 setTab(t.value);
                 setPage(1);
@@ -193,10 +206,17 @@ export default function LibraryPage() {
                   : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
               }`}
             >
-              {t.label}
+              {t.value === 'all' && isAdmin ? 'Tất cả hệ thống' : t.label}
             </button>
           ))}
         </div>
+
+        {isAdmin && tab === 'shared' && (
+          <p className="text-xs text-gray-500">
+            Chỉ gồm tư liệu được chia sẻ trực tiếp cho tài khoản của bạn.
+            Tư liệu xem bằng quyền quản trị nằm ở “Của người khác”.
+          </p>
+        )}
 
         <div className="flex flex-wrap gap-2">
           <div className="relative min-w-[220px] flex-1">
@@ -285,9 +305,11 @@ export default function LibraryPage() {
                         ? 'Không có dữ liệu nào khớp bộ lọc.'
                         : tab === 'shared'
                           ? 'Chưa có ai chia sẻ dữ liệu cho bạn.'
-                          : 'Kho dữ liệu còn trống.'}
+                          : tab === 'others'
+                            ? 'Chưa có tư liệu của người dùng khác.'
+                            : 'Kho dữ liệu còn trống.'}
                     </p>
-                    {!q && !category && !dataType && tab !== 'shared' && (
+                    {!q && !category && !dataType && (tab === 'all' || tab === 'mine') && (
                       <Link
                         href="/library/new/"
                         className="mt-2 inline-block text-sm text-primary underline underline-offset-2"
@@ -373,6 +395,18 @@ export default function LibraryPage() {
                         >
                           <span className="material-symbols-outlined text-[18px]">visibility</span>
                         </Link>
+                        {a.diagnosis_target && (
+                          <Link
+                            href={diagnosisUrl(a)!}
+                            title={DIAGNOSIS_ROUTES[a.diagnosis_target].label}
+                            aria-label={DIAGNOSIS_ROUTES[a.diagnosis_target].label}
+                            className="rounded-lg p-1.5 text-primary transition-colors hover:bg-primary/5"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">
+                              {a.diagnosis_target === 'canine3d' ? 'view_in_ar' : 'oral_disease'}
+                            </span>
+                          </Link>
+                        )}
                         <button
                           onClick={() => handleDownload(a)}
                           disabled={a.status !== 'ready' || busyId === a.id}

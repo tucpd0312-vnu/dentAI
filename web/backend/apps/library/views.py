@@ -164,6 +164,25 @@ class AssetListView(APIView):
         if data_type:
             qs = qs.filter(data_type=data_type)
 
+        diagnosis = request.query_params.get("diagnosis")
+        if diagnosis:
+            from .diagnosis import TARGET_RULES
+
+            if diagnosis not in TARGET_RULES:
+                return Response(
+                    {"detail": "Loại chẩn đoán không hợp lệ."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            category_slug, target_data_type = TARGET_RULES[diagnosis]
+            qs = qs.filter(
+                category__slug=category_slug,
+                data_type=target_data_type,
+                status=DataAsset.Status.READY,
+                is_anonymized=True,
+            )
+            if diagnosis == "canine3d" and request.user.role not in (Role.ADMIN, Role.DOCTOR):
+                qs = qs.none()
+
         patient = request.query_params.get("patient")
         if patient:
             if can_see_patient_info(request.user):
@@ -180,7 +199,12 @@ class AssetListView(APIView):
         if request.query_params.get("mine") == "1":
             qs = qs.filter(uploaded_by=request.user)
         if request.query_params.get("shared") == "1":
-            qs = qs.filter(shares__shared_with=request.user).distinct()
+            qs = qs.filter(shares__shared_with=request.user).exclude(uploaded_by=request.user).distinct()
+        if request.query_params.get("others") == "1":
+            # Quyền quản trị toàn hệ thống không phải một lời chia sẻ cá nhân.
+            if request.user.role != Role.ADMIN:
+                return Response({"detail": "Chỉ quản trị viên được dùng bộ lọc này."}, status=403)
+            qs = qs.exclude(uploaded_by=request.user)
 
         qs = qs.order_by("-created_at")
         paginator = AssetPagination()

@@ -14,6 +14,7 @@ from apps.cases.serializers import PatientSerializer
 
 from .access import asset_permission_for, can_edit_asset, can_see_patient_info
 from .models import DataAsset, DataCategory
+from .diagnosis import diagnosis_target
 
 # Đuôi file chấp nhận theo từng loại dữ liệu (docs/02-KE-HOACH-NANG-CAP.md §B.2.2).
 # Client validate lại y hệt để báo lỗi sớm, nhưng ĐÂY mới là chốt chặn thật.
@@ -168,12 +169,14 @@ class _AssetBaseSerializer(serializers.ModelSerializer):
     """Phần dùng chung của list/detail, gồm cả việc CẮT khối PHI theo vai trò."""
 
     category_name = serializers.CharField(source="category.name", read_only=True)
+    category_slug = serializers.CharField(source="category.slug", read_only=True)
     data_type_display = serializers.CharField(source="data_type_label", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     uploaded_by = serializers.SerializerMethodField()
     permission = serializers.SerializerMethodField()
     can_edit = serializers.SerializerMethodField()
     patient = serializers.SerializerMethodField()
+    diagnosis_target = serializers.SerializerMethodField()
 
     def _user(self):
         request = self.context.get("request")
@@ -203,6 +206,9 @@ class _AssetBaseSerializer(serializers.ModelSerializer):
             return None
         return PatientSerializer(obj.patient).data
 
+    def get_diagnosis_target(self, obj):
+        return diagnosis_target(obj, self._user())
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         # `condition_note` là mô tả tình trạng bệnh nhân ⇒ cùng nhóm PHI với `patient`.
@@ -216,9 +222,9 @@ class AssetListSerializer(_AssetBaseSerializer):
         model = DataAsset
         fields = [
             "id", "title", "patient", "condition_note",
-            "category", "category_name", "data_type", "data_type_display",
+            "category", "category_name", "category_slug", "data_type", "data_type_display",
             "status", "status_display", "file_size", "original_filename",
-            "preview_count", "uploaded_by", "permission", "can_edit",
+            "preview_count", "uploaded_by", "permission", "can_edit", "diagnosis_target",
             "created_at", "updated_at",
         ]
 
@@ -249,11 +255,11 @@ class AssetDetailSerializer(_AssetBaseSerializer):
         model = DataAsset
         fields = [
             "id", "title", "patient", "condition_note", "can_see_patient_info",
-            "category", "category_name", "data_type", "data_type_other",
+            "category", "category_name", "category_slug", "data_type", "data_type_other",
             "data_type_display", "status", "status_display", "visibility",
             "file_size", "original_filename", "mime_type",
             "preview_count", "is_anonymized", "error_message",
-            "uploaded_by", "permission", "can_edit", "source",
+            "uploaded_by", "permission", "can_edit", "diagnosis_target", "source",
             "created_at", "updated_at",
         ]
         # file_path / preview_dir / thumbnail_path CỐ Ý không có ở đây — không lộ đường

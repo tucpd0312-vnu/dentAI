@@ -26,6 +26,13 @@ class ScanUploadInitSerializer(serializers.Serializer):
         return value
 
 
+class ScanFromLibrarySerializer(serializers.Serializer):
+    patient_name = serializers.CharField(max_length=255)
+    patient_code = serializers.CharField(max_length=64, required=False, allow_blank=True, default="")
+    note = serializers.CharField(required=False, allow_blank=True, default="")
+    asset_id = serializers.IntegerField(min_value=1)
+
+
 class _UploaderMixin:
     """`uploaded_by` dạng rút gọn — cùng khuôn `CaseListSerializer.get_owner()`."""
 

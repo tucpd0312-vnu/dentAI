@@ -9,6 +9,8 @@ import {
   ASSET_STATUS_CLASS,
   ASSET_STATUS_LABEL,
   DATA_TYPE_ICON,
+  DIAGNOSIS_ROUTES,
+  diagnosisUrl,
   deleteAsset,
   downloadAsset,
   fetchAsset,
@@ -261,6 +263,15 @@ export default function AssetDetailPage() {
         {/* ── Cột phải ── */}
         <div className="w-full shrink-0 space-y-4 sm:w-80">
           <div className="space-y-2">
+            {asset.diagnosis_target && (
+              <Link
+                href={diagnosisUrl(asset)!}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-600"
+              >
+                <span className="material-symbols-outlined text-[18px]">{asset.diagnosis_target === 'canine3d' ? 'view_in_ar' : 'oral_disease'}</span>
+                {DIAGNOSIS_ROUTES[asset.diagnosis_target].label}
+              </Link>
+            )}
             <button
               onClick={handleDownload}
               disabled={!canDownload || downloading}

@@ -2,6 +2,7 @@ import hashlib
 import io
 import os
 import secrets
+import shutil
 import zipfile
 from datetime import timedelta
 from urllib.parse import urlencode
@@ -30,6 +31,7 @@ from .access import can_contribute_scan, can_manage_scan, scoped_scans
 from .models import Scan, ScanAccessToken, Segmentation
 from .serializers import (
     ScanDetailSerializer,
+    ScanFromLibrarySerializer,
     ScanListSerializer,
     ScanUploadInitSerializer,
     SegmentationSerializer,
@@ -120,6 +122,53 @@ class ScanListView(APIView):
         return paginator.get_paginated_response(
             ScanListSerializer(page, many=True, context={"request": request}).data
         )
+
+
+class ScanFromLibraryView(APIView):
+    """Sao chép ZIP DICOM trong kho sang phim RNNHT 3D mới của người thao tác."""
+
+    permission_classes = [IsAdminOrDoctor]
+
+    def post(self, request):
+        from apps.library.diagnosis import get_diagnosis_assets, patient_for_diagnosis
+
+        serializer = ScanFromLibrarySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        asset = get_diagnosis_assets(request.user, [data["asset_id"]], "canine3d")[0]
+        scan_dir = ""
+        directory_created = False
+        try:
+            with transaction.atomic():
+                patient = patient_for_diagnosis(request.user, asset, data, prefix="CBCT")
+                scan = Scan.objects.create(
+                    patient=patient, uploaded_by=request.user,
+                    status=Scan.Status.PROCESSING, note=data.get("note", ""),
+                )
+                scan_dir = os.path.join(settings.SCANS_ROOT, str(scan.pk))
+                os.makedirs(scan_dir, exist_ok=False)
+                directory_created = True
+                scan.zip_path = os.path.join(scan_dir, "original.zip")
+                shutil.copy2(asset.file_path, scan.zip_path)
+                scan.file_size = os.path.getsize(scan.zip_path)
+                scan.save(update_fields=["zip_path", "file_size"])
+        except Exception as exc:
+            if directory_created:
+                shutil.rmtree(scan_dir, ignore_errors=True)
+            if not isinstance(exc, OSError):
+                raise
+            return Response(
+                {"detail": "Không thể sao chép phim từ Kho dữ liệu. Vui lòng thử lại."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        process_scan_upload.apply_async(args=[scan.pk], queue="scans")
+        log_activity(
+            LogCategory.BUSINESS, LogAction.SCAN_UPLOAD,
+            actor=request.user, request=request, target_scan=scan,
+            detail={"source": "library", "asset_id": asset.pk, "patient_code": patient.patient_code},
+        )
+        return Response({"id": scan.pk, "status": scan.status}, status=status.HTTP_201_CREATED)
 
 
 class ScanUploadInitView(APIView):

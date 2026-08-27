@@ -1,9 +1,11 @@
 import io
 import os
+import shutil
 import zipfile
 from uuid import uuid4
 
 from django.conf import settings
+from django.db import transaction
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -18,6 +20,7 @@ from .access import can_edit_case, scoped_cases, scoped_images
 from .models import Case, Detection, Image, Patient
 from .serializers import (
     CaseCreateSerializer,
+    CaseFromLibrarySerializer,
     CaseListSerializer,
     CaseStatusSerializer,
     DetectionSerializer,
@@ -96,6 +99,80 @@ class CaseListCreateView(APIView):
             detail={"patient_code": patient.patient_code, "n_images": len(d["images"])},
         )
         return Response({"id": case.pk, "status": case.status}, status=status.HTTP_201_CREATED)
+
+
+class CaseFromLibraryView(APIView):
+    """Tạo một ca viêm lợi mới bằng bản sao độc lập của ảnh trong Kho dữ liệu.
+
+    `scoped_assets()` là chốt quyền: chủ sở hữu, người nhận chia sẻ và admin đều có
+    thể chẩn đoán lại; người ngoài nhận 404 và không biết asset có tồn tại.
+    """
+
+    permission_classes = [IsActiveUser]
+
+    def post(self, request):
+        from apps.library.diagnosis import get_diagnosis_assets, patient_for_diagnosis
+
+        ser = CaseFromLibrarySerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+        asset_ids = data["asset_ids"]
+
+        assets = get_diagnosis_assets(request.user, asset_ids, "gingivitis")
+
+        media_dir = ""
+        directory_created = False
+        image_ids = []
+        try:
+            with transaction.atomic():
+                patient = patient_for_diagnosis(request.user, assets[0], data)
+                case = Case.objects.create(patient=patient, created_by=request.user)
+                media_dir = os.path.join(settings.MEDIA_ROOT, "originals", str(case.pk))
+                os.makedirs(media_dir, exist_ok=False)
+                directory_created = True
+
+                for index, asset in enumerate(assets):
+                    extension = os.path.splitext(
+                        asset.original_filename or asset.file_path
+                    )[1].lower() or ".jpg"
+                    destination = os.path.join(media_dir, f"{index}{extension}")
+                    shutil.copy2(asset.file_path, destination)
+                    image = Image.objects.create(
+                        case=case,
+                        order_index=index,
+                        original_path=destination,
+                    )
+                    image_ids.append(image.pk)
+        except Exception as exc:
+            if directory_created:
+                shutil.rmtree(media_dir, ignore_errors=True)
+            if not isinstance(exc, OSError):
+                raise
+            return Response(
+                {"detail": "Không thể sao chép ảnh từ Kho dữ liệu sang ca chẩn đoán."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        for image_id in image_ids:
+            run_inference_task.apply_async(args=[image_id], queue="inference")
+
+        log_activity(
+            LogCategory.BUSINESS,
+            LogAction.CASE_CREATE,
+            actor=request.user,
+            request=request,
+            target_case=case,
+            detail={
+                "patient_code": patient.patient_code,
+                "n_images": len(image_ids),
+                "source": "library",
+                "asset_ids": asset_ids,
+            },
+        )
+        return Response(
+            {"id": case.pk, "status": case.status},
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class CaseStatusView(APIView):

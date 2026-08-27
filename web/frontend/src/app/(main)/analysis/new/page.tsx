@@ -1,8 +1,11 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
+import { createCaseFromLibrary, type DataAsset } from '@/lib/library';
+import LibraryAssetPicker, { InputSourceTabs, useLibraryInput } from '@/components/library/LibraryAssetPicker';
+import { apiErrorMessage } from '@/lib/users';
 
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const ACCEPTED_ATTR = 'image/jpeg,image/png,image/webp';
@@ -22,7 +25,24 @@ export default function NewAnalysisPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const prefillPatient = useCallback((asset: DataAsset | null) => {
+    setForm({
+      name: asset?.patient?.name || '',
+      patient_code: asset?.patient?.patient_code || '',
+      notes: asset?.condition_note || '',
+    });
+  }, []);
+  const { inputSource, setInputSource, selectedAssets, changeAssets, initialError } =
+    useLibraryInput('gingivitis', prefillPatient);
+
+  const previewsRef = useRef<UploadedFile[]>([]);
+  useEffect(() => { previewsRef.current = files; }, [files]);
+  useEffect(() => () => {
+    previewsRef.current.forEach(item => URL.revokeObjectURL(item.preview));
+  }, []);
+
   const addFiles = useCallback((incoming: File[]) => {
+    if (submitting) return;
     const valid = incoming.filter(f => ACCEPTED_TYPES.includes(f.type));
     const skipped = incoming.length - valid.length;
     if (skipped > 0) {
@@ -37,7 +57,7 @@ export default function NewAnalysisPage() {
         .map(f => ({ file: f, preview: URL.createObjectURL(f) }));
       return [...prev, ...toAdd];
     });
-  }, []);
+  }, [submitting]);
 
   const removeFile = (idx: number) => {
     setFiles(prev => {
@@ -67,29 +87,40 @@ export default function NewAnalysisPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || files.length === 0 || submitting) return;
+    const hasInput = inputSource === 'computer' ? files.length > 0 : selectedAssets.length > 0;
+    if (!form.name.trim() || !hasInput || submitting) return;
     setSubmitting(true);
     setError(null);
     try {
-      const fd = new FormData();
-      fd.append('patient_name', form.name.trim());
-      if (form.patient_code.trim()) fd.append('patient_code', form.patient_code.trim());
-      if (form.notes.trim()) fd.append('notes', form.notes.trim());
-      files.forEach(f => fd.append('images', f.file));
-      const { data } = await api.post('/cases/', fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      files.forEach(f => URL.revokeObjectURL(f.preview));
+      let data: { id: number };
+      if (inputSource === 'library') {
+        data = await createCaseFromLibrary({
+          patientName: form.name.trim(),
+          patientCode: form.patient_code.trim() || undefined,
+          notes: form.notes.trim() || undefined,
+          assetIds: selectedAssets.map(asset => asset.id),
+        });
+      } else {
+        const fd = new FormData();
+        fd.append('patient_name', form.name.trim());
+        if (form.patient_code.trim()) fd.append('patient_code', form.patient_code.trim());
+        if (form.notes.trim()) fd.append('notes', form.notes.trim());
+        files.forEach(f => fd.append('images', f.file));
+        const response = await api.post('/cases/', fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        data = response.data;
+        files.forEach(f => URL.revokeObjectURL(f.preview));
+      }
       router.push(`/analysis/${data.id}/processing/`);
-    } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(msg || 'Gửi yêu cầu thất bại. Vui lòng thử lại.');
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Gửi yêu cầu thất bại. Vui lòng thử lại.'));
       setSubmitting(false);
     }
   };
 
-  const canSubmit = form.name.trim().length > 0 && files.length > 0 && !submitting;
+  const selectedCount = inputSource === 'computer' ? files.length : selectedAssets.length;
+  const canSubmit = form.name.trim().length > 0 && selectedCount > 0 && !submitting;
 
   return (
     <form onSubmit={handleSubmit} className="max-w-3xl mx-auto space-y-5">
@@ -107,6 +138,7 @@ export default function NewAnalysisPage() {
             </label>
             <input
               type="text"
+              aria-label="Tên bệnh nhân"
               value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               placeholder="Nguyễn Văn A"
@@ -126,6 +158,7 @@ export default function NewAnalysisPage() {
             </label>
             <input
               type="text"
+              aria-label="Mã bệnh nhân"
               value={form.patient_code}
               onChange={e => setForm(f => ({ ...f, patient_code: e.target.value }))}
               placeholder="BN-001 (tuỳ chọn)"
@@ -143,6 +176,7 @@ export default function NewAnalysisPage() {
               Ghi chú lâm sàng
             </label>
             <textarea
+              aria-label="Ghi chú lâm sàng"
               value={form.notes}
               onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
               placeholder="Thông tin thêm về ca khám (tuỳ chọn)"
@@ -165,128 +199,110 @@ export default function NewAnalysisPage() {
           <h2 className="font-serif font-semibold text-[15px] text-gray-900">
             Ảnh đầu vào
           </h2>
-          {files.length > 0 && (
+          {selectedCount > 0 && (
             <span className="text-xs text-gray-500 bg-gray-100 px-2.5 py-0.5 rounded-full font-medium">
-              {files.length} ảnh
+              {selectedCount} ảnh
             </span>
           )}
         </div>
         <div className="p-5 space-y-4">
-          {/* Drop zone */}
-          <div
-            onDrop={onDrop}
-            onDragOver={onDragOver}
-            onDragLeave={() => setDragging(false)}
-            onClick={() => !submitting && inputRef.current?.click()}
-            role="button"
-            tabIndex={0}
-            onKeyDown={e => e.key === 'Enter' && !submitting && inputRef.current?.click()}
-            className={`
-              flex flex-col items-center justify-center gap-2.5
-              min-h-[148px] rounded-xl border-2 border-dashed
-              cursor-pointer select-none transition-colors duration-150
-              ${submitting ? 'opacity-50 cursor-not-allowed' : ''}
-              ${dragging
-                ? 'border-primary bg-primary/5'
-                : 'border-gray-300 hover:border-primary/60 hover:bg-gray-50'}
-            `}
-          >
-            <span
-              className={`material-symbols-outlined text-5xl transition-colors ${
-                dragging ? 'text-primary' : 'text-gray-300'
-              }`}
-            >
-              cloud_upload
-            </span>
-            <p className="text-sm text-gray-600">
-              Kéo thả ảnh vào đây hoặc{' '}
-              <span className="text-primary font-medium underline underline-offset-2">
-                chọn từ máy tính
-              </span>
-            </p>
-            <p className="text-xs text-gray-400">JPG · PNG · WebP — nhiều ảnh</p>
-          </div>
+          <InputSourceTabs value={inputSource} disabled={submitting}
+            onChange={source => { setInputSource(source); setError(null); }} />
 
-          <input
-            ref={inputRef}
-            type="file"
-            multiple
-            accept={ACCEPTED_ATTR}
-            onChange={onInputChange}
-            className="hidden"
-          />
+          {inputSource === 'computer' ? (
+            <>
+              <div
+                onDrop={onDrop}
+                onDragOver={onDragOver}
+                onDragLeave={() => setDragging(false)}
+                onClick={() => !submitting && inputRef.current?.click()}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => e.key === 'Enter' && !submitting && inputRef.current?.click()}
+                className={`
+                  flex flex-col items-center justify-center gap-2.5
+                  min-h-[148px] rounded-xl border-2 border-dashed
+                  cursor-pointer select-none transition-colors duration-150
+                  ${submitting ? 'opacity-50 cursor-not-allowed' : ''}
+                  ${dragging
+                    ? 'border-primary bg-primary/5'
+                    : 'border-gray-300 hover:border-primary/60 hover:bg-gray-50'}
+                `}
+              >
+                <span
+                  className={`material-symbols-outlined text-5xl transition-colors ${
+                    dragging ? 'text-primary' : 'text-gray-300'
+                  }`}
+                >
+                  cloud_upload
+                </span>
+                <p className="text-sm text-gray-600">
+                  Kéo thả ảnh vào đây hoặc{' '}
+                  <span className="text-primary font-medium underline underline-offset-2">
+                    chọn từ máy tính
+                  </span>
+                </p>
+                <p className="text-xs text-gray-400">JPG · PNG · WebP — nhiều ảnh</p>
+              </div>
 
-          {/* Thumbnail grid */}
-          {files.length > 0 && (
-            <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-              {files.map((f, idx) => (
-                <div key={f.file.name} className="relative group aspect-square">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={f.preview}
-                    alt={f.file.name}
-                    className="w-full h-full object-cover rounded-lg border border-gray-200"
-                  />
-                  {/* filename tooltip on hover */}
-                  <div
-                    className="
-                      absolute inset-x-0 bottom-0 bg-black/55 text-white text-[9px]
-                      leading-tight px-1 py-0.5 rounded-b-lg truncate
-                      opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none
-                    "
-                  >
-                    {f.file.name}
-                  </div>
-                  {/* order badge */}
-                  <div
-                    className="
-                      absolute top-1 left-1 w-4 h-4 rounded-full bg-primary
-                      text-white text-[9px] font-semibold flex items-center justify-center
-                      shadow pointer-events-none
-                    "
-                  >
-                    {idx + 1}
-                  </div>
-                  {/* remove button */}
+              <input
+                ref={inputRef}
+                type="file"
+                multiple
+                accept={ACCEPTED_ATTR}
+                onChange={onInputChange}
+                className="hidden"
+              />
+
+              {files.length > 0 && (
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                  {files.map((f, idx) => (
+                    <div key={f.file.name} className="relative group aspect-square">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={f.preview}
+                        alt={f.file.name}
+                        className="w-full h-full object-cover rounded-lg border border-gray-200"
+                      />
+                      <div className="absolute inset-x-0 bottom-0 truncate rounded-b-lg bg-black/55 px-1 py-0.5 text-[9px] leading-tight text-white opacity-0 transition-opacity group-hover:opacity-100">
+                        {f.file.name}
+                      </div>
+                      <div className="absolute left-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-semibold text-white shadow">
+                        {idx + 1}
+                      </div>
+                      {!submitting && (
+                        <button
+                          type="button"
+                          onClick={e => {
+                            e.stopPropagation();
+                            removeFile(idx);
+                          }}
+                          title="Xoá ảnh này"
+                          className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-gray-700 text-white opacity-0 shadow transition-opacity hover:bg-red-500 group-hover:opacity-100"
+                        >
+                          <span className="material-symbols-outlined text-[12px]">close</span>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+
                   {!submitting && (
                     <button
                       type="button"
-                      onClick={e => {
-                        e.stopPropagation();
-                        removeFile(idx);
-                      }}
-                      title="Xoá ảnh này"
-                      className="
-                        absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full
-                        bg-gray-700 text-white flex items-center justify-center shadow
-                        opacity-0 group-hover:opacity-100 transition-opacity
-                        hover:bg-red-500
-                      "
+                      onClick={() => inputRef.current?.click()}
+                      title="Thêm ảnh"
+                      className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-gray-300 text-gray-400 transition-colors hover:border-primary/60 hover:bg-gray-50 hover:text-primary"
                     >
-                      <span className="material-symbols-outlined text-[12px]">close</span>
+                      <span className="material-symbols-outlined text-[22px]">add</span>
+                      <span className="text-[9px] font-medium">Thêm</span>
                     </button>
                   )}
                 </div>
-              ))}
-
-              {/* Add more tile */}
-              {!submitting && (
-                <button
-                  type="button"
-                  onClick={() => inputRef.current?.click()}
-                  title="Thêm ảnh"
-                  className="
-                    aspect-square rounded-lg border-2 border-dashed border-gray-300
-                    flex flex-col items-center justify-center gap-1
-                    text-gray-400 hover:text-primary hover:border-primary/60 hover:bg-gray-50
-                    transition-colors
-                  "
-                >
-                  <span className="material-symbols-outlined text-[22px]">add</span>
-                  <span className="text-[9px] font-medium">Thêm</span>
-                </button>
               )}
-            </div>
+            </>
+          ) : (
+            <LibraryAssetPicker target="gingivitis" selected={selectedAssets}
+              onChange={changeAssets} disabled={submitting} initialError={initialError} />
           )}
         </div>
       </div>
@@ -302,9 +318,9 @@ export default function NewAnalysisPage() {
       {/* ── Submit ── */}
       <div className="flex items-center justify-between">
         <p className="text-xs text-gray-400">
-          {files.length === 0
+          {selectedCount === 0
             ? 'Chưa có ảnh nào được chọn'
-            : `${files.length} ảnh sẵn sàng phân tích`}
+            : `${selectedCount} ảnh sẵn sàng phân tích`}
         </p>
         <button
           type="submit"

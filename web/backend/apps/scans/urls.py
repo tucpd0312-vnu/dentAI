@@ -14,6 +14,7 @@ urlpatterns = [
         views.ScanDownloadView.as_view(), name="scan-download",
     ),
     re_path(r"^scans/?$", views.ScanListView.as_view(), name="scan-list"),
+    re_path(r"^scans/from-library/?$", views.ScanFromLibraryView.as_view(), name="scan-from-library"),
     re_path(
         r"^scans/shared-with-me/?$", share_views.ScansSharedWithMeView.as_view(),
         name="scans-shared-with-me",

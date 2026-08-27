@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 
 import { useRequireRole } from '@/lib/useRequireRole';
 import { formatFileSize, uploadScan } from '@/lib/scans';
+import { createScanFromLibrary, type DataAsset } from '@/lib/library';
+import { apiErrorMessage } from '@/lib/users';
+import LibraryAssetPicker, { InputSourceTabs, useLibraryInput } from '@/components/library/LibraryAssetPicker';
 
 export default function NewScanPage() {
   const { allowed, checking } = useRequireRole(['admin', 'doctor']);
@@ -21,7 +24,18 @@ export default function NewScanPage() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
+  const prefillPatient = useCallback((asset: DataAsset | null) => {
+    setForm({
+      name: asset?.patient?.name || '',
+      patient_code: asset?.patient?.patient_code || '',
+      note: asset?.condition_note || '',
+    });
+  }, []);
+  const { inputSource, setInputSource, selectedAssets, changeAssets, initialError } =
+    useLibraryInput('canine3d', prefillPatient);
+
   const pickFile = useCallback((incoming: File[]) => {
+    if (submitting) return;
     const picked = incoming[0];
     if (!picked) return;
     if (!picked.name.toLowerCase().endsWith('.zip')) {
@@ -31,7 +45,7 @@ export default function NewScanPage() {
     setError(null);
     resumeScanIdRef.current = undefined;
     setFile(picked);
-  }, []);
+  }, [submitting]);
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
@@ -54,17 +68,23 @@ export default function NewScanPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || !file || submitting) return;
+    if (!form.name.trim() || submitting) return;
+    if (inputSource === 'computer' ? !file : selectedAssets.length !== 1) return;
     setSubmitting(true);
     setProgress(0);
     setError(null);
     try {
-      const data = await uploadScan(
+      const data = inputSource === 'library' ? await createScanFromLibrary({
+        patientName: form.name.trim(),
+        patientCode: form.patient_code.trim() || undefined,
+        note: form.note.trim() || undefined,
+        assetId: selectedAssets[0].id,
+      }) : await uploadScan(
         {
           patientName: form.name.trim(),
           patientCode: form.patient_code.trim() || undefined,
           note: form.note.trim() || undefined,
-          file,
+          file: file!,
         },
         setProgress,
         resumeScanIdRef.current,
@@ -73,14 +93,13 @@ export default function NewScanPage() {
     } catch (err: unknown) {
       const scanId = (err as { scanId?: number })?.scanId;
       if (scanId) resumeScanIdRef.current = scanId;
-      const msg =
-        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(
-        msg ||
-          (scanId
+      setError(apiErrorMessage(err,
+          (inputSource === 'library'
+            ? 'Không tạo được phim từ Kho dữ liệu. Vui lòng thử lại.'
+            : scanId
             ? 'Tải phim thất bại. Bấm "Tải phim lên" để thử lại — sẽ tiếp tục từ chỗ dang dở, không tải lại từ đầu.'
             : 'Tải phim thất bại. Vui lòng thử lại.'),
-      );
+      ));
       setSubmitting(false);
     }
   };
@@ -95,7 +114,8 @@ export default function NewScanPage() {
     );
   }
 
-  const canSubmit = form.name.trim().length > 0 && !!file && !submitting;
+  const hasInput = inputSource === 'computer' ? !!file : selectedAssets.length === 1;
+  const canSubmit = form.name.trim().length > 0 && hasInput && !submitting;
 
   return (
     <form onSubmit={handleSubmit} className="mx-auto max-w-3xl space-y-5">
@@ -113,6 +133,7 @@ export default function NewScanPage() {
             </label>
             <input
               type="text"
+              aria-label="Tên bệnh nhân"
               value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               placeholder="Nguyễn Văn A"
@@ -129,9 +150,10 @@ export default function NewScanPage() {
             <label className="mb-1.5 block text-xs font-medium text-gray-600">Mã bệnh nhân</label>
             <input
               type="text"
+              aria-label="Mã bệnh nhân"
               value={form.patient_code}
               onChange={e => setForm(f => ({ ...f, patient_code: e.target.value }))}
-              placeholder="BN-001 (tuỳ chọn — trùng mã ca viêm lợi sẽ gộp chung bệnh nhân)"
+              placeholder="Mã bệnh nhân (để trống để tạo hồ sơ mới)"
               disabled={submitting}
               className="
                 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm
@@ -143,6 +165,7 @@ export default function NewScanPage() {
           <div className="sm:col-span-2">
             <label className="mb-1.5 block text-xs font-medium text-gray-600">Ghi chú</label>
             <textarea
+              aria-label="Ghi chú"
               value={form.note}
               onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
               placeholder="Ghi chú về lần chụp này (tuỳ chọn)"
@@ -164,15 +187,20 @@ export default function NewScanPage() {
           <h2 className="font-serif text-[15px] font-semibold text-gray-900">Phim CBCT (DICOM)</h2>
         </div>
         <div className="space-y-4 p-5">
-          {!file ? (
+          <InputSourceTabs value={inputSource} disabled={submitting}
+            onChange={source => { setInputSource(source); setError(null); }} />
+          {inputSource === 'library' ? (
+            <LibraryAssetPicker target="canine3d" selected={selectedAssets}
+              onChange={changeAssets} disabled={submitting} initialError={initialError} />
+          ) : !file ? (
             <div
               onDrop={onDrop}
               onDragOver={onDragOver}
               onDragLeave={() => setDragging(false)}
-              onClick={() => inputRef.current?.click()}
+              onClick={() => !submitting && inputRef.current?.click()}
               role="button"
               tabIndex={0}
-              onKeyDown={e => e.key === 'Enter' && inputRef.current?.click()}
+              onKeyDown={e => e.key === 'Enter' && !submitting && inputRef.current?.click()}
               className={`
                 flex min-h-[148px] cursor-pointer select-none flex-col items-center justify-center
                 gap-2.5 rounded-xl border-2 border-dashed transition-colors duration-150
@@ -228,7 +256,7 @@ export default function NewScanPage() {
           />
 
           {/* Thanh tiến trình upload — quan trọng với CBCT thật ~500MB */}
-          {submitting && (
+          {submitting && inputSource === 'computer' && (
             <div className="space-y-1.5">
               <div className="h-2 overflow-hidden rounded-full bg-gray-100">
                 <div
@@ -255,7 +283,7 @@ export default function NewScanPage() {
       {/* ── Submit ── */}
       <div className="flex items-center justify-between">
         <p className="text-xs text-gray-400">
-          {file ? 'Sẵn sàng tải lên' : 'Chưa chọn file'}
+          {hasInput ? (inputSource === 'library' ? 'Tạo bản sao từ tư liệu đã chọn' : 'Sẵn sàng tải lên') : 'Chưa chọn file'}
         </p>
         <button
           type="submit"
@@ -274,7 +302,7 @@ export default function NewScanPage() {
           ) : (
             <>
               <span className="material-symbols-outlined text-[18px]">upload_file</span>
-              Tải phim lên
+              {inputSource === 'library' ? 'Tạo phim từ Kho dữ liệu' : 'Tải phim lên'}
             </>
           )}
         </button>

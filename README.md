@@ -1,10 +1,13 @@
-# dentAI — Hệ thống AI chẩn đoán viêm lợi từ ảnh trong miệng
+# dentAI — Hỗ trợ chẩn đoán nha khoa và quản lý dữ liệu
 
 dentAI là hệ thống hỗ trợ bác sĩ nha khoa chẩn đoán **viêm lợi (gingivitis)** từ ảnh nội nha
 (intraoral photograph). Hệ thống gồm hai phần:
 
 - **`inferences/`** — pipeline AI: phát hiện mức độ viêm lợi từng răng và sinh mô tả lâm sàng.
-- **`web/`** — ứng dụng web demo cho bác sĩ: upload ảnh, xem kết quả, chỉnh sửa, xuất báo cáo.
+- **`web/`** — ứng dụng demo: tài khoản/phân quyền, chẩn đoán viêm lợi, kho dữ liệu,
+  quản lý phim RNNHT 3D và tích hợp 3D Slicer.
+
+Đây là công cụ hỗ trợ nghiên cứu/demo, không thay thế đánh giá của bác sĩ.
 
 ---
 
@@ -77,395 +80,301 @@ Confidence gate (ngưỡng 0.5)
 
 ---
 
-## 2. Ứng dụng web (`web/`)
+## 2. Ứng dụng web
 
-Web demo dành cho bác sĩ nha khoa, chạy local qua Docker Compose.
+### 2.1. Chức năng đã có
 
-### 2.1. Tech stack
+- [x] Sidebar gom các mục bệnh vào **AI hỗ trợ chẩn đoán lâm sàng**, có icon và nhóm Lưu trữ.
+- [x] Tổng quan theo quyền; đăng ký, xác thực OTP, đăng nhập bằng username/email,
+  yêu cầu vai trò bác sĩ và admin phê duyệt.
+- [x] Nút hiện/ẩn mật khẩu ở đăng nhập, đăng ký (cả hai ô mật khẩu); quên mật khẩu bằng OTP.
+- [x] Kho dữ liệu cho mọi vai trò: tải lên theo từng phần, nhập thông tin bệnh nhân,
+  chọn/tạo phân loại, chọn loại dữ liệu, xem trước, tìm kiếm và tải xuống.
+- [x] Quản lý phim viêm lợi; xem, sửa nhãn theo quyền và xuất kết quả.
+- [x] Quản lý phim răng nanh ngầm 3D (RNNHT 3D), chia sẻ cho tài khoản cụ thể,
+  lưu phim vào kho; lưu ảnh viêm lợi gốc hoặc có chú thích vào kho.
+- [x] Trang cài 3D Slicer + DentAI Bridge và bước xác nhận trước khi mở phim trên desktop.
+- [x] Chọn ảnh từ kho để tạo ca viêm lợi mới, hoặc chọn ZIP DICOM từ kho để tạo phim RNNHT 3D.
+- [x] Nút chuyển từ danh sách/chi tiết kho sang đúng luồng theo phân loại và quyền.
+- [x] Phân biệt dữ liệu của mình, được chia sẻ trực tiếp và dữ liệu admin xem bằng quyền quản trị.
+- [x] Caption lai `auto/rule/t5`: có hoặc không có checkpoint T5 không cần sửa mã nguồn.
 
-| Layer | Công nghệ |
-|-------|-----------|
-| Frontend | Next.js 14 (App Router), TypeScript, Tailwind CSS, PrimeReact, react-konva |
-| Backend | Django 4.2 + Django REST Framework |
-| Task queue | Celery + Redis (chạy inference bất đồng bộ) |
-| Database | PostgreSQL 15 |
-| Đóng gói | Docker Compose |
+Phạm vi cần phân biệt:
 
-### 2.2. Kiến trúc
+- **Viêm lợi** có pipeline AI. **RNNHT 3D** hiện là xử lý/quản lý DICOM và mở trong
+  3D Slicer; chưa phải mô hình AI tự chẩn đoán răng nanh ngầm.
+- **Mảng bám răng** hiện là trang giữ chỗ, chưa có API/pipeline. Pano, cephalo,
+  tài liệu và phân loại tự nhập vẫn lưu/xem/tải xuống được nhưng chưa có luồng AI tương ứng.
+- Thêm dữ liệu vào kho **không tự công khai cho tất cả tài khoản**, cũng không tự chạy AI.
 
-```
-web/
-├── frontend/            # Next.js app
-├── backend/             # Django project
-│   ├── config/          # settings, urls, celery
-│   └── apps/
-│       ├── cases/       # models, views, serializers, tasks, render, export
-│       └── settings_app/
-├── media/               # ảnh gốc + ảnh annotated
-└── docker-compose.yml
-```
+### 2.2. Kiến trúc và màn hình
 
-Dịch vụ:
+Frontend: Next.js 14, TypeScript, Tailwind CSS, PrimeReact, react-konva.
+Backend: Django 4.2, Django REST Framework, JWT. CSDL: PostgreSQL 15.
+Tác vụ nền: Celery + Redis.
 
-| Service | Vai trò | Port (host) |
-|---------|---------|-------------|
-| `frontend` | Next.js | 3001 |
-| `backend` | Django + DRF | 8002 |
-| `worker` | Celery worker chạy pipeline AI | — |
-| `db` | PostgreSQL 15 | 5432 |
-| `redis` | Redis 7 (broker Celery) | 6380 |
-
-### 2.3. Luồng sử dụng
-
-1. Bác sĩ nhập thông tin bệnh nhân và upload một hoặc nhiều ảnh nội nha.
-2. Backend tạo `Case` + các `Image` (status `queued`) và đẩy task vào Celery.
-3. Màn hình Processing hiển thị tiến độ (poll mỗi 2 giây).
-4. Worker chạy pipeline `inferences/` cho từng ảnh (tuần tự, tránh OOM), lưu vào DB:
-   bounding box viêm lợi, mask răng, caption, ảnh annotated.
-5. Xong tất cả → tự chuyển sang màn hình kết quả ảnh đầu tiên.
-6. Bác sĩ xem ảnh annotated (bật/tắt box và mask), đọc mô tả lâm sàng, chuyển ảnh trước/sau.
-7. Bác sĩ có thể vào chế độ Edit: kéo/resize/thêm/xoá box, đổi răng và mức MGI, sửa caption.
-8. Xuất kết quả dạng ZIP (ảnh annotated render lại theo box hiện hành + nhãn YOLO + caption).
-
-### 2.4. Màn hình
+| Thành phần | Vai trò |
+|---|---|
+| `web/backend/apps/users/` | Tài khoản, OTP, quyền, chia sẻ, nhật ký |
+| `web/backend/apps/cases/` | Ca viêm lợi, ảnh, kết quả, inference |
+| `web/backend/apps/library/` | Kho dữ liệu, phân loại, phạm vi truy cập, nhập/xuất từ module |
+| `web/backend/apps/scans/` | Phim CBCT, preview, chia sẻ và token mở 3D Slicer |
+| `web/backend/apps/dashboard/` | Tổng quan |
+| `web/frontend/src/components/library/LibraryAssetPicker.tsx` | Bộ chọn tư liệu dùng chung |
+| `web/slicer_bridge/` | Bridge desktop cho giao thức `dentai://` |
 
 | Route | Chức năng |
-|-------|-----------|
-| `/analysis/new` | Upload ảnh + thông tin bệnh nhân |
-| `/analysis/[caseId]/processing` | Theo dõi tiến độ xử lý |
-| `/analysis/[caseId]/results/[imageIndex]` | Xem kết quả (ảnh annotated + caption) |
-| `/analysis/[caseId]/results/[imageIndex]/edit` | Chỉnh sửa box và caption |
-| `/history` | Lịch sử ca, tìm kiếm, lọc theo trạng thái |
-| `/settings` | Cấu hình ngưỡng confidence |
-| `/help` | Hướng dẫn sử dụng |
+|---|---|
+| `/dashboard/` | Tổng quan |
+| `/analysis/new/` | Viêm lợi: ảnh từ máy tính hoặc Kho dữ liệu |
+| `/analysis/[caseId]/processing/` | Theo dõi xử lý |
+| `/analysis/[caseId]/results/[imageIndex]/` | Kết quả; đường dẫn con `edit/` để sửa nhãn theo quyền |
+| `/gingivitis/`, `/history/` | Quản lý phim viêm lợi và lịch sử ca |
+| `/library/`, `/library/new/`, `/library/[id]/` | Kho: danh sách, tải lên và chi tiết |
+| `/scans/`, `/scans/new/`, `/scans/[id]/` | RNNHT 3D: danh sách, tạo phim và chi tiết |
+| `/downloads/3d-slicer/` | Hướng dẫn cài Slicer/Bridge và kiểm tra tích hợp |
+| `/login/`, `/register/`, `/forgot-password/` | Đăng nhập, đăng ký, khôi phục mật khẩu |
+| `/users/`, `/system-log/` | Quản trị người dùng và nhật ký, dành cho admin |
 
-### 2.5. API chính
+## 3. Dùng dữ liệu trong kho để chẩn đoán lại
 
-```
-POST   /api/cases/                                # Tạo case + upload ảnh (multipart)
-GET    /api/cases/                                # Danh sách ca
-GET    /api/cases/{id}/status/                    # Trạng thái xử lý (polling)
-GET    /api/cases/{id}/images/{idx}/              # Kết quả một ảnh
-PATCH  /api/cases/{id}/images/{idx}/              # Lưu chỉnh sửa caption
+### 3.1. Từ màn hình chẩn đoán
 
-POST   /api/cases/{id}/images/{idx}/detections/   # Thêm box mới
-PATCH  /api/detections/{id}/                      # Sửa box
-DELETE /api/detections/{id}/                      # Xoá box (soft delete)
+1. Mở **AI hỗ trợ chẩn đoán lâm sàng → Chẩn đoán viêm lợi**.
+2. Trong **Ảnh đầu vào**, chọn **Từ Kho dữ liệu**.
+3. Tìm kiếm/lọc **Của tôi**, **Được chia sẻ** hoặc toàn bộ dữ liệu được quyền truy cập.
+4. Chọn tối đa 20 ảnh cùng bệnh nhân. Dữ liệu không có bệnh nhân không được trộn
+   với ảnh đã gắn bệnh nhân trong cùng ca.
+5. Kiểm tra tên, mã bệnh nhân và ghi chú được điền sẵn nếu được phép xem.
+   Với dữ liệu đã ẩn thông tin bệnh nhân, nhập thông tin cho ca mới.
+6. Bấm **Bắt đầu phân tích**. Hệ thống tạo ca mới của người thao tác và đưa vào queue
+   `inference`; ca/kết quả/tư liệu nguồn được giữ nguyên.
 
-GET    /api/cases/{id}/images/{idx}/export/       # Tải ZIP một ảnh
-GET    /api/cases/{id}/export/                    # Tải ZIP cả ca
-GET/PATCH /api/settings/                          # Ngưỡng confidence
-```
+Với RNNHT 3D: mở **Phim răng nanh ngầm 3D → Tải phim** (`/scans/new/`),
+chọn **Từ Kho dữ liệu**, chọn một ZIP DICOM rồi bấm **Tạo phim từ Kho dữ liệu**.
+Queue `scans` sẽ xử lý bản sao và tạo preview.
 
-### 2.6. Mô hình dữ liệu
+### 3.2. Từ Kho dữ liệu
 
-- **Patient** — thông tin bệnh nhân (tên, mã, ghi chú).
-- **Case** — một lần upload + phân tích, có snapshot `confidence_threshold`.
-- **Image** — mỗi ảnh trong ca; trạng thái `queued | processing | done | low_confidence | failed`.
-- **Detection** — box viêm lợi: `tooth_fdi`, `mgi_level` (0–4), toạ độ YOLO normalized,
-  `source` (`ai` / `doctor`), `is_modified`, `is_deleted` (soft delete), `match_score`.
-- **Mask** — polygon răng (chỉ hiển thị, không chỉnh sửa).
-- **Caption** — `ai_text` (bản gốc do T5/rule sinh, không bao giờ ghi đè) và
-  `edited_text` (bản bác sĩ sửa).
+Nút thao tác xuất hiện ở cả danh sách và trang chi tiết khi tư liệu phù hợp:
 
----
+| Phân loại hệ thống | Loại dữ liệu | Nút / đích đến | Vai trò |
+|---|---|---|---|
+| Viêm lợi (`viem-loi`) | Ảnh trong miệng (`intraoral`) | Chẩn đoán viêm lợi → `/analysis/new/?library_asset=<id>` | Mọi tài khoản hoạt động có quyền xem |
+| Răng nanh ngầm (`rang-nanh-ngam`) | Chuỗi DICOM ZIP (`dicom_series`) | Mở luồng RNNHT 3D → `/scans/new/?library_asset=<id>` | Bác sĩ/admin có quyền xem |
+| Phân loại/loại file khác | Bất kỳ | Không hiện nút chẩn đoán | Vẫn xem/tải xuống theo quyền |
 
-## 3. Cài đặt và chạy hệ thống web
+Tư liệu phải ở trạng thái **Sẵn sàng**, đã qua xử lý của kho
+(`is_anonymized=true`; DICOM cần khử thông tin định danh trong header).
+Một file `.dcm` đơn lẻ không thay thế được ZIP chuỗi DICOM của luồng RNNHT 3D.
+Nên chẩn đoán lại từ **ảnh gốc chưa vẽ box/nhãn**.
 
-### 3.1. Yêu cầu
+### 3.3. Quyền và ý nghĩa các tab
 
-- **Docker** và **Docker Compose** (v2+).
-- **GPU NVIDIA + driver + NVIDIA Container Toolkit** nếu muốn chạy inference trên GPU
-  (có thể chạy CPU nhưng rất chậm).
-- **Conda** (Miniconda/Anaconda) — dùng cho worker chạy trực tiếp trên host (khuyến nghị,
-  vì worker cần truy cập GPU và trọng số mô hình).
-- Trọng số YOLO đã đặt tại `inferences/models/`. Checkpoint T5 trong
-  `inferences/t5_training/t5_gingivitis_model/` là tuỳ chọn khi dùng `CAPTION_MODE=auto`
-  (trọng số không được commit vào git — copy thủ công).
-- Mã nguồn YOLOv9 tại `yolov9/` ở thư mục gốc project.
+- **Của tôi**: tư liệu do tài khoản hiện tại tải lên/lưu vào kho.
+- **Được chia sẻ**: có bản ghi `DataAssetShare` chia sẻ trực tiếp cho tài khoản,
+  không bao gồm dữ liệu của chính mình.
+- **Tất cả**: dữ liệu của mình + dữ liệu được chia sẻ; với admin là **Tất cả hệ thống**.
+- **Của người khác**: chỉ admin, lọc tư liệu không do admin hiện tại tải lên.
 
-Kiểm tra trước khi chạy:
+Vì vậy admin có thể thấy hai ảnh ở **Tất cả hệ thống**, một ảnh ở **Của tôi** và
+không có ảnh ở **Được chia sẻ** nếu chưa có lời chia sẻ trực tiếp. Đây không phải
+mất dữ liệu. `visibility=shared` đơn thuần không cấp quyền; bản ghi chia sẻ mới quyết định.
 
-```bash
-ls inferences/models/            # best_vqt.pt  best_vl.pt  best_seg.pt
-ls inferences/t5_training/t5_gingivitis_model/  # T5 cần model.safetensors hoặc pytorch_model.bin
-ls yolov9/                       # repo YOLOv9 (nếu chưa có thì clone từ github <https://github.com/ultralytics/yolov9>)
-```
+Chia sẻ phim RNNHT 3D qua giao diện là quyền trên **phim**, không tự chuyển thành
+quyền trên một bản sao trong **kho**. Hiện việc tạo/thu hồi chia sẻ trực tiếp của
+tư liệu kho được quản trị qua **Django Admin → Data asset shares**; chưa có hộp thoại
+chia sẻ cá nhân riêng trong trang kho. Không dùng quyền admin để giả lập một lời chia sẻ.
 
-### 3.2. Khởi động hạ tầng + backend + frontend
+Người nhận quyền xem được tạo ca mới từ ảnh được chia sẻ nhưng không được sửa nguồn.
+Bệnh nhân không được đọc tên/tuổi/giới tính/mô tả của người khác qua chia sẻ.
+Backend kiểm tra lại quyền, loại dữ liệu, trạng thái, file nguồn và bệnh nhân khi gửi
+yêu cầu; sửa ID trên URL không vượt qua được quyền API.
 
-```bash
+Dùng lại đúng mã bệnh nhân nguồn chỉ khi được phép đọc hồ sơ đó. Để trống mã sẽ tạo
+hồ sơ mới; mã trùng một hồ sơ khác bị từ chối. Việc nhập tên/ghi chú mới không sửa
+hồ sơ bệnh nhân nguồn khi đang dùng lại mã cũ. Dữ liệu được **sao chép**, không di chuyển.
+
+## 4. Cài đặt và chạy trên Windows (PowerShell)
+
+### 4.1. Chuẩn bị
+
+- Docker Desktop đang chạy; Git; các cổng 3001, 8002, 5432, 6380 không bị chiếm.
+- Riêng AI viêm lợi cần môi trường Python inference và ba trọng số:
+  `inferences/models/best_vqt.pt`, `best_vl.pt`, `best_seg.pt`, cùng mã YOLOv9 tại `yolov9/`.
+- T5 là **tuỳ chọn** với `CAPTION_MODE=auto`. Giao diện/kho/CBCT không cần T5.
+- `web/environment.worker.yml` là bản môi trường Linux, không dùng nguyên file cho Windows.
+  `web/requirements.worker.txt` khóa PyTorch CUDA 12.6; không phải bộ cài CPU phổ dụng.
+  Dùng môi trường inference đã kiểm chứng với máy của bạn; cần cả phụ thuộc backend
+  trong `web/requirements.backend.txt`.
+
+### 4.2. Khởi động web
+
+Tại thư mục gốc dự án, chỉ tạo file cấu hình nếu chưa có (không ghi đè cấu hình cũ):
+
+```powershell
+if (!(Test-Path web/.env)) { Copy-Item web/.env.example web/.env }
+if (!(Test-Path web/backend/.env)) { Copy-Item web/backend/.env.example web/backend/.env }
 cd web
 docker compose up -d --build
-```
-
-Lệnh này bật 4 service: `db`, `redis`, `backend`, `frontend`
-(service `worker` nằm trong profile riêng).
-Backend tự chạy `manage.py migrate` khi khởi động.
-
-Kiểm tra:
-
-```bash
 docker compose ps
-docker compose logs -f backend
 ```
 
-Truy cập:
+Chạy 5 service: `db`, `redis`, `backend`, `frontend`, `scans_worker`.
+Backend tự migrate và tạo admin ban đầu bằng `seed_admin`; khởi động lại giữ nguyên
+mật khẩu đã có. Đổi thông tin mặc định trong `web/.env` trước khi dùng ngoài máy local.
 
-- Web app: <http://localhost:3001>
-- API: <http://localhost:8002/api/>
+- Web: [localhost:3001](http://localhost:3001).
+- Django Admin: [localhost:8002/admin/](http://localhost:8002/admin/).
+- API: [localhost:8002/api/](http://localhost:8002/api/).
 
-### 3.3. Chạy Celery worker (chạy inference)
+Compose mặc định dùng email console để test OTP, đọc ở `docker compose logs --tail 50 backend`.
+Muốn gửi email thật, đổi `EMAIL_BACKEND` trong Compose sang SMTP, cấu hình credential
+trong `web/backend/.env`, rồi tạo lại container backend. Không commit secret.
+Tài khoản đăng ký bác sĩ vẫn có quyền bệnh nhân cho đến khi admin duyệt yêu cầu.
 
-Worker cần GPU và các thư viện ML nặng nên **khuyến nghị chạy trực tiếp trên host bằng conda**.
+### 4.3. Worker AI trên Windows
 
-**Cách A — worker trên host (khuyến nghị):**
+Mở PowerShell **thứ hai**, tại thư mục gốc dự án. Ví dụ dưới dùng môi trường
+`.venv` đã cài đủ thư viện inference; thay đường dẫn Python nếu bạn dùng Conda.
 
-```bash
-# 1. Tạo môi trường conda (lần đầu)
-conda env create -f web/environment.worker.yml   # tạo env tên `dentai`
-conda activate dentai
-
-# 2. Chạy worker, trỏ vào Postgres/Redis đang chạy trong Docker
+```powershell
+$projectRoot = (Get-Location).Path
+$workerPython = Join-Path $projectRoot '.venv\Scripts\python.exe'
+$env:DJANGO_SETTINGS_MODULE = 'config.settings'
+$env:DATABASE_URL = 'postgres://dentai:dentai@localhost:5432/dentai'
+$env:CELERY_BROKER_URL = 'redis://localhost:6380/0'
+$env:CELERY_RESULT_BACKEND = 'redis://localhost:6380/0'
+$env:MEDIA_ROOT = Join-Path $projectRoot 'web\media'
+$env:INFERENCES_DIR = Join-Path $projectRoot 'inferences'
+$env:YOLOV9_DIR = Join-Path $projectRoot 'yolov9'
+$env:INFERENCE_DEVICE = 'cpu'
+$env:CAPTION_MODE = 'auto'
+$env:T5_DEVICE = 'auto'
 cd web/backend
-export DJANGO_SETTINGS_MODULE=config.settings
-export DATABASE_URL=postgres://dentai:dentai@localhost:5432/dentai
-export CELERY_BROKER_URL=redis://localhost:6380/0
-export CELERY_RESULT_BACKEND=redis://localhost:6380/0
-export MEDIA_ROOT=$(cd .. && pwd)/media
-export INFERENCES_DIR=$(cd ../.. && pwd)/inferences
-export YOLOV9_DIR=$(cd ../.. && pwd)/yolov9
-export INFERENCE_DEVICE=0        # "cpu" nếu không có GPU
-export CAPTION_MODE=auto         # tự dùng T5 nếu checkpoint đầy đủ, nếu không dùng rule
-export T5_DEVICE=auto            # hoặc cpu / cuda / cuda:0
-
-celery -A config.celery worker --loglevel=info --concurrency=1 -Q inference
+& $workerPython -m celery -A config.celery worker --loglevel=info --pool=solo --concurrency=1 -Q inference
 ```
 
-> Lưu ý: Redis trong Docker map ra host ở cổng **6380**.
+Sửa `DATABASE_URL` nếu thông tin PostgreSQL trong `web/.env` khác mặc định.
+Biến trong `web/.env` không tự nạp vào PowerShell. Nếu dùng GPU đã cấu hình,
+đổi `INFERENCE_DEVICE` thành `0`.
 
-**Cách B — worker trong Docker (cần NVIDIA Container Toolkit):**
+Worker Docker có profile riêng và yêu cầu môi trường NVIDIA phù hợp:
 
-```bash
+```powershell
 cd web
 docker compose --profile worker-docker up -d --build worker
-docker compose logs -f worker
 ```
 
-Image worker tự cài PyTorch CUDA theo `requirements.worker.txt`;
-`inferences/`, `yolov9/` được mount read-only nên trọng số không đi vào image.
+Chọn một cách chạy inference. Không bật đồng thời hai worker khác môi trường nếu
+chưa bảo đảm cả hai đều đọc được trọng số và cùng thư mục media.
 
-### 3.4. Biến môi trường quan trọng
+### 4.4. Caption T5 / theo luật
 
-| Biến | Mặc định | Ý nghĩa |
-|------|----------|---------|
-| `DATABASE_URL` | `postgres://dentai:dentai@db:5432/dentai` | Kết nối PostgreSQL |
-| `CELERY_BROKER_URL` | `redis://redis:6379/0` | Broker Celery |
-| `MEDIA_ROOT` | `/app/media` | Nơi lưu ảnh gốc + annotated |
-| `INFERENCES_DIR` | `/inferences` | Đường dẫn pipeline AI |
-| `YOLOV9_DIR` | `/yolov9` | Đường dẫn mã nguồn YOLOv9 |
-| `INFERENCE_DEVICE` | `cpu` | `0` = GPU đầu tiên, `cpu` = CPU |
-| `CAPTION_MODE` | `auto` | `auto` = T5 nếu có, fallback rule; hoặc ép `rule` / `t5` |
-| `T5_MODEL_DIR` | `inferences/t5_training/t5_gingivitis_model` | Thư mục checkpoint HuggingFace T5 |
-| `T5_DEVICE` | `auto` | `auto`, `cpu`, `cuda`, `cuda:0` hoặc số GPU |
-| `NEXT_PUBLIC_API_URL` | `http://backend:8000` | Frontend proxy tới backend |
-| `SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS` | dev defaults | Cấu hình Django |
+| Biến | Giá trị | Hành vi |
+|---|---|---|
+| `CAPTION_MODE` | `auto` (mặc định) | Có checkpoint đầy đủ thì dùng T5; thiếu/lỗi thì dùng luật |
+| `CAPTION_MODE` | `rule` | Luôn dùng luật, không nạp T5 |
+| `CAPTION_MODE` | `t5` | Bắt buộc T5; báo lỗi nếu thiếu/hỏng |
+| `T5_MODEL_DIR` | Thư mục checkpoint | Mặc định `inferences/t5_training/t5_gingivitis_model/` |
+| `T5_DEVICE` | `auto`, `cpu`, `cuda`, `cuda:0`, số GPU | Thiết bị chạy caption |
 
-Khi deploy thật, đổi `SECRET_KEY`, đặt `DEBUG=0` và giới hạn `ALLOWED_HOSTS`.
+Để thêm T5 sau này, chép đầy đủ config, tokenizer và checkpoint
+(`model.safetensors`/`pytorch_model.bin`, hoặc các shard kèm index) vào
+`T5_MODEL_DIR`, rồi khởi động lại worker. Không cần sửa code.
+Model T5 nền tải từ mạng không tương đương mô hình đã huấn luyện cho chuỗi MGI;
+cần checkpoint phù hợp tác vụ và ngôn ngữ.
 
-### 3.5. Kiểm tra hệ thống chạy đúng
+### 4.5. Mở phim bằng 3D Slicer
 
-1. Mở <http://localhost:3001> → chuyển tới màn hình Upload.
-2. Nhập tên + mã bệnh nhân, kéo thả 1 ảnh nội nha, bấm phân tích.
-3. Màn hình Processing hiển thị tiến độ; log worker phải có dòng
-   `Task apps.cases.tasks.run_inference_task ... succeeded`.
-4. Kết quả hiển thị ảnh annotated kèm mô tả lâm sàng.
+1. Bác sĩ/admin mở một phim đã xử lý xong, bấm mở bằng 3D Slicer.
+2. Nếu chưa xác nhận cài đặt trên trình duyệt này, trang chuyển tới
+   `/downloads/3d-slicer/`.
+3. Cài 3D Slicer, tải gói DentAI Bridge ở trang này, làm theo
+   [hướng dẫn Bridge](web/slicer_bridge/README.md).
+4. Kiểm tra tích hợp và xác nhận đã cài, quay lại phim rồi mở lại.
 
-### 3.6. Các lệnh thường dùng
+Trình duyệt không thể quét chắc chắn phần mềm đã cài trên máy: cơ chế dùng
+xác nhận của người dùng và thử giao thức `dentai://`, không phải kiểm kê hệ điều hành.
+Nếu mở từ máy khác, cấu hình `SCANS_PUBLIC_BASE_URL` là địa chỉ backend mà máy
+đó truy cập được, không để `localhost` của máy chủ.
 
-```bash
+## 5. Cập nhật sau khi pull/merge
+
+Nhánh tích hợp của remote hiện là **`develop`** (được gọi là “dev” trong trao đổi).
+
+```powershell
+# Tại thư mục gốc, lưu các thay đổi riêng của bạn trước khi chuyển nhánh/pull.
+git switch develop
+git pull --ff-only origin develop
 cd web
-
-docker compose logs -f backend         # log backend
-docker compose restart backend         # khởi động lại backend
-docker compose down                    # dừng toàn bộ
-docker compose down -v                 # dừng + xoá DB volume (mất dữ liệu)
-
-# Django management
-docker compose exec backend python manage.py migrate
-docker compose exec backend python manage.py createsuperuser
-docker compose exec backend python manage.py export_labels --out /app/media/labels
+docker compose up -d --build backend frontend scans_worker
+docker compose exec -T backend python manage.py migrate
 ```
 
-### 3.7. Xử lý sự cố
+Sau đó tải lại web bằng **Ctrl+F5**. Khi đổi code hoặc biến môi trường của worker
+AI, dừng worker host bằng Ctrl+C và chạy lại lệnh ở mục 4.3; worker Docker thì
+tạo lại service `worker` theo mục 4.3. Thay đổi luồng nhập từ kho này không thêm migration.
 
-| Triệu chứng | Nguyên nhân / cách xử lý |
-|-------------|--------------------------|
-| Ảnh mãi ở trạng thái `queued` | Worker chưa chạy, hoặc trỏ sai `CELERY_BROKER_URL` (nhớ cổng 6380 khi chạy trên host) |
-| Worker báo `FileNotFoundError` trọng số YOLO | Thiếu file trong `inferences/models/` hoặc `INFERENCES_DIR` sai |
-| Log báo thiếu trọng số T5 | Với `CAPTION_MODE=auto`, đây là cảnh báo và hệ thống dùng rule. Muốn dùng T5, chép `model.safetensors` hoặc `pytorch_model.bin` vào `T5_MODEL_DIR` rồi restart worker |
-| `CUDA out of memory` | Đặt `INFERENCE_DEVICE=cpu`, hoặc giữ `--concurrency=1` |
-| Frontend gọi API lỗi 502 | Backend chưa sẵn sàng — kiểm tra `docker compose logs backend` |
-| Ảnh annotated không hiển thị | `MEDIA_ROOT` của worker và backend phải trỏ cùng thư mục `web/media` |
-| Kết quả trả về "độ tin cậy thấp" | Confidence gate fail — ảnh mờ/lệch góc, chụp lại hoặc hạ ngưỡng ở `/settings` |
+- `docker compose restart` chỉ khởi động lại container, **không** áp dụng biến môi trường/image mới.
+- **Không dùng `docker compose down -v` để cập nhật**: lệnh đó xoá volume, có thể mất DB/Redis.
+- Giữ và sao lưu `web/media/`, `web/backend/scans_storage/`,
+  `web/backend/library_storage/` và volume PostgreSQL. Các thư mục dữ liệu không commit.
+- Compose hiện là cấu hình demo (`DEBUG=1`, media ảnh 2D được phục vụ như static).
+  Trước triển khai thật cần HTTPS, secret riêng, giới hạn host, cơ chế phục vụ media
+  có xác thực và chính sách bảo vệ dữ liệu bệnh nhân; không coi demo là cấu hình production.
 
----
+## 6. API liên quan và kiểm tra
 
-## 4. Hướng dẫn nhanh (Windows — Docker Desktop)
+Các API dưới đây yêu cầu đăng nhập, trừ API xác thực và tải gói Bridge công khai.
 
-> Dành cho Windows (cmd.exe) | cập nhật 2026-07-23
-
-### 4.1. Yêu cầu
-
-- **Docker Desktop** (đã cài đặt và đang chạy)
-- **Git** (để clone repo)
-- Trình duyệt (Chrome/Firefox/Edge)
-
-### 4.2. Tải project
-
-```cmd
-git clone <repo-url> dentai
-cd dentai
-```
-
-### 4.3. Khởi động toàn bộ hệ thống (backend + frontend + DB + Redis)
-
-```cmd
-cd web
-docker compose down -v
-docker compose up -d --build
-```
-
-Lệnh này chạy 4 service:
-- `db` — PostgreSQL 15 (port **5432**)
-- `redis` — Redis 7 (port **6380**)
-- `backend` — Django REST API (port **8002**)
-- `frontend` — Next.js web app (port **3001**)
-
-Kiểm tra trạng thái:
-
-```cmd
-docker compose ps
-docker compose logs backend --tail 20
-```
-
-Phải thấy dòng `Applying users.0001_initial... OK`.
-
-### 4.4. Tạo tài khoản admin đầu tiên
-
-```cmd
-docker compose exec backend python manage.py createsuperuser
-```
-
-Nhập username, email, password theo hướng dẫn.
-
-### 4.5. Truy cập
-
-| URL | Chức năng |
+| Method / API | Chức năng |
 |---|---|
-| http://localhost:3001 | Web app (frontend) |
-| http://localhost:3001/login/ | Đăng nhập |
-| http://localhost:3001/register/ | Đăng ký tài khoản mới |
-| http://localhost:8002/api/ | API backend |
-| http://localhost:8002/admin/ | Django Admin (quản lý DB) |
+| `POST /api/cases/` | Tạo ca từ multipart `images` |
+| `POST /api/cases/from-library/` | JSON: `patient_name`, `asset_ids` (1–20), `patient_code`/`notes` tuỳ chọn |
+| `POST /api/scans/from-library/` | JSON: `patient_name`, `asset_id`, `patient_code`/`note` tuỳ chọn |
+| `GET /api/library/assets/` | Bộ lọc `q`, `category`, `data_type`, `mine=1`, `shared=1`, `others=1` (admin), `page`, `page_size` |
+| `GET /api/library/assets/?diagnosis=gingivitis` | Ảnh tương thích viêm lợi trong phạm vi quyền |
+| `GET /api/library/assets/?diagnosis=canine3d` | ZIP tương thích RNNHT 3D; chỉ bác sĩ/admin |
+| `GET /api/library/assets/{id}/` | Chi tiết, `category_slug`, `diagnosis_target` hoặc `null` |
+| `POST /api/library/assets/uploads/` | Khởi tạo tải tư liệu; PUT chunk và POST complete ở đường dẫn con |
+| `GET /api/library/assets/{id}/download/` | Tải file đã xử lý theo quyền |
+| `POST /api/library/imports/scans/{id}/` | Lưu bản sao phim vào kho |
+| `POST /api/library/imports/cases/{id}/images/{index}/` | Lưu ảnh viêm lợi vào kho (`variant: original/annotated`) |
+| `GET/POST /api/scans/{id}/shares/` | Danh sách/cấp quyền chia sẻ phim |
+| `DELETE /api/scan-shares/{id}/` | Thu hồi chia sẻ phim |
+| `GET /api/downloads/slicer-bridge/` | Tải gói tích hợp desktop |
 
-### 4.6. Luồng sử dụng cơ bản
+API nhập từ kho trả `201` và `id/status` của ca/phim mới.
+Không có quyền hoặc đã xoá: `404`; sai dữ liệu: `400`; sai vai trò: `403`;
+lỗi sao chép: `409` và không giữ ca/phim tạo dở.
 
-#### Đăng ký tài khoản mới
+Kiểm tra hồi quy (chạy trong thư mục `web`, dùng CSDL test riêng):
 
-1. Mở http://localhost:3001/register/
-2. Nhập username, email, password, confirm password
-3. Submit → backend gửi mã OTP 6 số (in ra console log)
-4. Xem OTP code trong log:
-
-```cmd
-docker compose logs backend --tail 30
+```powershell
+docker compose exec -T backend python manage.py check
+docker compose exec -T backend python manage.py makemigrations --check --dry-run
+docker compose exec -T backend python manage.py test --noinput
+docker compose run --rm --no-deps frontend npm run build
 ```
 
-Tìm dòng: `Mã xác thực email của bạn là: XXXXXX`
+Nên dùng CSDL thử nghiệm khi kiểm tra giao diện: chọn ảnh của mình/ảnh được chia sẻ,
+chuyển giữa các tab, thử ảnh sai phân loại, dữ liệu đã xoá/thu hồi quyền, rồi tạo ca/phim
+và xác nhận nguồn/kết quả cũ không thay đổi. Kiểm tra AI thực cần worker và trọng số;
+unit test/build không thay thế đánh giá chất lượng chẩn đoán.
 
-5. Mở http://localhost:3001/verify-otp/?email=... (tự động redirect sau đăng ký)
-6. Nhập mã 6 số → tài khoản được kích hoạt → vào màn hình phân tích
+## 7. Xử lý sự cố
 
-#### Đăng nhập
-
-1. Mở http://localhost:3001/login/
-2. Nhập username + password
-3. Đăng nhập thành công → vào màn hình phân tích
-
-#### Phân tích ảnh (cần Celery worker)
-
-Nếu muốn chạy pipeline AI, cần chạy thêm Celery worker:
-
-```cmd
-cd web\backend
-set DJANGO_SETTINGS_MODULE=config.settings
-set DATABASE_URL=postgres://dentai:dentai@localhost:5432/dentai
-set CELERY_BROKER_URL=redis://localhost:6380/0
-set CELERY_RESULT_BACKEND=redis://localhost:6380/0
-set MEDIA_ROOT=G:\AIdent\dentaI\web\media
-set INFERENCES_DIR=G:\AIdent\dentaI\inferences
-set YOLOV9_DIR=G:\AIdent\dentaI\yolov9
-set INFERENCE_DEVICE=cpu
-
-..\.venv\Scripts\celery.exe -A config.celery worker --loglevel=info --pool=solo --concurrency=1 -Q inference
-```
-
-Sau đó vào http://localhost:3001/analysis/new/ → upload ảnh → xem kết quả.
-
-### 4.7. Các lệnh thường dùng (Windows)
-
-```cmd
-:: Xem log
-docker compose logs -f backend
-docker compose logs -f frontend
-
-:: Restart 1 service
-docker compose restart backend
-docker compose restart frontend
-
-:: Rebuild 1 service (khi sửa code)
-docker compose up -d --build backend
-docker compose up -d --build frontend
-
-:: Dừng toàn bộ
-docker compose down
-
-:: Dừng + xoá DB (mất hết dữ liệu)
-docker compose down -v
-
-:: Kiểm tra danh sách user
-docker compose exec backend python manage.py shell -c "from apps.users.models import User; [print(u.username, u.email, u.role) for u in User.objects.all()]"
-
-:: Django Admin (quản lý DB qua web)
-:: Mở http://localhost:8002/admin/ — đăng nhập bằng superuser
-```
-
-### 4.8. Cấu hình email thật (SMTP)
-
-Hiện tại OTP code in ra console log. Để gửi email thật qua Gmail:
-
-Thêm vào docker-compose.yml trong block `environment` của service `backend`:
-
-```yaml
-EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
-EMAIL_HOST: smtp.gmail.com
-EMAIL_PORT: 587
-EMAIL_USE_TLS: "True"
-EMAIL_HOST_USER: your@gmail.com
-EMAIL_HOST_PASSWORD: app-password-16-chars
-DEFAULT_FROM_EMAIL: noreply@dentai.local
-```
-
-> Dùng App Password của Google (không phải mật khẩu Gmail thật).
-
-### 4.9. Xử lý sự cố (Windows)
-
-| Triệu chứng | Cách xử lý |
+| Triệu chứng | Cách kiểm tra |
 |---|---|
-| Frontend gọi API lỗi 500/502 | `docker compose logs backend --tail 20` — kiểm tra backend có chạy không |
-| Đăng ký lỗi 404 | Backend chưa rebuild với code mới → `docker compose down -v` rồi `docker compose up -d --build` |
-| Không thấy OTP code | `docker compose logs backend \| findstr "OTP\|xác thực"` |
-| Không đăng nhập được sau khi verify | Kiểm tra `is_active=True`: `docker compose exec backend python manage.py shell -c "from apps.users.models import User; u=User.objects.get(username='...'); print(u.is_active, u.email_verified)"` |
-| Docker không chạy | Mở Docker Desktop, đợi status "Running" |
-| Port 3001/8002 đã bị chiếm | Đổi port trong docker-compose.yml |
+| Không thấy Kho dữ liệu trên sidebar | Mở nhóm **Lưu trữ**, xác nhận đang chạy đúng checkout, cập nhật frontend và Ctrl+F5 |
+| All có dữ liệu nhưng Shared trống | Xem mục 3.3: quyền admin hoặc lưu vào kho không phải chia sẻ trực tiếp |
+| Không thấy ảnh ở bộ chọn chẩn đoán | Kiểm tra phân loại, loại dữ liệu, trạng thái Sẵn sàng và phạm vi quyền |
+| Mã bệnh nhân bị từ chối khi nhập từ kho | Dùng mã đúng của hồ sơ nguồn được quyền xem, hoặc để trống tạo hồ sơ mới |
+| Ca mãi queued | Worker inference chưa chạy/sai queue hoặc sai Redis; host dùng cổng 6380 |
+| Kho/CBCT mãi processing | Kiểm tra `docker compose logs --tail 50 scans_worker` |
+| Lỗi thiếu file khi nhập từ kho | Kiểm tra file trong LIBRARY_ROOT và volume backend; không chỉ sao chép DB |
+| Thiếu checkpoint T5 | Dùng `CAPTION_MODE=auto` hoặc `rule`; restart worker sau khi đổi |
+| API 500/502 | Xem `docker compose logs --tail 50 backend`; không xoá DB để chữa lỗi route |
+| Không thấy OTP | Compose mặc định in OTP trong log backend; dùng SMTP khi triển khai |
+| Không thấy bước cài Slicer | Mở trực tiếp `/downloads/3d-slicer/`; có thể trình duyệt đã lưu xác nhận |

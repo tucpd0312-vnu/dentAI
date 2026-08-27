@@ -5,6 +5,18 @@ import type { Paginated } from './users';
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type AssetStatus = 'uploading' | 'processing' | 'ready' | 'failed';
+export type DiagnosisTarget = 'gingivitis' | 'canine3d';
+
+export const DIAGNOSIS_ROUTES: Record<DiagnosisTarget, { path: string; label: string }> = {
+  gingivitis: { path: '/analysis/new/', label: 'Chẩn đoán viêm lợi' },
+  canine3d: { path: '/scans/new/', label: 'Mở luồng RNNHT 3D' },
+};
+
+export function diagnosisUrl(asset: Pick<DataAsset, 'id' | 'diagnosis_target'>): string | null {
+  return asset.diagnosis_target
+    ? `${DIAGNOSIS_ROUTES[asset.diagnosis_target].path}?library_asset=${asset.id}`
+    : null;
+}
 
 export type DataType =
   | 'dicom'
@@ -65,6 +77,7 @@ export interface DataAsset {
   condition_note?: string;
   category: number;
   category_name: string;
+  category_slug: string;
   data_type: DataType;
   /** Nhãn hiển thị đã tính sẵn — với `other` là tên người dùng tự nhập. */
   data_type_display: string;
@@ -76,6 +89,8 @@ export interface DataAsset {
   uploaded_by: AssetUploader | null;
   permission: AssetPermission;
   can_edit: boolean;
+  /** Luồng viêm lợi/RNNHT 3D tương thích với phân loại, loại file và quyền hiện tại. */
+  diagnosis_target: DiagnosisTarget | null;
   created_at: string;
   updated_at: string;
 }
@@ -102,7 +117,10 @@ export interface AssetFilters {
   /** Tab "Của tôi" / "Được chia sẻ" — với admin đây là cách lọc ra phần của mình. */
   mine?: boolean;
   shared?: boolean;
+  others?: boolean;
+  diagnosis?: DiagnosisTarget;
   page?: number;
+  pageSize?: number;
 }
 
 export interface UploadAssetPayload {
@@ -110,7 +128,7 @@ export interface UploadAssetPayload {
   categoryId: number;
   dataType: DataType;
   dataTypeOther?: string;
-  /** Chỉ bác sĩ/admin gửi được — backend bỏ qua nếu người gửi là bệnh nhân. */
+  /** Mọi vai trò đều được nhập thông tin cho tư liệu do mình tải lên. */
   patientName?: string;
   patientCode?: string;
   birthYear?: number;
@@ -230,7 +248,10 @@ export async function fetchAssets(filters: AssetFilters = {}): Promise<Paginated
   if (filters.uploaded_by) params.uploaded_by = filters.uploaded_by;
   if (filters.mine) params.mine = 1;
   if (filters.shared) params.shared = 1;
+  if (filters.others) params.others = 1;
+  if (filters.diagnosis) params.diagnosis = filters.diagnosis;
   if (filters.page && filters.page > 1) params.page = filters.page;
+  if (filters.pageSize) params.page_size = filters.pageSize;
 
   const res = await api.get<Paginated<DataAsset>>('/library/assets/', { params });
   return res.data;
@@ -238,6 +259,36 @@ export async function fetchAssets(filters: AssetFilters = {}): Promise<Paginated
 
 export async function fetchAsset(id: number | string): Promise<DataAssetDetail> {
   const res = await api.get<DataAssetDetail>(`/library/assets/${id}/`);
+  return res.data;
+}
+
+export async function createCaseFromLibrary(payload: {
+  patientName: string;
+  patientCode?: string;
+  notes?: string;
+  assetIds: number[];
+}): Promise<{ id: number; status: string }> {
+  const res = await api.post<{ id: number; status: string }>('/cases/from-library/', {
+    patient_name: payload.patientName,
+    patient_code: payload.patientCode ?? '',
+    notes: payload.notes ?? '',
+    asset_ids: payload.assetIds,
+  });
+  return res.data;
+}
+
+export async function createScanFromLibrary(payload: {
+  patientName: string;
+  patientCode?: string;
+  note?: string;
+  assetId: number;
+}): Promise<{ id: number; status: string }> {
+  const res = await api.post<{ id: number; status: string }>('/scans/from-library/', {
+    patient_name: payload.patientName,
+    patient_code: payload.patientCode ?? '',
+    note: payload.note ?? '',
+    asset_id: payload.assetId,
+  });
   return res.data;
 }
 

@@ -6,6 +6,8 @@ urlpatterns = [
     # bị pattern khác nuốt mất.
     re_path(r"^cases/shared-with-me/?$", share_views.SharedWithMeView.as_view(),
             name="cases-shared-with-me"),
+    re_path(r"^cases/from-library/?$", views.CaseFromLibraryView.as_view(),
+            name="case-from-library"),
     re_path(r"^cases/?$", views.CaseListCreateView.as_view(), name="case-list-create"),
     re_path(r"^cases/(?P<case_id>\d+)/shares/?$",
             share_views.CaseShareListCreateView.as_view(), name="case-share-list"),

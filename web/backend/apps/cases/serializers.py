@@ -100,6 +100,29 @@ class CaseCreateSerializer(serializers.Serializer):
     )
 
 
+class CaseFromLibrarySerializer(serializers.Serializer):
+    """Tạo ca mới từ các ảnh đã có trong Kho dữ liệu."""
+
+    patient_name = serializers.CharField(max_length=255)
+    patient_code = serializers.CharField(
+        max_length=64, required=False, allow_blank=True, default=""
+    )
+    notes = serializers.CharField(required=False, allow_blank=True, default="")
+    asset_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        allow_empty=False,
+        max_length=20,
+    )
+
+    def validate_asset_ids(self, value):
+        # Giữ đúng thứ tự người dùng chọn nhưng không chạy cùng một ảnh hai lần trong
+        # một ca do client gửi trùng ID.
+        unique_ids = list(dict.fromkeys(value))
+        if len(unique_ids) != len(value):
+            raise serializers.ValidationError("Danh sách có ảnh bị chọn trùng.")
+        return unique_ids
+
+
 class CaseListSerializer(_CasePermissionMixin, serializers.ModelSerializer):
     patient = PatientSerializer(read_only=True)
     image_count = serializers.IntegerField(source="images.count", read_only=True)
