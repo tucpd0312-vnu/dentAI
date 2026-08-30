@@ -63,6 +63,7 @@ export default function LibraryPage() {
   const [dataType, setDataType] = useState<DataType | ''>('');
   const [tab, setTab] = useState<Tab>('all');
   const [page, setPage] = useState(1);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const requestVersion = useRef(0);
 
   const load = useCallback(async () => {
@@ -154,6 +155,11 @@ export default function LibraryPage() {
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
   const columns = 6 + (canEditLabels ? 1 : 0) + (isAdmin ? 1 : 0);
+  const activeFilterCount =
+    Number(Boolean(search.trim())) +
+    Number(category !== '') +
+    Number(dataType !== '') +
+    Number(tab !== 'all');
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
@@ -167,13 +173,33 @@ export default function LibraryPage() {
               : ' · dữ liệu của bạn và dữ liệu được chia sẻ cho bạn'}
           </p>
         </div>
-        <Link
-          href="/library/new/"
-          className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-600"
-        >
-          <span className="material-symbols-outlined text-[18px]">upload</span>
-          Tải dữ liệu lên
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen(open => !open)}
+            aria-expanded={filtersOpen}
+            aria-controls="library-filters"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
+          >
+            <span className="material-symbols-outlined text-[18px]">filter_alt</span>
+            Bộ lọc
+            {activeFilterCount > 0 && (
+              <span className="rounded-full bg-primary px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-white">
+                {activeFilterCount}
+              </span>
+            )}
+            <span className="material-symbols-outlined text-[18px] text-gray-400">
+              {filtersOpen ? 'expand_less' : 'expand_more'}
+            </span>
+          </button>
+          <Link
+            href="/library/new/"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-600"
+          >
+            <span className="material-symbols-outlined text-[18px]">upload</span>
+            Tải dữ liệu lên
+          </Link>
+        </div>
       </div>
 
       {notice && (
@@ -190,83 +216,88 @@ export default function LibraryPage() {
       )}
 
       {/* ── Bộ lọc ── */}
-      <div className="space-y-3 rounded-xl border border-gray-200 bg-white p-3">
-        <div className="flex flex-wrap gap-1 border-b border-gray-100 pb-2">
-          {(isAdmin ? [...TABS, { value: 'others' as Tab, label: 'Của người khác' }] : TABS).map(t => (
-            <button
-              key={t.value}
-              aria-pressed={tab === t.value}
-              onClick={() => {
-                setTab(t.value);
+      {filtersOpen && (
+        <div id="library-filters" className="space-y-2 rounded-xl border border-gray-200 bg-white p-3">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+            <div className="flex shrink-0 gap-1 overflow-x-auto">
+              {(isAdmin ? [...TABS, { value: 'others' as Tab, label: 'Của người khác' }] : TABS).map(t => (
+                <button
+                  key={t.value}
+                  type="button"
+                  aria-pressed={tab === t.value}
+                  onClick={() => {
+                    setTab(t.value);
+                    setPage(1);
+                  }}
+                  className={`shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    tab === t.value
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                  }`}
+                >
+                  {t.value === 'all' && isAdmin ? 'Tất cả hệ thống' : t.label}
+                </button>
+              ))}
+            </div>
+            <div className="relative min-w-[200px] flex-1">
+              <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[18px] text-gray-400">
+                search
+              </span>
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                aria-label="Tìm trong kho dữ liệu"
+                placeholder={
+                  canEditLabels
+                    ? 'Tìm theo tiêu đề, tên file hoặc bệnh nhân…'
+                    : 'Tìm theo tiêu đề hoặc tên file…'
+                }
+                className={`${inputCls} pl-9`}
+              />
+            </div>
+            <select
+              value={category}
+              onChange={e => {
+                setCategory(e.target.value ? Number(e.target.value) : '');
                 setPage(1);
               }}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                tab === t.value
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-              }`}
+              aria-label="Lọc theo phân loại"
+              className={`${inputCls} lg:w-auto lg:min-w-[150px]`}
             >
-              {t.value === 'all' && isAdmin ? 'Tất cả hệ thống' : t.label}
-            </button>
-          ))}
-        </div>
-
-        {isAdmin && tab === 'shared' && (
-          <p className="text-xs text-gray-500">
-            Chỉ gồm tư liệu được chia sẻ trực tiếp cho tài khoản của bạn.
-            Tư liệu xem bằng quyền quản trị nằm ở “Của người khác”.
-          </p>
-        )}
-
-        <div className="flex flex-wrap gap-2">
-          <div className="relative min-w-[220px] flex-1">
-            <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[18px] text-gray-400">
-              search
-            </span>
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder={
-                canEditLabels
-                  ? 'Tìm theo tiêu đề, tên file hoặc bệnh nhân…'
-                  : 'Tìm theo tiêu đề hoặc tên file…'
-              }
-              className={`${inputCls} pl-9`}
-            />
+              <option value="">Mọi phân loại</option>
+              {categories.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                  {typeof c.asset_count === 'number' ? ` (${c.asset_count})` : ''}
+                </option>
+              ))}
+            </select>
+            <select
+              value={dataType}
+              onChange={e => {
+                setDataType(e.target.value as DataType | '');
+                setPage(1);
+              }}
+              aria-label="Lọc theo loại dữ liệu"
+              className={`${inputCls} lg:w-auto lg:min-w-[165px]`}
+            >
+              <option value="">Mọi loại dữ liệu</option>
+              {(Object.keys(DATA_TYPE_LABEL) as DataType[]).map(t => (
+                <option key={t} value={t}>
+                  {DATA_TYPE_LABEL[t]}
+                </option>
+              ))}
+            </select>
           </div>
-          <select
-            value={category}
-            onChange={e => {
-              setCategory(e.target.value ? Number(e.target.value) : '');
-              setPage(1);
-            }}
-            className={`${inputCls} w-auto min-w-[160px]`}
-          >
-            <option value="">Mọi phân loại</option>
-            {categories.map(c => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-                {typeof c.asset_count === 'number' ? ` (${c.asset_count})` : ''}
-              </option>
-            ))}
-          </select>
-          <select
-            value={dataType}
-            onChange={e => {
-              setDataType(e.target.value as DataType | '');
-              setPage(1);
-            }}
-            className={`${inputCls} w-auto min-w-[170px]`}
-          >
-            <option value="">Mọi loại dữ liệu</option>
-            {(Object.keys(DATA_TYPE_LABEL) as DataType[]).map(t => (
-              <option key={t} value={t}>
-                {DATA_TYPE_LABEL[t]}
-              </option>
-            ))}
-          </select>
+
+          {isAdmin && tab === 'shared' && (
+            <p className="text-xs text-gray-500">
+              Chỉ gồm tư liệu được chia sẻ trực tiếp cho tài khoản của bạn.
+              Tư liệu xem bằng quyền quản trị nằm ở “Của người khác”.
+            </p>
+          )}
         </div>
-      </div>
+      )}
 
       {/* ── Bảng ── */}
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">

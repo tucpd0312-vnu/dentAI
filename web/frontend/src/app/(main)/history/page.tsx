@@ -88,10 +88,7 @@ function rowCount(r: Row): { n: number; unit: string } {
 }
 
 export default function HistoryPage() {
-  const { isAdmin, isDoctor, loading: authLoading } = useAuth();
-  // GET /api/scans/ chỉ admin/doctor gọi được (bệnh nhân nhận 403 — module này
-  // không có khái niệm "phim của tôi" cho bệnh nhân, xem apps/scans/views.py).
-  const canSeeScans = isAdmin || isDoctor;
+  const { loading: authLoading } = useAuth();
 
   const [cases, setCases]           = useState<CaseListItem[]>([]);
   const [shared, setShared]         = useState<CaseListItem[]>([]);
@@ -114,18 +111,18 @@ export default function HistoryPage() {
     Promise.all([
       api.get<CaseListItem[]>('/cases/'),
       api.get<CaseListItem[]>('/cases/shared-with-me/'),
-      canSeeScans ? fetchScans({ pageSize: 100 }) : Promise.resolve(null),
-      canSeeScans ? fetchScansSharedWithMe() : Promise.resolve([]),
+      fetchScans({ pageSize: 100 }),
+      fetchScansSharedWithMe(),
     ])
       .then(([all, sh, sc, shared3d]) => {
         setCases(all.data);
         setShared(sh.data);
-        setScans(sc ? sc.results : []);
+        setScans(sc.results);
         setSharedScans(shared3d);
         setLoading(false);
       })
       .catch(() => { setError(true); setLoading(false); });
-  }, [authLoading, canSeeScans]);
+  }, [authLoading]);
 
   /* Reset page on filter change */
   useEffect(() => { setPage(1); }, [search, status, type, tab]);

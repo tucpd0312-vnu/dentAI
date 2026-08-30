@@ -34,13 +34,13 @@ const inputCls =
   'focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30';
 
 /**
- * Kho phim viêm lợi — bản song song của `/scans` cho ảnh 2D.
+ * Danh sách ca chẩn đoán viêm lợi — điểm vào của luồng viêm lợi 2D.
  *
  * Không dùng `useRequireRole`: mở cho MỌI vai trò như luồng `/analysis`. Bệnh nhân
- * tự tạo được ca viêm lợi nên phải xem lại được phim của chính mình; phạm vi dữ
+ * tự tạo được ca viêm lợi nên phải xem lại được ca của chính mình; phạm vi dữ
  * liệu do backend cắt qua `apps.cases.access.scoped_cases`, không phải bằng route.
  */
-export default function GingivitisFilmsPage() {
+export default function GingivitisDiagnosisPage() {
   const { isAdmin, loading: authLoading } = useAuth();
 
   const [rows, setRows] = useState<CaseListItem[]>([]);
@@ -60,7 +60,7 @@ export default function GingivitisFilmsPage() {
       const res = await api.get<CaseListItem[]>('/cases/');
       setRows(res.data);
     } catch (err) {
-      setError(apiErrorMessage(err, 'Không tải được danh sách phim viêm lợi.'));
+      setError(apiErrorMessage(err, 'Không tải được danh sách chẩn đoán viêm lợi.'));
     } finally {
       setLoading(false);
     }
@@ -90,7 +90,7 @@ export default function GingivitisFilmsPage() {
     <div className="mx-auto max-w-6xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-serif text-xl font-semibold text-gray-900">Phim viêm lợi</h1>
+          <h1 className="font-serif text-xl font-semibold text-gray-900">Chẩn đoán viêm lợi</h1>
           <p className="mt-0.5 text-sm text-gray-500">
             {loading ? 'Đang tải…' : `${filtered.length} ca chẩn đoán`}
             {!isAdmin && ' · ca của bạn và ca được chia sẻ'}
@@ -101,7 +101,7 @@ export default function GingivitisFilmsPage() {
           className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-600"
         >
           <span className="material-symbols-outlined text-[18px]">upload_file</span>
-          Tải phim lên
+          Tải lên
         </Link>
       </div>
 
@@ -159,7 +159,7 @@ export default function GingivitisFilmsPage() {
               ) : paged.length === 0 ? (
                 <tr>
                   <td colSpan={isAdmin ? 6 : 5} className="px-4 py-10 text-center text-sm text-gray-400">
-                    {search ? 'Không tìm thấy ca phù hợp.' : 'Chưa có phim viêm lợi nào.'}
+                    {search ? 'Không tìm thấy ca phù hợp.' : 'Chưa có ca chẩn đoán viêm lợi nào.'}
                   </td>
                 </tr>
               ) : (

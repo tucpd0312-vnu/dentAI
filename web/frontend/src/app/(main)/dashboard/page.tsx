@@ -337,7 +337,7 @@ export default function DashboardPage() {
   }
 
   const { cases, scans, library, mgi, users, activity } = data;
-  const canUseScans = user?.role === 'admin' || user?.role === 'doctor';
+  const canUseScans = Boolean(user);
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
@@ -402,7 +402,11 @@ export default function DashboardPage() {
             href="/scans/"
             icon="view_in_ar"
             title="Răng nanh ngầm 3D"
-            description="Phim CBCT, phân vùng và chia sẻ 3D Slicer"
+            description={
+              user?.role === 'patient'
+                ? 'Tải phim CBCT và xem kết quả phân vùng của bạn'
+                : 'Phim CBCT, phân vùng và chia sẻ 3D Slicer'
+            }
             total={scans.total}
             ready={scans.by_status.ready}
             processing={(scans.by_status.uploading ?? 0) + (scans.by_status.processing ?? 0)}

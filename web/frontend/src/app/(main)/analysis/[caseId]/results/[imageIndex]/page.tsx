@@ -129,6 +129,7 @@ export default function ResultsPage() {
   const imageUrl = toMediaUrl(imgData.original_path || imgData.annotated_path);
 
   const sharedReadOnly = imgData.case_permission === 'view';
+  const resultReadOnly = !imgData.can_edit;
 
   return (
     <div className="space-y-4">
@@ -145,12 +146,21 @@ export default function ResultsPage() {
         />
       )}
 
-      {/* Ca của người khác chia sẻ cho tôi, chỉ được xem */}
-      {sharedReadOnly && (
+      {/* Backend là nguồn chân lý; banner giải thích rõ trạng thái chỉ xem cho patient. */}
+      {resultReadOnly && (
         <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-800">
           <span className="material-symbols-outlined text-[18px] shrink-0">visibility</span>
-          Ca này được chia sẻ với bạn ở chế độ <strong>chỉ xem</strong> — bạn không thể
-          chỉnh sửa nhãn chẩn đoán.
+          {sharedReadOnly ? (
+            <span>
+              Ca này được chia sẻ với bạn ở chế độ <strong>chỉ xem</strong> — bạn không
+              thể chỉnh sửa nhãn chẩn đoán.
+            </span>
+          ) : (
+            <span>
+              Kết quả của bạn đang ở chế độ <strong>chỉ xem</strong> — tài khoản bệnh
+              nhân không thể sửa hộp phát hiện, điểm MGI hoặc mô tả.
+            </span>
+          )}
         </div>
       )}
 

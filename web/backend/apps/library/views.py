@@ -180,7 +180,9 @@ class AssetListView(APIView):
                 status=DataAsset.Status.READY,
                 is_anonymized=True,
             )
-            if diagnosis == "canine3d" and request.user.role not in (Role.ADMIN, Role.DOCTOR):
+            if diagnosis == "canine3d" and request.user.role not in (
+                Role.ADMIN, Role.DOCTOR, Role.PATIENT,
+            ):
                 qs = qs.none()
 
         patient = request.query_params.get("patient")

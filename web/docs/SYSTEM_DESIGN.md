@@ -48,7 +48,7 @@ nằm ngoài phạm vi tài liệu này:
 |---|---|
 | **Quản trị viên** (`admin`) | Vận hành hệ thống: quản lý tài khoản, xem lịch sử hệ thống, chỉnh ngưỡng tin cậy, xem mọi ca |
 | **Bác sĩ** (`doctor`) | Người dùng chính: tạo ca, xem kết quả, **chỉnh sửa nhãn** (dữ liệu này feed vào FALC) |
-| **Bệnh nhân** (`patient`) | Tạo ca cho chính mình, xem kết quả của mình; **không** được chỉnh sửa nhãn |
+| **Bệnh nhân** (`patient`) | Dùng các luồng AI cho dữ liệu do mình tải lên và xem lại kết quả của mình; **không** được chỉnh sửa nhãn/phân vùng |
 
 Người tự đăng ký **luôn** được cấp vai trò bệnh nhân. Vai trò bác sĩ phải qua quản trị
 viên duyệt — xem [§6.6](#66-đăng-ký-với-vai-trò-bác-sĩ-và-quy-trình-duyệt).
@@ -731,9 +731,11 @@ tay tại `/api/users/`.
 | Xem trang Tổng quan | ✅ toàn hệ thống | ✅ phạm vi mình | ✅ phạm vi mình |
 | Xem thống kê người dùng trên Tổng quan | ✅ | ❌ | ❌ |
 | Tạo ca chẩn đoán mới | ✅ | ✅ | ✅ |
+| Tải phim và chạy luồng RNNHT 3D | ✅ | ✅ | ✅ phim của mình |
 | Xem ca của mình | ✅ | ✅ | ✅ |
 | Xem ca của người khác | ✅ tất cả | ❌ (trừ được chia sẻ) | ❌ (trừ được chia sẻ) |
 | **Chỉnh sửa nhãn** (box / MGI / caption) | ✅ | ✅ | ❌ |
+| **Nộp/chỉnh sửa phân vùng 3D** | ✅ | ✅ phim sở hữu hoặc share `edit` | ❌ |
 | Tải kết quả (ZIP) | ✅ | ✅ | ✅ |
 | Chia sẻ ca mình sở hữu | ✅ | ✅ | ✅ |
 | Chia sẻ ca được người khác chia sẻ | ❌ | ❌ | ❌ |
@@ -752,7 +754,7 @@ tay tại `/api/users/`.
 đều được đẩy vào FALC làm dữ liệu huấn luyện lại mô hình. Chỉ chuyên môn mới được tạo dữ
 liệu đó. Ràng buộc nằm ở `apps/cases/access.py::can_edit_case()`, dòng kiểm tra đầu tiên.
 
-### 7.2 Phạm vi truy cập ca
+### 7.2 Phạm vi truy cập ca và phim
 
 Định nghĩa tại `apps/cases/access.py` — **nguồn chân lý duy nhất**, mọi view phải lấy
 queryset qua đây thay vì `Case.objects.all()`.
@@ -764,6 +766,16 @@ queryset qua đây thay vì `Case.objects.all()`.
 | `can_view_case(user, case)` | admin ∨ chủ ca ∨ tồn tại share bất kỳ |
 | `can_edit_case(user, case)` | `user.can_edit_labels()` **∧** (admin ∨ chủ ca ∨ share `permission='edit'`) |
 | `case_permission_for(user, case)` | trả `admin` / `owner` / `edit` / `view` / `none` cho frontend |
+
+Phim CBCT/RNNHT 3D dùng nguồn chân lý riêng tại `apps/scans/access.py`:
+
+| Hàm | Quy tắc |
+|---|---|
+| `scoped_scans(user)` | admin → tất cả; doctor → phim sở hữu hoặc được chia sẻ; patient → **chỉ phim do chính tài khoản tải lên** |
+| `can_view_scan(user, scan)` | admin ∨ doctor chủ/share ∨ patient là người tải lên |
+| `can_manage_scan(user, scan)` | admin ∨ chủ phim (doctor/patient); người nhận không chia sẻ tiếp |
+| `can_contribute_scan(user, scan)` | admin ∨ doctor chủ phim ∨ doctor có share `edit`; **patient luôn false** |
+| `scan_permission_for(user, scan)` | trả `admin` / `owner` / `edit` / `view` / `none` cho frontend |
 
 ### 7.3 Guard rails của module quản trị
 

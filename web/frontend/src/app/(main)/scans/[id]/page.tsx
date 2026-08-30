@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+import { useAuth } from '@/components/providers/AuthProvider';
 import SaveToLibraryModal from '@/components/library/SaveToLibraryModal';
 import SliceViewer from '@/components/viewer/SliceViewer';
 import type { ActivityLog } from '@/lib/activity';
@@ -24,7 +25,6 @@ import {
   type Segmentation,
 } from '@/lib/scans';
 import { apiErrorMessage } from '@/lib/users';
-import { useRequireRole } from '@/lib/useRequireRole';
 import { isSlicerSetupConfirmed } from '@/lib/slicer';
 import ShareModal from '@/components/results/ShareModal';
 
@@ -38,7 +38,7 @@ function fmtDateTime(iso: string | null): string {
 }
 
 export default function ScanDetailPage() {
-  const { allowed, checking } = useRequireRole(['admin', 'doctor']);
+  const { isPatient } = useAuth();
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
@@ -81,8 +81,8 @@ export default function ScanDetailPage() {
   }, []);
 
   useEffect(() => {
-    if (allowed) void load();
-  }, [allowed, load]);
+    void load();
+  }, [load]);
 
   // Không có route /scans/{id}/processing riêng (khác apps.cases) — trang chi tiết
   // tự poll trạng thái và cập nhật inline, theo đúng PLAN_3D_CANINE.md §5.
@@ -126,16 +126,6 @@ export default function ScanDetailPage() {
     } finally {
       setOpenBusy(false);
     }
-  }
-
-  if (checking || !allowed) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <span className="material-symbols-outlined animate-spin text-4xl text-gray-300">
-          autorenew
-        </span>
-      </div>
-    );
   }
 
   if (loadError) {
@@ -229,6 +219,15 @@ export default function ScanDetailPage() {
           <span className="material-symbols-outlined animate-spin text-[20px]">autorenew</span>
           Đang xử lý phim trên máy chủ — giải nén, ẩn danh, sinh ảnh xem trước. Trang sẽ
           tự cập nhật khi xong.
+        </div>
+      )}
+      {isPatient && (
+        <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-800">
+          <span className="material-symbols-outlined shrink-0 text-[18px]">visibility</span>
+          <span>
+            Kết quả phân vùng ở chế độ <strong>chỉ xem</strong> — tài khoản bệnh nhân
+            không thể nộp hoặc chỉnh sửa phân vùng 3D.
+          </span>
         </div>
       )}
 

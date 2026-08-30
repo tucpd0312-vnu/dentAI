@@ -100,15 +100,26 @@ class ChunkedUploadTests(TestCase):
         self.assertEqual(res.status_code, 409)
         self.assertEqual(len(res.data["missing_chunks"]), init["total_chunks"])
 
-    def test_patient_cannot_start_upload(self):
+    def test_patient_can_start_upload_but_cannot_choose_global_patient_code(self):
         client = APIClient()
         client.force_authenticate(user=self.patient)
         res = client.post(
             "/api/scans/uploads/",
-            {"patient_name": "X", "filename": "a.zip", "total_size": 10},
+            {
+                "patient_name": "Bệnh nhân tự tải",
+                "patient_code": "CODE-KHONG-DUOC-DUNG",
+                "filename": "a.zip",
+                "total_size": 10,
+            },
             format="json",
         )
-        self.assertEqual(res.status_code, 403)
+        self.assertEqual(res.status_code, 201, res.data)
+        scan = Scan.objects.select_related("patient").get(pk=res.data["scan_id"])
+        self.assertEqual(scan.uploaded_by, self.patient)
+        self.assertTrue(scan.patient.patient_code.startswith("CBCT-"))
+        self.assertNotEqual(scan.patient.patient_code, "CODE-KHONG-DUOC-DUNG")
+
+
 class ScanSharingTests(APITestCase):
     def setUp(self):
         self.owner = self.make_user("owner", Role.DOCTOR)
@@ -197,6 +208,30 @@ class ScanSharingTests(APITestCase):
         self.assertFalse(
             ScanShare.objects.filter(scan=self.scan, shared_with=self.patient_user).exists()
         )
+
+    def test_patient_only_sees_own_scan_and_cannot_submit_segmentation(self):
+        own_patient = Patient.objects.create(
+            name="Ca của bệnh nhân", patient_code="CBCT-PATIENT-OWN"
+        )
+        own_scan = Scan.objects.create(
+            patient=own_patient,
+            uploaded_by=self.patient_user,
+            status=Scan.Status.READY,
+            is_anonymized=True,
+        )
+        self.auth(self.patient_user)
+
+        listing = self.client.get("/api/scans/")
+        detail = self.client.get(f"/api/scans/{own_scan.pk}/")
+        segmentation = self.client.post(
+            f"/api/scans/{own_scan.pk}/segmentations/", {}
+        )
+
+        self.assertEqual(listing.status_code, status.HTTP_200_OK)
+        self.assertEqual([row["id"] for row in listing.data["results"]], [own_scan.pk])
+        self.assertEqual(detail.status_code, status.HTTP_200_OK)
+        self.assertEqual(detail.data["access_level"], "owner")
+        self.assertEqual(segmentation.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_shared_with_me_and_revoke(self):
         created = self.share(self.viewer)
