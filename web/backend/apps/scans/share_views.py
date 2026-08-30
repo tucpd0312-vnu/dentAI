@@ -1,4 +1,9 @@
-"""API chia sẻ phim RNNHT 3D cho tài khoản chuyên môn trên hệ thống."""
+"""API chia sẻ phim RNNHT 3D cho tài khoản chuyên môn trên hệ thống.
+
+Patient có thể chia sẻ phim mình sở hữu cho bác sĩ/admin, nhưng không thể là người
+nhận phim của người khác; nhờ đó danh sách kết quả 3D của patient luôn là dữ liệu
+do chính tài khoản tải lên.
+"""
 
 from django.db import transaction
 from django.shortcuts import get_object_or_404
@@ -9,10 +14,10 @@ from rest_framework.views import APIView
 
 from apps.users.activity import log_activity
 from apps.users.models import LogAction, LogCategory, Role, User
-from apps.users.permissions import IsActiveUser, IsAdminOrDoctor
+from apps.users.permissions import IsActiveUser
 
 from .access import can_manage_scan, scoped_scans
-from .models import Scan, ScanAccessToken, ScanShare
+from .models import ScanAccessToken, ScanShare
 from .serializers import ScanListSerializer
 
 
@@ -164,15 +169,12 @@ class ScanShareDetailView(APIView):
 
 
 class ScansSharedWithMeView(APIView):
-    permission_classes = [IsAdminOrDoctor]
+    permission_classes = [IsActiveUser]
 
     def get(self, request):
-        scans = (
-            Scan.objects.filter(is_deleted=False, shares__shared_with=request.user)
-            .select_related("patient", "uploaded_by")
-            .distinct()
-            .order_by("-created_at")
-        )
+        scans = scoped_scans(request.user).filter(
+            shares__shared_with=request.user
+        ).distinct().order_by("-created_at")
         return Response(
             ScanListSerializer(scans, many=True, context={"request": request}).data
         )

@@ -3,6 +3,9 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.cases.access import can_edit_case
+from apps.cases.models import Case, Image, Patient
+
 from .models import EmailOTP, Role, RoleRequest, User
 
 
@@ -69,6 +72,40 @@ class LoginTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("chưa được kích hoạt", response.data["non_field_errors"][0])
+
+
+class RoleCapabilityTests(APITestCase):
+    def test_patient_cannot_edit_diagnostic_labels(self):
+        patient_user = User.objects.create_user(
+            username="readonly-patient",
+            email="readonly-patient@example.test",
+            password="TestPass123",
+            role=Role.PATIENT,
+        )
+        patient_record = Patient.objects.create(
+            name="Patient Owner", patient_code="PATIENT-READONLY"
+        )
+        case = Case.objects.create(patient=patient_record, created_by=patient_user)
+        Image.objects.create(
+            case=case,
+            order_index=0,
+            original_path="tests/patient-readonly.jpg",
+            status=Image.Status.DONE,
+        )
+
+        self.assertFalse(patient_user.can_edit_labels())
+        self.assertFalse(can_edit_case(patient_user, case))
+        self.client.force_authenticate(user=patient_user)
+        response = self.client.patch(
+            f"/api/cases/{case.pk}/images/0/",
+            {"caption_text": "Patient không được ghi nội dung này"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_clinical_roles_can_edit_diagnostic_labels(self):
+        self.assertTrue(User(role=Role.DOCTOR).can_edit_labels())
+        self.assertTrue(User(role=Role.ADMIN).can_edit_labels())
 
 
 class PasswordResetTests(APITestCase):

@@ -6,8 +6,8 @@ Mọi view trong `apps.scans` phải lấy queryset qua `scoped_scans()` thay v�
 
   - **admin**       → mọi phim
   - **bác sĩ**      → phim do mình tải lên hoặc được chia sẻ
-  - **bệnh nhân**   → luôn rỗng — CBCT tái tạo được khuôn mặt, module này không dành
-                       cho họ (chốt ở đây, không chỉ ẩn sidebar phía frontend)
+  - **bệnh nhân**   → chỉ phim do chính tài khoản tải lên; được xem kết quả nhưng
+                       không được nộp/chỉnh sửa phân vùng chuyên môn
 """
 from django.db.models import Q
 
@@ -25,7 +25,11 @@ def scoped_scans(user):
     qs = Scan.objects.filter(is_deleted=False).select_related("patient", "uploaded_by")
     if _is_admin(user):
         return qs
-    if not (user and user.is_authenticated) or user.role != Role.DOCTOR:
+    if not (user and user.is_authenticated):
+        return qs.none()
+    if user.role == Role.PATIENT:
+        return qs.filter(uploaded_by=user)
+    if user.role != Role.DOCTOR:
         return qs.none()
     return qs.filter(Q(uploaded_by=user) | Q(shares__shared_with=user)).distinct()
 
@@ -35,29 +39,35 @@ def can_view_scan(user, scan) -> bool:
         return True
     if not (user and user.is_authenticated):
         return False
+    if scan.uploaded_by_id == user.pk:
+        return user.role in (Role.DOCTOR, Role.PATIENT)
     if user.role != Role.DOCTOR:
         return False
-    if scan.uploaded_by_id == user.pk:
-        return True
     return ScanShare.objects.filter(scan=scan, shared_with=user).exists()
 
 
 def can_manage_scan(user, scan) -> bool:
-    """Xoá/chia sẻ: chỉ chủ sở hữu hoặc admin; người nhận không được chia sẻ tiếp."""
+    """Quản lý bản phim: chỉ chủ sở hữu hoặc admin; người nhận không chia sẻ tiếp."""
     if _is_admin(user):
         return True
     return bool(
-        user and user.is_authenticated and user.role == Role.DOCTOR
+        user and user.is_authenticated and user.role in (Role.DOCTOR, Role.PATIENT)
         and scan.uploaded_by_id == user.pk
     )
 
 
 def can_contribute_scan(user, scan) -> bool:
-    """Nộp phân vùng: chủ/admin hoặc bác sĩ được cấp quyền ``edit``."""
-    if can_manage_scan(user, scan):
+    """Nộp phân vùng: chỉ admin hoặc bác sĩ chủ phim/được cấp quyền ``edit``.
+
+    Quyền này cố ý không kế thừa ``can_manage_scan``: bệnh nhân quản lý bản phim
+    mình tải lên nhưng kết quả chẩn đoán luôn ở chế độ chỉ xem.
+    """
+    if _is_admin(user):
         return True
     if not (user and user.is_authenticated and user.role == Role.DOCTOR):
         return False
+    if scan.uploaded_by_id == user.pk:
+        return True
     return ScanShare.objects.filter(
         scan=scan, shared_with=user, permission=ScanShare.Permission.EDIT
     ).exists()
@@ -67,9 +77,11 @@ def scan_permission_for(user, scan) -> str:
     """Nhãn quyền cho frontend: admin | owner | edit | view | none."""
     if _is_admin(user):
         return "admin"
-    if not (user and user.is_authenticated and user.role == Role.DOCTOR):
+    if not (user and user.is_authenticated):
         return "none"
     if scan.uploaded_by_id == user.pk:
-        return "owner"
+        return "owner" if user.role in (Role.DOCTOR, Role.PATIENT) else "none"
+    if user.role != Role.DOCTOR:
+        return "none"
     share = ScanShare.objects.filter(scan=scan, shared_with=user).first()
     return share.permission if share else "none"

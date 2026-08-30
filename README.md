@@ -355,6 +355,7 @@ export T5_DEVICE=auto
 python -m celery -A config.celery worker --loglevel=info --concurrency=1 -Q inference -n inference-host@%h
 ```
 
+
 Giữ terminal worker chạy. Đặt `INFERENCE_DEVICE=0` nếu môi trường PyTorch nhận GPU phù hợp.
 Host dùng Redis cổng **6380**, không dùng tên service `redis`/`db` của mạng Docker.
 Các biến trong `web/.env` **không tự được nạp vào terminal host**.

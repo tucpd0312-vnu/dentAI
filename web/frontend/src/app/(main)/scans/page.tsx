@@ -5,7 +5,6 @@ import Link from 'next/link';
 
 import { useAuth } from '@/components/providers/AuthProvider';
 import { apiErrorMessage } from '@/lib/users';
-import { useRequireRole } from '@/lib/useRequireRole';
 import {
   deleteScan,
   fetchScans,
@@ -28,8 +27,7 @@ const inputCls =
   'focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30';
 
 export default function ScansPage() {
-  const { allowed, checking } = useRequireRole(['admin', 'doctor']);
-  const { isAdmin } = useAuth();
+  const { isAdmin, isPatient } = useAuth();
 
   const [rows, setRows] = useState<ScanListItem[]>([]);
   const [count, setCount] = useState(0);
@@ -56,8 +54,8 @@ export default function ScansPage() {
   }, [q, page]);
 
   useEffect(() => {
-    if (allowed) void load();
-  }, [allowed, load]);
+    void load();
+  }, [load]);
 
   // Gõ xong 350ms mới gọi API, tránh bắn request mỗi ký tự — cùng nhịp /users.
   useEffect(() => {
@@ -82,16 +80,6 @@ export default function ScansPage() {
     }
   }
 
-  if (checking || !allowed) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <span className="material-symbols-outlined animate-spin text-4xl text-gray-300">
-          autorenew
-        </span>
-      </div>
-    );
-  }
-
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
 
   return (
@@ -101,7 +89,7 @@ export default function ScansPage() {
           <h1 className="font-serif text-xl font-semibold text-gray-900">Phim răng nanh ngầm 3D</h1>
           <p className="mt-0.5 text-sm text-gray-500">
             {loading ? 'Đang tải…' : `${count} phim CBCT`}
-            {!isAdmin && ' · gồm phim của bạn và phim được chia sẻ'}
+            {!isAdmin && (isPatient ? ' · chỉ phim do bạn tải lên' : ' · gồm phim của bạn và phim được chia sẻ')}
           </p>
         </div>
         <Link

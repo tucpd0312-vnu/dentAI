@@ -13,7 +13,14 @@ import { useAuth } from '@/components/providers/AuthProvider';
  * Ẩn mục ở đây chỉ là trải nghiệm — backend chặn độc lập ở permission_classes,
  * nên gõ thẳng URL cũng không vào được.
  */
-type NavLeaf = { href: string; icon: string; label: string; prefix: string; roles?: Role[] };
+type NavLeaf = {
+  href: string;
+  icon: string;
+  label: string;
+  prefix: string;
+  activePrefixes?: string[];
+  roles?: Role[];
+};
 
 /** Nhóm mục con dạng dropdown — không có `href`, bấm vào chỉ đóng/mở danh sách con. */
 type NavGroup = { label: string; icon: string; children: NavLeaf[] };
@@ -26,28 +33,37 @@ function isGroup(entry: NavEntry): entry is NavGroup {
 
 const NAV: NavEntry[] = [
   { href: '/dashboard', icon: 'dashboard', label: 'Tổng quan', prefix: '/dashboard' },
-  // Nhóm "AI": nơi CHẠY một lượt chẩn đoán. Nơi XEM lại dữ liệu đã có nằm ở nhóm "Lưu trữ".
+  // Nhóm AI gom cả điểm bắt đầu chẩn đoán và danh sách các ca/phim đã xử lý.
   {
     label: 'AI hỗ trợ chẩn đoán lâm sàng',
     icon: 'auto_awesome',
     children: [
-      { href: '/analysis/new', icon: 'oral_disease', label: 'Chẩn đoán viêm lợi',      prefix: '/analysis' },
-      { href: '/plaque',       icon: 'dentistry',    label: 'Chẩn đoán mảng bám răng', prefix: '/plaque', roles: ['admin', 'doctor'] },
+      {
+        href: '/gingivitis',
+        icon: 'oral_disease',
+        label: 'Chẩn đoán viêm lợi',
+        prefix: '/gingivitis',
+        activePrefixes: ['/analysis'],
+      },
+      {
+        href: '/scans',
+        icon: 'radiology',
+        label: 'Phim răng nanh ngầm 3D',
+        prefix: '/scans',
+      },
+      {
+        href: '/plaque',
+        icon: 'dentistry',
+        label: 'Chẩn đoán mảng bám răng',
+        prefix: '/plaque',
+      },
     ],
   },
-  {
-    label: 'Lưu trữ',
-    icon: 'folder',
-    children: [
-      // Kho dữ liệu mở cho MỌI vai trò (không khai `roles`) — phạm vi dữ liệu do backend
-      // giới hạn qua `apps.library.access.scoped_assets`, không phải bằng việc ẩn mục này.
-      { href: '/library',    icon: 'inventory_2',   label: 'Kho dữ liệu',            prefix: '/library'    },
-      { href: '/scans',      icon: 'radiology',     label: 'Phim răng nanh ngầm 3D', prefix: '/scans', roles: ['admin', 'doctor'] },
-      // Phim viêm lợi mở cho mọi vai trò như /analysis — backend cắt phạm vi qua
-      // `apps.cases.access.scoped_cases` (ca của mình + ca được chia sẻ; admin thấy tất cả).
-      { href: '/gingivitis', icon: 'photo_library', label: 'Phim viêm lợi',          prefix: '/gingivitis' },
-    ],
-  },
+  // Kho dữ liệu mở cho MỌI vai trò (không khai `roles`) — phạm vi dữ liệu do backend
+  // giới hạn qua `apps.library.access.scoped_assets`, không phải bằng việc ẩn mục này.
+  { href: '/library', icon: 'inventory_2', label: 'Kho dữ liệu', prefix: '/library' },
+  // Trò chuyện hiện là trang giữ chỗ và mở cho mọi vai trò.
+  { href: '/chat', icon: 'forum', label: 'Trò chuyện', prefix: '/chat' },
   { href: '/users',      icon: 'group',        label: 'Quản lý người dùng', prefix: '/users',      roles: ['admin'] },
   { href: '/history',    icon: 'history',      label: 'Lịch sử',            prefix: '/history'   },
   { href: '/system-log', icon: 'receipt_long', label: 'Lịch sử hệ thống',   prefix: '/system-log', roles: ['admin'] },
@@ -64,6 +80,9 @@ export default function Sidebar() {
   const { role, user } = useAuth();
 
   const visible = (item: NavLeaf) => !item.roles || (role && item.roles.includes(role));
+  const active = (item: NavLeaf) =>
+    pathname.startsWith(item.prefix) ||
+    Boolean(item.activePrefixes?.some(prefix => pathname.startsWith(prefix)));
 
   const items = NAV.map(entry => {
     if (!isGroup(entry)) return entry;
@@ -84,8 +103,9 @@ export default function Sidebar() {
     setOpenGroups(prev => ({ ...prev, [label]: !(prev[label] ?? defaultOpen) }));
   }
 
-  function renderLeaf({ href, icon, label, prefix }: NavLeaf, nested: boolean) {
-    const active = pathname.startsWith(prefix);
+  function renderLeaf(item: NavLeaf, nested: boolean) {
+    const { href, icon, label } = item;
+    const isActive = active(item);
     const badge = href === '/users' ? pendingRequests : 0;
     return (
       <Link
@@ -102,7 +122,7 @@ export default function Sidebar() {
           relative flex items-center gap-3 px-3 text-sm font-medium
           transition-colors duration-150
           ${nested ? 'py-2 rounded-lg' : 'mx-2 py-2.5 rounded-xl'}
-          ${active
+          ${isActive
             ? 'bg-primary/10 text-primary'
             : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}
         `}
@@ -126,19 +146,19 @@ export default function Sidebar() {
   }
 
   function renderGroup(group: NavGroup) {
-    const active = group.children.some(child => pathname.startsWith(child.prefix));
-    const open = openGroups[group.label] ?? active;
+    const isActive = group.children.some(active);
+    const open = openGroups[group.label] ?? isActive;
     return (
       <div key={group.label}>
         <button
           type="button"
-          onClick={() => toggleGroup(group.label, active)}
+          onClick={() => toggleGroup(group.label, isActive)}
           title={collapsed ? group.label : undefined}
           aria-expanded={collapsed ? false : open}
           className={`
             flex w-[calc(100%-1rem)] items-center gap-3 mx-2 px-3 py-2.5 rounded-xl text-sm font-medium
             transition-colors duration-150
-            ${active && (collapsed || !open)
+            ${isActive && (collapsed || !open)
               ? 'bg-primary/10 text-primary'
               : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}
           `}

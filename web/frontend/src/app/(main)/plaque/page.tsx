@@ -1,7 +1,3 @@
-'use client';
-
-import { useRequireRole } from '@/lib/useRequireRole';
-
 /**
  * Chẩn đoán mảng bám răng (bệnh nhân niềng răng).
  *
@@ -9,18 +5,6 @@ import { useRequireRole } from '@/lib/useRequireRole';
  * trang chỉ giữ chỗ cho mục "Chẩn đoán mảng bám răng" trong nhóm AI chẩn đoán lâm sàng.
  */
 export default function PlaquePage() {
-  const { allowed, checking } = useRequireRole(['admin', 'doctor']);
-
-  if (checking || !allowed) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <span className="material-symbols-outlined animate-spin text-4xl text-gray-300">
-          autorenew
-        </span>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
       <span className="material-symbols-outlined text-5xl text-gray-300">dentistry</span>

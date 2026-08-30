@@ -3,14 +3,14 @@
 import { useCallback, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { useRequireRole } from '@/lib/useRequireRole';
+import { useAuth } from '@/components/providers/AuthProvider';
 import { formatFileSize, uploadScan } from '@/lib/scans';
 import { createScanFromLibrary, type DataAsset } from '@/lib/library';
 import { apiErrorMessage } from '@/lib/users';
 import LibraryAssetPicker, { InputSourceTabs, useLibraryInput } from '@/components/library/LibraryAssetPicker';
 
 export default function NewScanPage() {
-  const { allowed, checking } = useRequireRole(['admin', 'doctor']);
+  const { isPatient } = useAuth();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   // Phiên chunked upload dở từ lần submit lỗi trước — CÙNG file thì thử lại chỉ gửi
@@ -76,13 +76,13 @@ export default function NewScanPage() {
     try {
       const data = inputSource === 'library' ? await createScanFromLibrary({
         patientName: form.name.trim(),
-        patientCode: form.patient_code.trim() || undefined,
+        patientCode: isPatient ? undefined : form.patient_code.trim() || undefined,
         note: form.note.trim() || undefined,
         assetId: selectedAssets[0].id,
       }) : await uploadScan(
         {
           patientName: form.name.trim(),
-          patientCode: form.patient_code.trim() || undefined,
+          patientCode: isPatient ? undefined : form.patient_code.trim() || undefined,
           note: form.note.trim() || undefined,
           file: file!,
         },
@@ -104,16 +104,6 @@ export default function NewScanPage() {
     }
   };
 
-  if (checking || !allowed) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <span className="material-symbols-outlined animate-spin text-4xl text-gray-300">
-          autorenew
-        </span>
-      </div>
-    );
-  }
-
   const hasInput = inputSource === 'computer' ? !!file : selectedAssets.length === 1;
   const canSubmit = form.name.trim().length > 0 && hasInput && !submitting;
 
@@ -127,7 +117,7 @@ export default function NewScanPage() {
           </h2>
         </div>
         <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
-          <div>
+          <div className={isPatient ? 'sm:col-span-2' : undefined}>
             <label className="mb-1.5 block text-xs font-medium text-gray-600">
               Tên bệnh nhân <span className="text-red-500">*</span>
             </label>
@@ -146,7 +136,7 @@ export default function NewScanPage() {
               "
             />
           </div>
-          <div>
+          {!isPatient && <div>
             <label className="mb-1.5 block text-xs font-medium text-gray-600">Mã bệnh nhân</label>
             <input
               type="text"
@@ -161,7 +151,7 @@ export default function NewScanPage() {
                 disabled:bg-gray-50 disabled:text-gray-400
               "
             />
-          </div>
+          </div>}
           <div className="sm:col-span-2">
             <label className="mb-1.5 block text-xs font-medium text-gray-600">Ghi chú</label>
             <textarea

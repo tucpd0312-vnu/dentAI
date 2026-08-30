@@ -63,8 +63,8 @@ class DashboardView(APIView):
             "scans": {
                 "total": scans.count(),
                 "by_status": _counts(scans, "status", Scan.Status.values),
-                "shared_with_me": Scan.objects.filter(
-                    is_deleted=False, shares__shared_with=user
+                "shared_with_me": scans.filter(
+                    shares__shared_with=user
                 ).distinct().count(),
             },
             "library": {

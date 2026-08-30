@@ -424,6 +424,7 @@ export default function UsersPage() {
   const [filters, setFilters] = useState<UserFilters>({ q: '', role: '', is_active: '', is_deleted: '' });
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<AdminUser | null>(null);
@@ -486,6 +487,11 @@ export default function UsersPage() {
   const viewingTrash = filters.is_deleted === 'true';
   // Lấy từ /auth/me/ — không cần request riêng cho badge.
   const pendingCount = me?.pending_role_requests ?? 0;
+  const activeFilterCount =
+    Number(Boolean(search.trim())) +
+    Number(Boolean(filters.role)) +
+    Number(Boolean(filters.is_active)) +
+    Number(Boolean(filters.is_deleted));
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
@@ -498,7 +504,27 @@ export default function UsersPage() {
               : 'Duyệt yêu cầu cấp vai trò từ người tự đăng ký'}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
+          {mainTab === 'accounts' && (
+            <button
+              type="button"
+              onClick={() => setFiltersOpen(open => !open)}
+              aria-expanded={filtersOpen}
+              aria-controls="user-filters"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
+            >
+              <span className="material-symbols-outlined text-[18px]">filter_alt</span>
+              Bộ lọc
+              {activeFilterCount > 0 && (
+                <span className="rounded-full bg-primary px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-white">
+                  {activeFilterCount}
+                </span>
+              )}
+              <span className="material-symbols-outlined text-[18px] text-gray-400">
+                {filtersOpen ? 'expand_less' : 'expand_more'}
+              </span>
+            </button>
+          )}
           <Link
             href="/system-log/"
             className="inline-flex items-center gap-1.5 rounded-xl border border-gray-300 px-3.5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
@@ -558,61 +584,70 @@ export default function UsersPage() {
       {error && <ErrorBox message={error} />}
 
       {/* Bộ lọc */}
-      <div className="flex flex-wrap gap-2 rounded-xl border border-gray-200 bg-white p-3">
-        <div className="relative min-w-[200px] flex-1">
-          <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[18px] text-gray-400">
-            search
-          </span>
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Tìm theo tên đăng nhập, email, họ tên…"
-            className={`${inputCls} pl-9`}
-          />
+      {filtersOpen && (
+        <div
+          id="user-filters"
+          className="flex flex-col gap-2 rounded-xl border border-gray-200 bg-white p-3 lg:flex-row lg:items-center"
+        >
+          <div className="relative min-w-[220px] flex-1">
+            <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[18px] text-gray-400">
+              search
+            </span>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              aria-label="Tìm người dùng"
+              placeholder="Tìm theo tên đăng nhập, email, họ tên…"
+              className={`${inputCls} pl-9`}
+            />
+          </div>
+
+          <select
+            value={filters.role ?? ''}
+            onChange={e => {
+              setFilters(f => ({ ...f, role: e.target.value as Role | '' }));
+              setPage(1);
+            }}
+            aria-label="Lọc theo vai trò"
+            className={`${inputCls} lg:w-auto lg:min-w-[145px]`}
+          >
+            <option value="">Mọi vai trò</option>
+            {ROLES.map(r => (
+              <option key={r} value={r}>
+                {ROLE_LABEL[r]}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={filters.is_active ?? ''}
+            onChange={e => {
+              setFilters(f => ({ ...f, is_active: e.target.value as 'true' | 'false' | '' }));
+              setPage(1);
+            }}
+            aria-label="Lọc theo trạng thái hoạt động"
+            className={`${inputCls} lg:w-auto lg:min-w-[155px]`}
+          >
+            <option value="">Mọi trạng thái</option>
+            <option value="true">Đang hoạt động</option>
+            <option value="false">Bị khoá</option>
+          </select>
+
+          <select
+            value={filters.is_deleted ?? ''}
+            onChange={e => {
+              setFilters(f => ({ ...f, is_deleted: e.target.value as 'true' | 'all' | '' }));
+              setPage(1);
+            }}
+            aria-label="Lọc theo trạng thái xoá"
+            className={`${inputCls} lg:w-auto lg:min-w-[125px]`}
+          >
+            <option value="">Chưa xoá</option>
+            <option value="true">Đã xoá</option>
+            <option value="all">Tất cả</option>
+          </select>
         </div>
-
-        <select
-          value={filters.role ?? ''}
-          onChange={e => {
-            setFilters(f => ({ ...f, role: e.target.value as Role | '' }));
-            setPage(1);
-          }}
-          className={`${inputCls} w-auto`}
-        >
-          <option value="">Mọi vai trò</option>
-          {ROLES.map(r => (
-            <option key={r} value={r}>
-              {ROLE_LABEL[r]}
-            </option>
-          ))}
-        </select>
-
-        <select
-          value={filters.is_active ?? ''}
-          onChange={e => {
-            setFilters(f => ({ ...f, is_active: e.target.value as 'true' | 'false' | '' }));
-            setPage(1);
-          }}
-          className={`${inputCls} w-auto`}
-        >
-          <option value="">Mọi trạng thái</option>
-          <option value="true">Đang hoạt động</option>
-          <option value="false">Bị khoá</option>
-        </select>
-
-        <select
-          value={filters.is_deleted ?? ''}
-          onChange={e => {
-            setFilters(f => ({ ...f, is_deleted: e.target.value as 'true' | 'all' | '' }));
-            setPage(1);
-          }}
-          className={`${inputCls} w-auto`}
-        >
-          <option value="">Chưa xoá</option>
-          <option value="true">Đã xoá</option>
-          <option value="all">Tất cả</option>
-        </select>
-      </div>
+      )}
 
       {/* Bảng */}
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">

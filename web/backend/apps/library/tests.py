@@ -434,7 +434,7 @@ class SourceImportTests(LibraryTestCase):
         self.assertEqual(res.data["asset"]["source"]["image_index"], 0)
         enqueue.assert_called_once_with(args=[asset.pk], queue="scans")
 
-    def test_import_is_idempotent_for_same_user_and_source(self):
+    def test_import_is_idempotent_for_same_user_source_and_variant(self):
         url = f"/api/library/imports/cases/{self.case.pk}/images/0/"
         with mock.patch("apps.library.views.process_asset_task.apply_async"):
             first = self.client_for(self.doctor).post(
@@ -442,7 +442,7 @@ class SourceImportTests(LibraryTestCase):
             )
         with mock.patch("apps.library.views.process_asset_task.apply_async") as enqueue:
             second = self.client_for(self.doctor).post(
-                url, {"variant": "annotated"}, format="json"
+                url, {"variant": "original"}, format="json"
             )
 
         self.assertEqual(first.status_code, 201)

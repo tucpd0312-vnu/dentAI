@@ -24,8 +24,8 @@ from apps.cases.models import Patient
 from apps.common import chunked_upload
 from apps.users.activity import get_client_ip, log_activity
 from apps.users.admin_serializers import ActivityLogSerializer
-from apps.users.models import ActivityLog, LogAction, LogCategory
-from apps.users.permissions import IsActiveUser, IsAdminOrDoctor, is_usable
+from apps.users.models import ActivityLog, LogAction, LogCategory, Role
+from apps.users.permissions import IsActiveUser, is_usable
 
 from .access import can_contribute_scan, can_manage_scan, scoped_scans
 from .models import Scan, ScanAccessToken, Segmentation
@@ -98,10 +98,9 @@ class SlicerBridgeDownloadView(APIView):
 
 
 class ScanListView(APIView):
-    # "admin|doctor" — KHÔNG dùng IsActiveUser: bệnh nhân không có khái niệm "phim của
-    # tôi" ở module này (khác apps.cases, nơi patient có danh sách ca hợp lệ của mình),
-    # nên chặn thẳng ở permission thay vì để lọt qua rồi trả mảng rỗng.
-    permission_classes = [IsAdminOrDoctor]
+    # Mọi tài khoản đang hoạt động dùng được module; ``scoped_scans`` giới hạn patient
+    # về đúng các phim do chính tài khoản đó tải lên.
+    permission_classes = [IsActiveUser]
 
     def get(self, request):
         qs = scoped_scans(request.user).order_by("-created_at")
@@ -127,7 +126,7 @@ class ScanListView(APIView):
 class ScanFromLibraryView(APIView):
     """Sao chép ZIP DICOM trong kho sang phim RNNHT 3D mới của người thao tác."""
 
-    permission_classes = [IsAdminOrDoctor]
+    permission_classes = [IsActiveUser]
 
     def post(self, request):
         from apps.library.diagnosis import get_diagnosis_assets, patient_for_diagnosis
@@ -177,7 +176,7 @@ class ScanUploadInitView(APIView):
     uploading) + thư mục chunks/ rỗng, trả `chunk_size` server chọn (nguồn chân lý
     duy nhất, tránh lệch hằng số FE/BE) + `total_chunks` client cần gửi."""
 
-    permission_classes = [IsAdminOrDoctor]
+    permission_classes = [IsActiveUser]
 
     def post(self, request):
         ser = ScanUploadInitSerializer(data=request.data)
@@ -185,7 +184,15 @@ class ScanUploadInitView(APIView):
         d = ser.validated_data
 
         patient_code = d.get("patient_code", "").strip()
-        if patient_code:
+        if request.user.role == Role.PATIENT:
+            # Patient không được dò hoặc gắn phim vào hồ sơ toàn hệ thống bằng mã BN.
+            # Mỗi lần tải tạo một hồ sơ nằm trong phạm vi sở hữu của chính tài khoản.
+            patient = Patient.objects.create(
+                name=d["patient_name"],
+                patient_code=f"CBCT-{uuid4().hex[:8].upper()}",
+                notes=d.get("note", ""),
+            )
+        elif patient_code:
             patient, _ = Patient.objects.get_or_create(
                 patient_code=patient_code,
                 defaults={"name": d["patient_name"], "notes": d.get("note", "")},
@@ -225,7 +232,7 @@ class ScanUploadChunkView(APIView):
     không cần hỏi trước qua GET .../ . Cơ chế ghi/đọc chunk nằm ở
     `apps/common/chunked_upload.py` — dùng chung với apps.library."""
 
-    permission_classes = [IsAdminOrDoctor]
+    permission_classes = [IsActiveUser]
 
     def put(self, request, pk, index):
         scan = _get_uploading_scan(request, pk)
@@ -263,7 +270,7 @@ class ScanUploadCompleteView(APIView):
     """Bước 3/3 — ghép chunk theo thứ tự thành `original.zip`, xoá thư mục chunks/,
     rồi tiếp tục ĐÚNG luồng cũ (enqueue Celery, ghi `scan_upload`)."""
 
-    permission_classes = [IsAdminOrDoctor]
+    permission_classes = [IsActiveUser]
 
     def post(self, request, pk):
         scan = _get_uploading_scan(request, pk)
