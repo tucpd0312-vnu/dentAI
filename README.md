@@ -4,7 +4,8 @@ dentAI hỗ trợ phân tích viêm lợi (gingivitis) từ ảnh trong miệng,
 và lưu trữ tư liệu nha khoa. Hệ thống gồm hai phần:
 
 - **`inferences/`** — pipeline AI: phát hiện mức độ viêm lợi từng răng, ghép kết quả và sinh mô tả.
-- **`web/`** — ứng dụng web: quản lý tài khoản, ca chẩn đoán, phim, kho dữ liệu, chia sẻ và xuất kết quả.
+- **`web/`** — ứng dụng web: quản lý tài khoản, ca chẩn đoán, phim, kho dữ liệu,
+  chia sẻ, xuất kết quả và giao diện chờ cho chức năng trò chuyện.
 
 > Kết quả AI là thông tin hỗ trợ, cần được bác sĩ kiểm tra; không thay thế kết luận chuyên môn.
 > Cấu hình Docker đi kèm phục vụ phát triển và thử nghiệm local.
@@ -98,8 +99,9 @@ Worker web gọi các thành phần pipeline qua `tasks.py`, không chạy trự
 ## 2. Ứng dụng web (`web/`)
 
 Ứng dụng có ba vai trò: **quản trị viên (admin)**, **bác sĩ (doctor)** và
-**bệnh nhân (patient)**. Sidebar gom các module vào **AI hỗ trợ chẩn đoán lâm sàng**;
-Kho dữ liệu là chức năng riêng cho mọi vai trò.
+**bệnh nhân (patient)**. Sidebar gom Chẩn đoán viêm lợi, RNNHT 3D và Mảng bám vào
+**AI hỗ trợ chẩn đoán lâm sàng**. **Kho dữ liệu** và **Trò chuyện** là hai mục lớn
+độc lập, hiển thị cho mọi vai trò; nhóm **Lưu trữ** cũ đã được bỏ.
 
 ### 2.1. Tech stack
 
@@ -152,8 +154,10 @@ web/
   Phê duyệt đổi vai trò, không đổi mật khẩu.
 - Kho dữ liệu dùng được với mọi vai trò. Người dùng thường chỉ thấy dữ liệu của mình
   hoặc được chia sẻ; admin có quyền xem toàn hệ thống.
-- Chỉnh sửa nhãn viêm lợi cần vai trò bác sĩ/admin và quyền sửa trên ca.
-  Module RNNHT 3D chỉ dành cho bác sĩ/admin.
+- Mọi vai trò được dùng các luồng AI hiện có. Bệnh nhân tạo ca/phim và xem lại kết quả
+  trong phạm vi của mình, nhưng kết quả luôn ở chế độ chỉ xem.
+- Chỉnh sửa nhãn viêm lợi cần vai trò bác sĩ/admin và quyền sửa trên ca. Nộp phân vùng
+  RNNHT 3D cũng chỉ dành cho admin hoặc bác sĩ có quyền chuyên môn trên phim.
 
 **Chẩn đoán viêm lợi**
 
@@ -172,6 +176,8 @@ web/
    Hỗ trợ DICOM đơn, chuỗi DICOM ZIP, ảnh trong miệng, pano, cephalo, phim quanh chóp, ảnh mặt, tài liệu và loại khác.
 3. Tab **Của tôi** là dữ liệu tự tải lên; **Được chia sẻ** chỉ gồm chia sẻ trực tiếp cho tài khoản.
    Admin có thêm **Của người khác**; quyền xem toàn hệ thống không đồng nghĩa được chia sẻ.
+   Bộ lọc nằm trong một thanh gọn và có thể bấm để hiện/ẩn; trang Quản lý người dùng
+   dùng cùng cách bố trí để tránh chiếm nhiều chiều cao màn hình.
 4. Nút chẩn đoán trong kho hoặc bộ chọn ảnh ở trang AI chỉ nhận dữ liệu đã sẵn sàng,
    có quyền truy cập và phù hợp bảng dưới. Một ca viêm lợi nhận tối đa 20 ảnh cùng bệnh nhân.
 5. Dùng dữ liệu trong kho tạo **ca/phim mới bằng bản sao**; không di chuyển hoặc ghi đè nguồn.
@@ -179,7 +185,7 @@ web/
 | Phân loại trong kho | Loại dữ liệu | Đích sử dụng |
 |---|---|---|
 | Viêm lợi (`viem-loi`) | Ảnh trong miệng (`intraoral`) | Phân tích viêm lợi |
-| Răng nanh ngầm (`rang-nanh-ngam`) | Chuỗi DICOM ZIP (`dicom_series`) | Tạo phim RNNHT 3D; cần vai trò bác sĩ/admin |
+| Răng nanh ngầm (`rang-nanh-ngam`) | Chuỗi DICOM ZIP (`dicom_series`) | Tạo phim RNNHT 3D; mọi vai trò, theo phạm vi dữ liệu |
 | Phân loại/loại dữ liệu khác | Các loại được kho chấp nhận | Lưu trữ, xem và tải; chưa có luồng chẩn đoán tương ứng |
 
 Dữ liệu DICOM được xử lý ẩn danh header trước khi sẵn sàng; không được coi đây là
@@ -190,8 +196,12 @@ Thông tin bệnh nhân trên tư liệu được chia sẻ được ẩn với 
 
 - Tải chuỗi DICOM ZIP từ máy hoặc chọn từ kho → xử lý → xem preview →
   mở trong 3D Slicer; người có quyền sửa có thể nộp kết quả phân vùng.
+- Admin xem mọi phim; doctor xem phim mình tải hoặc được chia sẻ; patient chỉ xem phim
+  do chính tài khoản tải lên. Patient có thể xem/tải kết quả nhưng không nộp phân vùng.
 - Chia sẻ cá nhân có quyền xem/sửa. Chủ sở hữu hoặc admin quản lý chia sẻ;
   người nhận phim không được cấp lại quyền cho người khác.
+  Phim chỉ chia sẻ tới doctor/admin; patient có thể chia sẻ phim mình sở hữu cho tài
+  khoản chuyên môn nhưng không nhận phim 3D của người khác.
 - **Lưu vào kho không công khai dữ liệu.** Bản sao trong kho có quyền độc lập,
   không tự kế thừa danh sách người nhận của ca/phim.
   Chia sẻ tư liệu trong kho hiện được quản lý bằng `DataAssetShare` trong Django Admin.
@@ -218,6 +228,7 @@ Thông tin bệnh nhân trên tư liệu được chia sẻ được ẩn với 
 | `/library`, `/library/new`, `/library/[id]` | Kho dữ liệu, tải lên, xem chi tiết và dùng để chẩn đoán |
 | `/downloads/3d-slicer` | Hướng dẫn cài Slicer và Bridge, kiểm tra tích hợp |
 | `/history` | Lịch sử ca/phim trong phạm vi quyền truy cập |
+| `/chat` | Trò chuyện — hiện hiển thị “Hệ thống đang được phát triển”; mọi vai trò |
 | `/users`, `/system-log` | Quản lý tài khoản, duyệt vai trò và nhật ký; dành cho admin |
 | `/settings`, `/help` | Cấu hình và hướng dẫn |
 | `/plaque` | Mảng bám — chưa có pipeline xử lý |
@@ -408,7 +419,8 @@ SMTP, sao lưu và quyền truy cập file. Đặc biệt, ảnh viêm lợi tro
 3. Tải một tư liệu thử nghiệm vào kho → chuyển `processing` sang `ready` → xem/tải được.
 4. Khi worker `inference` đã sẵn sàng, tạo ca từ ảnh trên máy hoặc ảnh hợp lệ trong kho.
    Log phải xuất hiện task `apps.cases.tasks.run_inference_task` và kết quả hoặc cảnh báo độ tin cậy thấp.
-5. Với tài khoản bác sĩ/admin và ZIP DICOM hợp lệ, kiểm tra preview CBCT.
+5. Với tài khoản đang hoạt động và ZIP DICOM hợp lệ, kiểm tra preview CBCT trong đúng
+   phạm vi vai trò; với patient, danh sách chỉ được chứa phim do tài khoản đó tải lên.
    Kiểm tra mở phim thật trong Slicer trên máy đã cài Slicer + Bridge.
 
 Dùng dữ liệu thử nghiệm đã được phép sử dụng, không tải thông tin bệnh nhân thật lên môi trường demo.
@@ -519,6 +531,7 @@ Muốn phân tích viêm lợi, chạy thêm worker ở mục 4.6 hoặc worker 
 | [localhost:3001](http://localhost:3001) | Web app |
 | [Đăng nhập](http://localhost:3001/login), [Đăng ký](http://localhost:3001/register) | Tài khoản |
 | [Kho dữ liệu](http://localhost:3001/library) | Lưu trữ và dùng lại tư liệu |
+| [Trò chuyện](http://localhost:3001/chat) | Trang chờ chức năng trò chuyện; mọi vai trò |
 | [Cài đặt 3D Slicer](http://localhost:3001/downloads/3d-slicer) | Phần mềm desktop và Bridge |
 | [Django Admin](http://localhost:8002/admin/) | Quản trị dữ liệu; cần tài khoản có quyền |
 
