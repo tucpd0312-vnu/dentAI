@@ -37,7 +37,7 @@ export interface RegisterPayload {
   email: string;
   password: string;
   confirmPassword: string;
-  requestedRole: 'patient' | 'doctor';
+  requestedRole: 'patient' | 'student' | 'doctor';
   /** Bắt buộc khi requestedRole = 'doctor'. */
   firstName?: string;
   lastName?: string;

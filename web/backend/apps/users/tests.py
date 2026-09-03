@@ -510,7 +510,7 @@ class StudentRoleAdminTests(APITestCase):
             role=Role.ADMIN,
         )
 
-    def test_public_registration_cannot_self_assign_student_role(self):
+    def test_public_registration_assigns_student_without_admin_approval(self):
         response = self.client.post(
             "/api/auth/register/",
             {
@@ -522,8 +522,48 @@ class StudentRoleAdminTests(APITestCase):
             },
             format="json",
         )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("requested_role", response.data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        student = User.objects.get(username="self-student")
+        self.assertEqual(student.role, Role.STUDENT)
+        self.assertFalse(student.is_active)
+        self.assertFalse(RoleRequest.objects.filter(user=student).exists())
+
+        otp = EmailOTP.objects.filter(user=student, purpose="verify").latest("created_at")
+        verify = self.client.post(
+            "/api/auth/verify-otp/",
+            {"email": student.email, "code": otp.code},
+            format="json",
+        )
+
+        self.assertEqual(verify.status_code, status.HTTP_200_OK, verify.data)
+        self.assertEqual(verify.data["user"]["role"], Role.STUDENT)
+        student.refresh_from_db()
+        self.assertTrue(student.is_active)
+        self.assertTrue(student.email_verified)
+        self.assertFalse(Notification.objects.filter(recipient=self.admin).exists())
+
+    def test_public_doctor_registration_still_requires_admin_approval(self):
+        response = self.client.post(
+            "/api/auth/register/",
+            {
+                "username": "self-doctor",
+                "email": "self-doctor@example.test",
+                "password": "DoctorPass123",
+                "confirm_password": "DoctorPass123",
+                "requested_role": Role.DOCTOR,
+                "first_name": "An",
+                "last_name": "Nguyễn",
+                "organization": "Khoa Răng Hàm Mặt",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        doctor = User.objects.get(username="self-doctor")
+        self.assertEqual(doctor.role, Role.PATIENT)
+        request = RoleRequest.objects.get(user=doctor)
+        self.assertEqual(request.requested_role, Role.DOCTOR)
+        self.assertEqual(request.status, RoleRequest.Status.PENDING)
 
     def test_admin_can_create_student_and_student_is_searchable_as_editor(self):
         self.client.force_authenticate(user=self.admin)
