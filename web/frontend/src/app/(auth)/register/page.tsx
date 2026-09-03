@@ -12,13 +12,12 @@ const inputCls =
   'focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:bg-gray-50 ' +
   'disabled:text-gray-400 transition-colors';
 
-/** Ô chọn vai trò, có mô tả quyền và yêu cầu phê duyệt của từng lựa chọn. */
+/** Ô chọn vai trò ngắn gọn, chỉ hiển thị icon và tên. */
 function RoleCard({
   value,
   active,
   icon,
   title,
-  desc,
   onClick,
   disabled,
 }: {
@@ -26,7 +25,6 @@ function RoleCard({
   active: boolean;
   icon: string;
   title: string;
-  desc: string;
   onClick: (v: RequestedRole) => void;
   disabled: boolean;
 }) {
@@ -35,7 +33,7 @@ function RoleCard({
       type="button"
       disabled={disabled}
       onClick={() => onClick(value)}
-      className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors disabled:opacity-50 ${
+      className={`flex items-center justify-center gap-2 rounded-xl border p-3 text-center transition-colors disabled:opacity-50 ${
         active
           ? 'border-primary bg-primary-50 ring-2 ring-primary/20'
           : 'border-gray-300 hover:bg-gray-50'
@@ -49,7 +47,6 @@ function RoleCard({
       <span className={`text-sm font-medium ${active ? 'text-primary' : 'text-gray-800'}`}>
         {title}
       </span>
-      <span className="text-[11px] leading-snug text-gray-500">{desc}</span>
     </button>
   );
 }
@@ -145,13 +142,12 @@ export default function RegisterPage() {
           <label className="mb-1.5 block text-xs font-medium text-gray-600">
             Bạn đăng ký với vai trò
           </label>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-3 gap-2">
             <RoleCard
               value="patient"
               active={role === 'patient'}
               icon="person"
               title="Bệnh nhân"
-              desc="Tải ảnh và xem kết quả chẩn đoán của mình. Dùng được ngay."
               onClick={setRole}
               disabled={submitting}
             />
@@ -160,7 +156,6 @@ export default function RegisterPage() {
               active={role === 'student'}
               icon="school"
               title="Sinh viên"
-              desc="Xem và chỉnh sửa kết quả viêm lợi. Không cần admin duyệt."
               onClick={setRole}
               disabled={submitting}
             />
@@ -169,7 +164,6 @@ export default function RegisterPage() {
               active={role === 'doctor'}
               icon="stethoscope"
               title="Bác sĩ"
-              desc="Thêm quyền chỉnh sửa nhãn chẩn đoán. Cần quản trị viên duyệt."
               onClick={setRole}
               disabled={submitting}
             />
