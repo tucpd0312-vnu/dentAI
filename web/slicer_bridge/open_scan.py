@@ -16,10 +16,13 @@ phụ thuộc đúng vị trí argv[1].
 File ZIP server trả về ĐÃ được ẩn danh PHI ở bước upload (xem
 PLAN_3D_CANINE.md §4.3) — script này không tự xử lý PHI, chỉ tải và load.
 """
+import atexit
+import json
 import os
 import shutil
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -38,6 +41,9 @@ REQUEST_TIMEOUT_SECONDS = 180
 # tầng này. Chỉ phát hiện SAU KHI đã bị spawn: nếu PID trong lock file còn sống,
 # tự đóng cửa sổ mới ngay, không tải lại phim nặng thừa.
 LOCK_PATH = os.path.join(tempfile.gettempdir(), "dentai_slicer_open.lock")
+LOCK_VERSION = 2
+INTEGRATION_TEST_TOKEN = "test"
+_LOCK_OWNED = False
 
 
 def _fail(title, message):
@@ -46,6 +52,9 @@ def _fail(title, message):
     BẮT BUỘC — không được để lỗi mạng/token rơi thành traceback thô hoặc im lặng,
     khiến bác sĩ tưởng Slicer bị treo (PLAN_3D_CANINE.md §6.3).
     """
+    # Nếu cửa sổ hiện tại đã nhận lock nhưng tải/nạp phim lỗi thì nhả ngay. Slicer
+    # có thể vẫn mở sau SystemExit, không được để một lần lỗi chặn mọi lần thử sau.
+    _release_lock()
     slicer.util.errorDisplay(message, windowTitle=title)
     sys.exit(1)
 
@@ -66,25 +75,135 @@ def _is_pid_alive(pid):
     return True
 
 
-def _check_single_instance():
-    """Best-effort — lỗi đọc/ghi lock file KHÔNG được chặn luồng chính (§ tiêu đề
-    file: chống mở trùng là tiện ích phụ, không phải điều kiện để mở phim)."""
+def _is_slicer_process(pid):
+    """PID còn sống và thực sự là Slicer.
+
+    Windows có thể tái sử dụng PID của tiến trình đã thoát. Lock cũ không được chặn
+    phim chỉ vì cùng PID nay thuộc một ứng dụng khác.
+    """
+    if not _is_pid_alive(pid):
+        return False
+    if sys.platform != "win32":
+        return True
     try:
-        if os.path.exists(LOCK_PATH):
-            with open(LOCK_PATH) as f:
-                old_pid = int(f.read().strip())
-            if old_pid != os.getpid() and _is_pid_alive(old_pid):
+        import ctypes
+
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        handle = ctypes.windll.kernel32.OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION, False, pid
+        )
+        if not handle:
+            return False
+        try:
+            size = ctypes.c_ulong(32768)
+            path = ctypes.create_unicode_buffer(size.value)
+            ok = ctypes.windll.kernel32.QueryFullProcessImageNameW(
+                handle, 0, path, ctypes.byref(size)
+            )
+            if not ok:
+                # Không đọc được tên nhưng PID có thật: ưu tiên không mở trùng phim.
+                return True
+            return os.path.basename(path.value).lower() in {
+                "slicer.exe", "slicerapp-real.exe",
+            }
+        finally:
+            ctypes.windll.kernel32.CloseHandle(handle)
+    except Exception:
+        return True
+
+
+def _read_lock():
+    try:
+        with open(LOCK_PATH, encoding="utf-8") as f:
+            raw = f.read().strip()
+        try:
+            data = json.loads(raw)
+            return data if isinstance(data, dict) else None
+        except json.JSONDecodeError:
+            # Bản Bridge cũ chỉ ghi một PID. Không thể xác minh thời điểm/tác vụ,
+            # coi là lock legacy để tự nâng cấp thay vì tiếp tục báo nhầm.
+            return {"version": 1, "pid": int(raw)}
+    except (OSError, TypeError, ValueError):
+        return None
+
+
+def _remove_lock_file():
+    try:
+        os.remove(LOCK_PATH)
+    except FileNotFoundError:
+        pass
+    except OSError:
+        pass
+
+
+def _release_lock():
+    """Chỉ chủ lock hiện tại mới được xóa lock."""
+    global _LOCK_OWNED
+    if not _LOCK_OWNED:
+        return
+    try:
+        record = _read_lock()
+        if record and record.get("pid") == os.getpid():
+            _remove_lock_file()
+    finally:
+        _LOCK_OWNED = False
+
+
+def _register_lock_cleanup():
+    atexit.register(_release_lock)
+    try:
+        slicer.app.aboutToQuit.connect(_release_lock)
+    except Exception:
+        # Một số bản Slicer/test double không expose signal này; atexit vẫn là
+        # phương án dự phòng và lock chết sẽ được dọn ở lần mở tiếp theo.
+        pass
+
+
+def _check_single_instance():
+    """Tạo lock nguyên tử; tự thay lock chết/legacy và chặn phim đang mở thật."""
+    global _LOCK_OWNED
+    record = {
+        "version": LOCK_VERSION,
+        "pid": os.getpid(),
+        "created_at": int(time.time()),
+        "purpose": "open-scan",
+    }
+
+    # Ba vòng đủ xử lý: thấy stale → xóa → tranh chấp với lượt khác → đọc lại.
+    for _ in range(3):
+        try:
+            fd = os.open(LOCK_PATH, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            old = _read_lock()
+            old_pid = old.get("pid") if old else None
+            if (
+                old
+                and old.get("version") == LOCK_VERSION
+                and isinstance(old_pid, int)
+                and old_pid != os.getpid()
+                and _is_slicer_process(old_pid)
+            ):
                 _fail(
                     "dentAI — Slicer đã đang mở",
                     "Đã có một cửa sổ Slicer khác đang mở phim từ dentAI.\n"
-                    "Quay lại cửa sổ đó thay vì mở thêm — cửa sổ này sẽ tự đóng.",
+                    "Hãy đóng cửa sổ đó trước khi mở phim mới.",
                 )
-        with open(LOCK_PATH, "w") as f:
-            f.write(str(os.getpid()))
-    except SystemExit:
-        raise
-    except (OSError, ValueError):
-        pass
+            _remove_lock_file()
+            continue
+        except OSError:
+            # Chống mở trùng là tiện ích phụ; lỗi temp/permission không được làm
+            # mất khả năng tải phim hợp lệ.
+            return
+        else:
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(record, f)
+            except OSError:
+                _remove_lock_file()
+                return
+            _LOCK_OWNED = True
+            _register_lock_cleanup()
+            return
 
 
 def _parse_target():
@@ -246,8 +365,11 @@ def _import_and_load(zip_bytes):
 
 
 def main():
-    _check_single_instance()
     token, server = _parse_target()
+    # Phép kiểm tra tích hợp chỉ xác nhận dentai:// được đăng ký. Nó không mở phim
+    # thật nên tuyệt đối không được giữ single-instance lock cho lượt kế tiếp.
+    if token != INTEGRATION_TEST_TOKEN:
+        _check_single_instance()
     zip_bytes = _download_zip(token, server)
     _import_and_load(zip_bytes)
     slicer.util.showStatusMessage("dentAI: đã mở phim.", 5000)

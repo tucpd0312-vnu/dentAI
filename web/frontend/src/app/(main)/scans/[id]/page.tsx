@@ -167,30 +167,30 @@ export default function ScanDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           {scan.can_manage_shares && (
-            <>
-              <button
-                type="button"
-                onClick={() => setSharing(true)}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-              >
-                <span className="material-symbols-outlined text-[16px]">person_add</span>
-                Chia sẻ cá nhân
-              </button>
-              <button
-                type="button"
-                onClick={() => setSavingToLibrary(true)}
-                disabled={scan.status !== 'ready' || !scan.is_anonymized}
-                title={
-                  scan.status === 'ready' && scan.is_anonymized
-                    ? 'Tạo bản sao trong Kho dữ liệu'
-                    : 'Phim phải xử lý và khử thông tin cá nhân xong'
-                }
-                className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary-50 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <span className="material-symbols-outlined text-[16px]">inventory_2</span>
-                Lưu vào Kho dữ liệu
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={() => setSharing(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <span className="material-symbols-outlined text-[16px]">person_add</span>
+              Chia sẻ cá nhân
+            </button>
+          )}
+          {scan.access_level !== 'none' && (
+            <button
+              type="button"
+              onClick={() => setSavingToLibrary(true)}
+              disabled={scan.status !== 'ready' || !scan.is_anonymized}
+              title={
+                scan.status === 'ready' && scan.is_anonymized
+                  ? 'Tạo bản sao trong Kho dữ liệu riêng của bạn'
+                  : 'Phim phải xử lý và khử thông tin cá nhân xong'
+              }
+              className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary-50 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <span className="material-symbols-outlined text-[16px]">inventory_2</span>
+              Lưu vào Kho dữ liệu
+            </button>
           )}
           <span
             className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${SCAN_STATUS_CLASS[scan.status]}`}

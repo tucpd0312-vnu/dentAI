@@ -21,10 +21,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$OpenScanPy = Join-Path $ScriptDir "open_scan.py"
+$SourceOpenScanPy = Join-Path $ScriptDir "open_scan.py"
 
-if (-not (Test-Path $OpenScanPy)) {
-    Write-Error "Không tìm thấy open_scan.py cạnh script này ($OpenScanPy)."
+if (-not (Test-Path $SourceOpenScanPy)) {
+    Write-Error "Không tìm thấy open_scan.py cạnh script này ($SourceOpenScanPy)."
     exit 1
 }
 
@@ -33,7 +33,9 @@ if (-not $SlicerPath) {
     $candidates = @()
     foreach ($base in @("$Env:ProgramFiles", "${Env:ProgramFiles(x86)}")) {
         if ($base) {
-            $candidates += Get-ChildItem -Path "$base\Slicer*\Slicer.exe" -ErrorAction SilentlyContinue
+            foreach ($folderPattern in @("Slicer*", "3D Slicer*")) {
+                $candidates += Get-ChildItem -Path "$base\$folderPattern\Slicer.exe" -ErrorAction SilentlyContinue
+            }
         }
     }
     if ($candidates.Count -eq 0) {
@@ -53,6 +55,13 @@ if (-not (Test-Path $SlicerPath)) {
     exit 1
 }
 
+# Chép bridge vào vị trí cố định. Registry không còn trỏ vào Downloads nên người
+# dùng có thể xóa thư mục ZIP sau khi cài và chạy lại script để cập nhật Bridge.
+$InstallDir = Join-Path $Env:LOCALAPPDATA "DentAI\SlicerBridge"
+New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+$OpenScanPy = Join-Path $InstallDir "open_scan.py"
+Copy-Item -LiteralPath $SourceOpenScanPy -Destination $OpenScanPy -Force
+
 # --python-script (KHÔNG phải --python-code) — --python-code nhiều dòng bị vỡ do
 # PowerShell escaping, đã kiểm chứng thực tế trên máy này (PLAN_3D_CANINE.md §6.1
 # mục D1). "%1" là chỗ Windows chèn nguyên URL dentai://... khi người dùng bấm link.
@@ -68,6 +77,7 @@ Set-ItemProperty -Path "HKCU:\Software\Classes\dentai\shell\open\command" -Name 
 Write-Host ""
 Write-Host "Đã đăng ký dentai:// — lệnh sẽ chạy khi bấm link:" -ForegroundColor Green
 Write-Host "  $Command"
+Write-Host "Bridge đã được cài tại: $InstallDir"
 Write-Host ""
 Write-Host "Kiểm tra: mở trình duyệt, gõ vào thanh địa chỉ:"
 Write-Host "  dentai://open?token=test&server=http://localhost:8002"

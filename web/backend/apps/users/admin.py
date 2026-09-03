@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, EmailOTP
+from .models import EmailOTP, Notification, User
 
 
 @admin.register(User)
@@ -17,3 +17,11 @@ class EmailOTPAdmin(admin.ModelAdmin):
     list_display = ("user", "code", "purpose", "used", "created_at", "expires_at")
     list_filter = ("purpose", "used")
     readonly_fields = ("code", "created_at", "expires_at")
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ("recipient", "kind", "level", "title", "read_at", "created_at")
+    list_filter = ("kind", "level", "read_at")
+    search_fields = ("recipient__username", "recipient__email", "title", "message")
+    readonly_fields = ("created_at",)

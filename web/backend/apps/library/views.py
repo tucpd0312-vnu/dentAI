@@ -25,10 +25,10 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.cases.access import case_permission_for, scoped_images
+from apps.cases.access import scoped_images
 from apps.cases.models import Image, Patient
 from apps.common import chunked_upload
-from apps.scans.access import can_manage_scan, scoped_scans
+from apps.scans.access import scoped_scans
 from apps.scans.models import Scan
 from apps.users.activity import log_activity
 from apps.users.models import LogAction, LogCategory, Role
@@ -219,7 +219,7 @@ class AssetListView(APIView):
 # ── Sao chép từ module nghiệp vụ vào Kho dữ liệu ─────────────────────────────
 
 class ScanSourceImportView(APIView):
-    """Lưu một phim RNNHT 3D đã khử PHI vào Kho dữ liệu của người gửi."""
+    """Lưu bản sao phim RNNHT 3D người dùng được xem vào Kho dữ liệu riêng."""
 
     permission_classes = [IsActiveUser]
 
@@ -240,14 +240,9 @@ class ScanSourceImportView(APIView):
                 ),
                 pk=scan_id,
             )
-            if not can_manage_scan(request.user, scan):
-                return Response(
-                    {"detail": "Chỉ chủ phim hoặc quản trị viên được lưu phim vào Kho dữ liệu."},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
             if scan.status != Scan.Status.READY or not scan.is_anonymized:
                 return Response(
-                    {"detail": "Phim phải xử lý và khử thông tin cá nhân xong trước khi chia sẻ."},
+                    {"detail": "Phim phải xử lý và khử thông tin cá nhân xong trước khi lưu vào Kho dữ liệu."},
                     status=status.HTTP_409_CONFLICT,
                 )
 
@@ -279,7 +274,7 @@ class ScanSourceImportView(APIView):
 
 
 class GingivitisSourceImportView(APIView):
-    """Lưu ảnh gốc hoặc ảnh chú thích của một kết quả viêm lợi vào Kho dữ liệu."""
+    """Lưu bản sao ảnh viêm lợi người dùng được xem vào Kho dữ liệu riêng."""
 
     permission_classes = [IsActiveUser]
 
@@ -303,14 +298,9 @@ class GingivitisSourceImportView(APIView):
                 .select_for_update(of=("self",)),
                 pk=visible_image,
             )
-            if case_permission_for(request.user, image.case) not in ("owner", "admin"):
-                return Response(
-                    {"detail": "Chỉ chủ ca hoặc quản trị viên được lưu kết quả vào Kho dữ liệu."},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
             if image.status not in (Image.Status.DONE, Image.Status.LOW_CONFIDENCE):
                 return Response(
-                    {"detail": "Ảnh chưa xử lý xong nên chưa thể chia sẻ."},
+                    {"detail": "Ảnh chưa xử lý xong nên chưa thể lưu vào Kho dữ liệu."},
                     status=status.HTTP_409_CONFLICT,
                 )
 

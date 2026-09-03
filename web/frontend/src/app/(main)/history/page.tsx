@@ -174,13 +174,6 @@ export default function HistoryPage() {
             {loading ? 'Đang tải...' : `${source.length} kết quả`}
           </p>
         </div>
-        <Link
-          href="/analysis/new"
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium bg-primary text-white hover:bg-primary/90 shadow-sm transition-colors"
-        >
-          <span className="material-symbols-outlined text-[18px]">add</span>
-          Chẩn đoán viêm lợi
-        </Link>
       </div>
 
       {/* Tabs: ca của tôi / được chia sẻ với tôi */}

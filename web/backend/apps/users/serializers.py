@@ -2,7 +2,7 @@ import re
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.core.validators import validate_email
-from .models import User, EmailOTP, Role, RoleRequest
+from .models import Notification, User, EmailOTP, Role, RoleRequest
 
 
 def _validate_password(value):
@@ -222,3 +222,15 @@ class ChangePasswordSerializer(serializers.Serializer):
         if not user.check_password(value):
             raise serializers.ValidationError("Mật khẩu hiện tại không đúng.")
         return value
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    is_read = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = Notification
+        fields = [
+            "id", "kind", "level", "title", "message", "link",
+            "is_read", "read_at", "created_at",
+        ]
+        read_only_fields = fields

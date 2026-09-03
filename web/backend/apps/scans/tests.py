@@ -17,7 +17,7 @@ from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
 from apps.cases.models import Patient
-from apps.users.models import Role, User
+from apps.users.models import Notification, Role, User
 
 from .models import Scan, ScanShare
 
@@ -159,6 +159,9 @@ class ScanSharingTests(APITestCase):
     def test_owner_can_share_and_viewer_cannot_delete_contribute_or_read_logs(self):
         response = self.share(self.viewer, "view")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        notification = Notification.objects.get(recipient=self.viewer)
+        self.assertEqual(notification.kind, Notification.Kind.SHARE)
+        self.assertEqual(notification.link, f"/scans/{self.scan.pk}/")
 
         self.auth(self.viewer)
         detail = self.client.get(f"/api/scans/{self.scan.pk}/")

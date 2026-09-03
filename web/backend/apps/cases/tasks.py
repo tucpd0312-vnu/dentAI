@@ -235,7 +235,8 @@ def _save_detections_and_masks(img, result: dict) -> None:
 
 def _update_case_status(case) -> None:
     from apps.users.activity import log_activity
-    from apps.users.models import LogAction, LogCategory
+    from apps.users.models import LogAction, LogCategory, Notification
+    from apps.users.notifications import notify_users
 
     from .models import Case, Image
 
@@ -263,4 +264,21 @@ def _update_case_status(case) -> None:
             "n_failed": images.filter(status=Image.Status.FAILED).count(),
             "n_low_confidence": images.filter(status=Image.Status.LOW_CONFIDENCE).count(),
         },
+    )
+    recipients = [case.created_by] if case.created_by_id else []
+    recipients.extend(
+        share.shared_with
+        for share in case.shares.select_related("shared_with").all()
+    )
+    succeeded = case.status == Case.Status.DONE
+    notify_users(
+        recipients,
+        kind=Notification.Kind.PROCESSING,
+        level=Notification.Level.SUCCESS if succeeded else Notification.Level.ERROR,
+        title=(
+            "Chẩn đoán viêm lợi đã hoàn thành"
+            if succeeded else "Chẩn đoán viêm lợi xử lý thất bại"
+        ),
+        message=f"Ca #{case.pk} đã {'sẵn sàng để xem' if succeeded else 'gặp lỗi khi xử lý'}.",
+        link=f"/analysis/{case.pk}/results/0/" if succeeded else "/history/",
     )

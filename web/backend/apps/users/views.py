@@ -1,5 +1,6 @@
 from django.contrib.auth.models import update_last_login
 from django.db import transaction
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -11,7 +12,8 @@ from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, Ou
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .activity import log_activity
-from .models import User, EmailOTP, LogAction, LogCategory
+from .models import Notification, User, EmailOTP, LogAction, LogCategory, Role, RoleRequest
+from .notifications import notify_users
 from .email_service import send_otp_email
 from .serializers import (
     RegisterSerializer,
@@ -22,6 +24,7 @@ from .serializers import (
     ResetPasswordSerializer,
     UserSerializer,
     ChangePasswordSerializer,
+    NotificationSerializer,
 )
 from .permissions import IsActiveUser
 
@@ -101,6 +104,19 @@ class VerifyOTPView(APIView):
             LogCategory.AUTH, LogAction.OTP_VERIFIED,
             actor=user, request=request, target_user=user,
         )
+        pending_role_request = user.role_requests.filter(
+            status=RoleRequest.Status.PENDING
+        ).first()
+        if pending_role_request:
+            notify_users(
+                User.objects.filter(
+                    role=Role.ADMIN, is_active=True, is_deleted=False
+                ),
+                kind=Notification.Kind.ROLE,
+                title="Có yêu cầu cấp vai trò bác sĩ mới",
+                message=f"{user.full_name} đã xác thực tài khoản và đang chờ phê duyệt.",
+                link="/users/",
+            )
         tokens = _make_tokens(user)
         return Response({
             "detail": "Xác thực email thành công.",
@@ -322,3 +338,46 @@ class ChangePasswordView(APIView):
             actor=request.user, request=request, target_user=request.user,
         )
         return Response({"detail": "Đổi mật khẩu thành công."})
+
+
+class NotificationListView(APIView):
+    """Danh sách thông báo của chính người gọi, dùng chung cho mọi vai trò."""
+
+    permission_classes = [IsActiveUser]
+
+    def get(self, request):
+        try:
+            limit = int(request.query_params.get("limit", 20))
+        except (TypeError, ValueError):
+            limit = 20
+        limit = max(1, min(limit, 50))
+        qs = Notification.objects.filter(recipient=request.user)
+        return Response({
+            "unread_count": qs.filter(read_at__isnull=True).count(),
+            "results": NotificationSerializer(qs[:limit], many=True).data,
+        })
+
+
+class NotificationReadView(APIView):
+    permission_classes = [IsActiveUser]
+
+    def patch(self, request, pk):
+        notification = Notification.objects.filter(
+            pk=pk, recipient=request.user
+        ).first()
+        if notification is None:
+            return Response({"detail": "Không tìm thấy thông báo."}, status=404)
+        if notification.read_at is None:
+            notification.read_at = timezone.now()
+            notification.save(update_fields=["read_at"])
+        return Response(NotificationSerializer(notification).data)
+
+
+class NotificationReadAllView(APIView):
+    permission_classes = [IsActiveUser]
+
+    def post(self, request):
+        updated = Notification.objects.filter(
+            recipient=request.user, read_at__isnull=True
+        ).update(read_at=timezone.now())
+        return Response({"updated": updated})

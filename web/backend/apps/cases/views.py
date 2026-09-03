@@ -111,7 +111,11 @@ class CaseFromLibraryView(APIView):
     permission_classes = [IsActiveUser]
 
     def post(self, request):
-        from apps.library.diagnosis import get_diagnosis_assets, patient_for_diagnosis
+        from apps.library.diagnosis import (
+            create_diagnosis_storage_dir,
+            get_diagnosis_assets,
+            patient_for_diagnosis,
+        )
 
         ser = CaseFromLibrarySerializer(data=request.data)
         ser.is_valid(raise_exception=True)
@@ -127,8 +131,9 @@ class CaseFromLibraryView(APIView):
             with transaction.atomic():
                 patient = patient_for_diagnosis(request.user, assets[0], data)
                 case = Case.objects.create(patient=patient, created_by=request.user)
-                media_dir = os.path.join(settings.MEDIA_ROOT, "originals", str(case.pk))
-                os.makedirs(media_dir, exist_ok=False)
+                media_dir = create_diagnosis_storage_dir(
+                    os.path.join(settings.MEDIA_ROOT, "originals"), case.pk
+                )
                 directory_created = True
 
                 for index, asset in enumerate(assets):

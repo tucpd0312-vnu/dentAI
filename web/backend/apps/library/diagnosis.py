@@ -1,5 +1,6 @@
 """Quy tắc dùng tư liệu trong kho để tạo ca/phim mới, không thay đổi nguồn."""
 import os
+import tempfile
 from uuid import uuid4
 
 from rest_framework.exceptions import NotFound, ValidationError
@@ -15,6 +16,23 @@ TARGET_RULES = {
     "gingivitis": ("viem-loi", DataAsset.DataType.INTRAORAL),
     "canine3d": ("rang-nanh-ngam", DataAsset.DataType.DICOM_SERIES),
 }
+
+
+def create_diagnosis_storage_dir(root: str, object_id: int) -> str:
+    """Tạo thư mục cho ca/phim sinh từ Kho dữ liệu mà không đụng dữ liệu cũ.
+
+    Thông thường dùng đúng ``<root>/<id>`` để giữ cấu trúc quen thuộc. Sau khi
+    khôi phục database hoặc xoá cứng bản ghi, thư mục của ID đó có thể vẫn còn
+    trên đĩa. Không xoá/ghi đè thư mục mồ côi vì nó có thể còn dữ liệu cần phục
+    hồi; thay vào đó tạo một thư mục có hậu tố ngẫu nhiên bằng thao tác nguyên tử.
+    """
+    os.makedirs(root, exist_ok=True)
+    canonical = os.path.join(root, str(object_id))
+    try:
+        os.makedirs(canonical, exist_ok=False)
+        return canonical
+    except FileExistsError:
+        return tempfile.mkdtemp(prefix=f"{object_id}-", dir=root)
 
 
 def diagnosis_target(asset, user):

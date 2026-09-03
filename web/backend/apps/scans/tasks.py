@@ -33,7 +33,8 @@ THUMBNAIL_MAX_DIM = 256
 @shared_task(bind=True, name="apps.scans.tasks.process_scan_upload")
 def process_scan_upload(self, scan_id: int) -> dict:
     from apps.users.activity import log_activity
-    from apps.users.models import LogAction, LogCategory, LogModule
+    from apps.users.models import LogAction, LogCategory, LogModule, Notification
+    from apps.users.notifications import notify_user
 
     from .models import Scan
 
@@ -53,7 +54,24 @@ def process_scan_upload(self, scan_id: int) -> dict:
             actor=scan.uploaded_by, target_scan=scan,
             detail={"scan_id": scan_id, "error": scan.error_message},
         )
+        notify_user(
+            scan.uploaded_by,
+            kind=Notification.Kind.PROCESSING,
+            level=Notification.Level.ERROR,
+            title="Xử lý phim RNNHT 3D thất bại",
+            message=f"Phim #{scan.pk} gặp lỗi khi xử lý.",
+            link=f"/scans/{scan.pk}/",
+        )
         raise self.retry(exc=exc, countdown=0, max_retries=0)
+
+    notify_user(
+        scan.uploaded_by,
+        kind=Notification.Kind.PROCESSING,
+        level=Notification.Level.SUCCESS,
+        title="Phim RNNHT 3D đã sẵn sàng",
+        message=f"Phim #{scan.pk} đã xử lý và khử thông tin cá nhân xong.",
+        link=f"/scans/{scan.pk}/",
+    )
 
     return {"scan_id": scan_id, "status": scan.status}
 

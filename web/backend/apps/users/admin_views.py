@@ -13,6 +13,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .activity import diff_fields, log_activity
+from .notifications import notify_user
 from .admin_serializers import (
     ActivityLogSerializer,
     AdminUserCreateSerializer,
@@ -20,7 +21,7 @@ from .admin_serializers import (
     RoleRequestSerializer,
     UserSearchSerializer,
 )
-from .models import ActivityLog, LogAction, LogCategory, LogModule, Role, RoleRequest, User
+from .models import ActivityLog, LogAction, LogCategory, LogModule, Notification, Role, RoleRequest, User
 from .permissions import IsActiveUser, IsAdmin
 
 # Pagination gắn ở VIEW-LEVEL, không phải DEFAULT_PAGINATION_CLASS toàn cục —
@@ -327,6 +328,24 @@ class RoleRequestReviewView(APIView):
             actor=request.user, request=request, target_user=req.user,
             detail=log_detail,
         )
+        if action == "approve":
+            notify_user(
+                req.user,
+                kind=Notification.Kind.ROLE,
+                level=Notification.Level.SUCCESS,
+                title="Yêu cầu vai trò đã được phê duyệt",
+                message="Tài khoản của bạn đã được cấp vai trò Bác sĩ.",
+                link="/settings/",
+            )
+        else:
+            notify_user(
+                req.user,
+                kind=Notification.Kind.ROLE,
+                level=Notification.Level.WARNING,
+                title="Yêu cầu vai trò chưa được phê duyệt",
+                message=f"Lý do: {note}",
+                link="/settings/",
+            )
         return Response(RoleRequestSerializer(req).data)
 
 

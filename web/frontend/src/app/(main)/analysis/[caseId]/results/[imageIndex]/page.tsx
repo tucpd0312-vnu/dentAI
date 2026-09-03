@@ -58,6 +58,11 @@ export default function ResultsPage() {
   // Chỉ chủ sở hữu và admin được chia sẻ — người ĐƯỢC chia sẻ không share tiếp.
   const canShare =
     imgData?.case_permission === 'owner' || imgData?.case_permission === 'admin';
+  // Lưu vào kho tạo một bản sao riêng, không cấp quyền trên ca nguồn và không
+  // chia sẻ tiếp. Vì vậy mọi người đang xem hợp lệ (owner/admin/edit/view) đều
+  // được lưu, kể cả người nhận ca được chia sẻ.
+  const canSaveToLibrary =
+    imgData !== null && imgData.case_permission !== 'none';
 
   useEffect(() => {
     let mounted = true;
@@ -211,30 +216,31 @@ export default function ResultsPage() {
 
         {/* Action buttons */}
         <div className="flex items-center gap-2">
-          {/* Chỉ chủ sở hữu và admin mới chia sẻ được — backend chặn độc lập. */}
+          {/* Chỉ chủ sở hữu/admin được chia sẻ tiếp; mọi người đang xem hợp lệ có
+              thể tạo một bản sao độc lập trong Kho dữ liệu của chính mình. */}
           {canShare && (
-            <>
-              <button
-                onClick={() => setSharing(true)}
-                className="
-                  flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
-                  border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors
-                "
-              >
-                <span className="material-symbols-outlined text-[16px]">person_add</span>
-                Chia sẻ cá nhân
-              </button>
-              <button
-                onClick={() => setSavingToLibrary(true)}
-                className="
-                  flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
-                  border border-primary/30 bg-primary-50 text-primary hover:bg-primary/10 transition-colors
-                "
-              >
-                <span className="material-symbols-outlined text-[16px]">inventory_2</span>
-                Lưu vào Kho dữ liệu
-              </button>
-            </>
+            <button
+              onClick={() => setSharing(true)}
+              className="
+                flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
+                border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors
+              "
+            >
+              <span className="material-symbols-outlined text-[16px]">person_add</span>
+              Chia sẻ cá nhân
+            </button>
+          )}
+          {canSaveToLibrary && (
+            <button
+              onClick={() => setSavingToLibrary(true)}
+              className="
+                flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
+                border border-primary/30 bg-primary-50 text-primary hover:bg-primary/10 transition-colors
+              "
+            >
+              <span className="material-symbols-outlined text-[16px]">inventory_2</span>
+              Lưu vào Kho dữ liệu
+            </button>
           )}
           {/* can_edit do backend tính (vai trò + quyền trên ca) — bệnh nhân và
               người được chia sẻ 'view' không thấy nút này. */}

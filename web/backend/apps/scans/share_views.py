@@ -13,7 +13,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.users.activity import log_activity
-from apps.users.models import LogAction, LogCategory, Role, User
+from apps.users.models import LogAction, LogCategory, Notification, Role, User
+from apps.users.notifications import notify_user
 from apps.users.permissions import IsActiveUser
 
 from .access import can_manage_scan, scoped_scans
@@ -107,6 +108,16 @@ class ScanShareListCreateView(APIView):
             actor=request.user, request=request, target_scan=scan, target_user=recipient,
             detail={"permission": permission, "created": created},
         )
+        notify_user(
+            recipient,
+            kind=Notification.Kind.SHARE,
+            title="Bạn nhận được một phim RNNHT 3D",
+            message=(
+                f"{request.user.full_name} đã chia sẻ phim #{scan.pk} với quyền "
+                f"{'xem và nộp phân vùng' if permission == ScanShare.Permission.EDIT else 'chỉ xem'}."
+            ),
+            link=f"/scans/{scan.pk}/",
+        )
         return Response(
             ScanShareSerializer(share).data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
@@ -142,6 +153,16 @@ class ScanShareDetailView(APIView):
             actor=request.user, request=request, target_scan=share.scan,
             target_user=share.shared_with, detail={"before": before, "after": permission},
         )
+        notify_user(
+            share.shared_with,
+            kind=Notification.Kind.SHARE,
+            title="Quyền truy cập phim RNNHT 3D đã thay đổi",
+            message=(
+                f"Quyền của bạn trên phim #{share.scan_id} đã đổi thành "
+                f"{'xem và nộp phân vùng' if permission == ScanShare.Permission.EDIT else 'chỉ xem'}."
+            ),
+            link=f"/scans/{share.scan_id}/",
+        )
         return Response(ScanShareSerializer(share).data)
 
     @transaction.atomic
@@ -164,6 +185,14 @@ class ScanShareDetailView(APIView):
             LogCategory.BUSINESS, LogAction.SCAN_UNSHARE,
             actor=request.user, request=request, target_scan=scan, target_user=recipient,
             detail={"permission": permission},
+        )
+        notify_user(
+            recipient,
+            kind=Notification.Kind.SHARE,
+            level=Notification.Level.WARNING,
+            title="Đã thu hồi quyền truy cập phim RNNHT 3D",
+            message=f"Quyền truy cập của bạn trên phim #{scan.pk} đã được thu hồi.",
+            link="/scans/",
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
