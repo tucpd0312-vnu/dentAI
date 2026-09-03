@@ -43,7 +43,8 @@ THUMBNAIL_MAX_DIM = 256
 @shared_task(bind=True, name="apps.library.tasks.process_asset_task")
 def process_asset_task(self, asset_id: int) -> dict:
     from apps.users.activity import log_activity
-    from apps.users.models import LogAction, LogCategory, LogModule
+    from apps.users.models import LogAction, LogCategory, LogModule, Notification
+    from apps.users.notifications import notify_user
 
     asset = DataAsset.objects.select_related("uploaded_by").get(pk=asset_id)
     asset.status = DataAsset.Status.PROCESSING
@@ -63,7 +64,24 @@ def process_asset_task(self, asset_id: int) -> dict:
             actor=asset.uploaded_by,
             detail={"asset_id": asset_id, "error": asset.error_message},
         )
+        notify_user(
+            asset.uploaded_by,
+            kind=Notification.Kind.PROCESSING,
+            level=Notification.Level.ERROR,
+            title="Xử lý dữ liệu trong kho thất bại",
+            message=f"Dữ liệu “{asset.title}” gặp lỗi khi xử lý.",
+            link=f"/library/{asset.pk}/",
+        )
         raise self.retry(exc=exc, countdown=0, max_retries=0)
+
+    notify_user(
+        asset.uploaded_by,
+        kind=Notification.Kind.PROCESSING,
+        level=Notification.Level.SUCCESS,
+        title="Dữ liệu trong kho đã sẵn sàng",
+        message=f"Dữ liệu “{asset.title}” đã xử lý xong.",
+        link=f"/library/{asset.pk}/",
+    )
 
     return {"asset_id": asset_id, "status": asset.status}
 

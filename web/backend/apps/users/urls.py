@@ -12,4 +12,7 @@ urlpatterns = [
     re_path(r"^logout/?$", views.LogoutView.as_view(), name="auth-logout"),
     re_path(r"^me/?$", views.MeView.as_view(), name="auth-me"),
     re_path(r"^change-password/?$", views.ChangePasswordView.as_view(), name="auth-change-password"),
+    re_path(r"^notifications/?$", views.NotificationListView.as_view(), name="notification-list"),
+    re_path(r"^notifications/read-all/?$", views.NotificationReadAllView.as_view(), name="notification-read-all"),
+    re_path(r"^notifications/(?P<pk>\d+)/read/?$", views.NotificationReadView.as_view(), name="notification-read"),
 ]

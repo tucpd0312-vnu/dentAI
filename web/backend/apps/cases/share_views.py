@@ -9,7 +9,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.users.activity import log_activity
-from apps.users.models import LogAction, LogCategory, Role, User
+from apps.users.models import LogAction, LogCategory, Notification, Role, User
+from apps.users.notifications import notify_user
 from apps.users.permissions import IsActiveUser
 
 from .access import scoped_cases
@@ -114,6 +115,16 @@ class CaseShareListCreateView(APIView):
             target_case=case, target_user=recipient,
             detail={"permission": permission, "created": created},
         )
+        notify_user(
+            recipient,
+            kind=Notification.Kind.SHARE,
+            title="Bạn nhận được một ca chẩn đoán viêm lợi",
+            message=(
+                f"{request.user.full_name} đã chia sẻ ca #{case.pk} với quyền "
+                f"{'xem và chỉnh sửa' if permission == CaseShare.Permission.EDIT else 'chỉ xem'}."
+            ),
+            link="/history/",
+        )
         return Response(
             CaseShareSerializer(share).data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
@@ -158,6 +169,16 @@ class CaseShareDetailView(APIView):
             target_case=share.case, target_user=share.shared_with,
             detail={"before": before, "after": permission},
         )
+        notify_user(
+            share.shared_with,
+            kind=Notification.Kind.SHARE,
+            title="Quyền truy cập ca chẩn đoán đã thay đổi",
+            message=(
+                f"Quyền của bạn trên ca #{share.case_id} đã đổi thành "
+                f"{'xem và chỉnh sửa' if permission == CaseShare.Permission.EDIT else 'chỉ xem'}."
+            ),
+            link="/history/",
+        )
         return Response(CaseShareSerializer(share).data)
 
     def delete(self, request, share_id):
@@ -175,6 +196,14 @@ class CaseShareDetailView(APIView):
             actor=request.user, request=request,
             target_case=case, target_user=recipient,
             detail={"permission": perm},
+        )
+        notify_user(
+            recipient,
+            kind=Notification.Kind.SHARE,
+            level=Notification.Level.WARNING,
+            title="Đã thu hồi quyền truy cập ca chẩn đoán",
+            message=f"Quyền truy cập của bạn trên ca #{case.pk} đã được thu hồi.",
+            link="/history/",
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
 

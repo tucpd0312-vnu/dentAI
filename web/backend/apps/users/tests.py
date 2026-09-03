@@ -6,7 +6,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from apps.cases.access import can_edit_case
 from apps.cases.models import Case, Image, Patient
 
-from .models import EmailOTP, Role, RoleRequest, User
+from .models import EmailOTP, Notification, Role, RoleRequest, User
+from .notifications import notify_user
 
 
 class LoginTests(APITestCase):
@@ -189,3 +190,80 @@ class PasswordResetTests(APITestCase):
         ]
         self.assertTrue(all(r.status_code == status.HTTP_200_OK for r in responses[:5]))
         self.assertEqual(responses[5].status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+
+class NotificationApiTests(APITestCase):
+    @staticmethod
+    def make_user(username, role):
+        return User.objects.create_user(
+            username=username,
+            email=f"{username}@example.test",
+            password="TestPass123",
+            role=role,
+            is_active=True,
+            email_verified=True,
+        )
+
+    def test_every_role_reads_only_its_own_notifications(self):
+        users = [
+            self.make_user("notif-admin", Role.ADMIN),
+            self.make_user("notif-doctor", Role.DOCTOR),
+            self.make_user("notif-patient", Role.PATIENT),
+        ]
+        for user in users:
+            notify_user(
+                user,
+                kind=Notification.Kind.SYSTEM,
+                title=f"Thông báo của {user.username}",
+            )
+
+        for user in users:
+            with self.subTest(role=user.role):
+                self.client.force_authenticate(user=user)
+                response = self.client.get("/api/auth/notifications/")
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(response.data["unread_count"], 1)
+                self.assertEqual(len(response.data["results"]), 1)
+                self.assertIn(user.username, response.data["results"][0]["title"])
+
+    def test_mark_one_and_mark_all_never_touch_another_users_notifications(self):
+        doctor = self.make_user("notif-owner", Role.DOCTOR)
+        other = self.make_user("notif-other", Role.PATIENT)
+        first = notify_user(doctor, kind=Notification.Kind.SHARE, title="Một")
+        second = notify_user(doctor, kind=Notification.Kind.PROCESSING, title="Hai")
+        foreign = notify_user(other, kind=Notification.Kind.SYSTEM, title="Khác")
+
+        self.client.force_authenticate(user=doctor)
+        response = self.client.patch(f"/api/auth/notifications/{first.pk}/read/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["is_read"])
+        self.assertEqual(
+            self.client.patch(f"/api/auth/notifications/{foreign.pk}/read/").status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+        response = self.client.post("/api/auth/notifications/read-all/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["updated"], 1)
+        second.refresh_from_db()
+        foreign.refresh_from_db()
+        self.assertIsNotNone(second.read_at)
+        self.assertIsNone(foreign.read_at)
+
+    def test_sharing_case_creates_recipient_notification(self):
+        owner = self.make_user("notif-case-owner", Role.DOCTOR)
+        recipient = self.make_user("notif-case-recipient", Role.PATIENT)
+        patient = Patient.objects.create(name="BN thông báo", patient_code="NOTIF-CASE")
+        case = Case.objects.create(patient=patient, created_by=owner)
+
+        self.client.force_authenticate(user=owner)
+        response = self.client.post(
+            f"/api/cases/{case.pk}/shares/",
+            {"user_id": recipient.pk, "permission": "view"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        notification = Notification.objects.get(recipient=recipient)
+        self.assertEqual(notification.kind, Notification.Kind.SHARE)
+        self.assertEqual(notification.link, "/history/")

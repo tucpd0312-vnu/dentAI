@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { ROLE_LABEL } from '@/lib/auth';
 import { useAuth } from '@/components/providers/AuthProvider';
+import NotificationBell from '@/components/layout/NotificationBell';
 
 function getTitle(pathname: string): string {
   if (pathname.startsWith('/dashboard')) return 'Tổng quan';
@@ -74,64 +75,67 @@ export default function Topbar() {
       </h1>
 
       {user && (
-        <div className="relative" ref={menuRef}>
-          <button
-            onClick={() => setOpen(o => !o)}
-            aria-haspopup="menu"
-            aria-expanded={open}
-            className="flex items-center gap-2.5 rounded-xl py-1.5 pl-1.5 pr-2 transition-colors hover:bg-gray-100"
-          >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white">
-              {initials(displayName)}
-            </span>
-            <span className="hidden text-left sm:block">
-              <span className="block max-w-[150px] truncate text-sm font-medium leading-tight text-gray-800">
-                {displayName}
-              </span>
-              <span className="block text-[11px] leading-tight text-gray-400">
-                {ROLE_LABEL[user.role]}
-              </span>
-            </span>
-            <span className="material-symbols-outlined text-[18px] text-gray-400">
-              {open ? 'expand_less' : 'expand_more'}
-            </span>
-          </button>
-
-          {open && (
-            <div
-              role="menu"
-              className="absolute right-0 z-40 mt-1.5 w-60 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
+        <div className="flex items-center gap-1">
+          <NotificationBell />
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setOpen(o => !o)}
+              aria-haspopup="menu"
+              aria-expanded={open}
+              className="flex items-center gap-2.5 rounded-xl py-1.5 pl-1.5 pr-2 transition-colors hover:bg-gray-100"
             >
-              <div className="border-b border-gray-100 px-4 py-3">
-                <p className="truncate text-sm font-medium text-gray-900">{displayName}</p>
-                <p className="truncate text-xs text-gray-500">{user.email}</p>
-                <span className="mt-1.5 inline-block rounded-full bg-primary-50 px-2 py-0.5 text-[11px] font-medium text-primary">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white">
+                {initials(displayName)}
+              </span>
+              <span className="hidden text-left sm:block">
+                <span className="block max-w-[150px] truncate text-sm font-medium leading-tight text-gray-800">
+                  {displayName}
+                </span>
+                <span className="block text-[11px] leading-tight text-gray-400">
                   {ROLE_LABEL[user.role]}
                 </span>
+              </span>
+              <span className="material-symbols-outlined text-[18px] text-gray-400">
+                {open ? 'expand_less' : 'expand_more'}
+              </span>
+            </button>
+
+            {open && (
+              <div
+                role="menu"
+                className="absolute right-0 z-40 mt-1.5 w-60 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
+              >
+                <div className="border-b border-gray-100 px-4 py-3">
+                  <p className="truncate text-sm font-medium text-gray-900">{displayName}</p>
+                  <p className="truncate text-xs text-gray-500">{user.email}</p>
+                  <span className="mt-1.5 inline-block rounded-full bg-primary-50 px-2 py-0.5 text-[11px] font-medium text-primary">
+                    {ROLE_LABEL[user.role]}
+                  </span>
+                </div>
+
+                <a
+                  href="/settings/"
+                  role="menuitem"
+                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-50"
+                >
+                  <span className="material-symbols-outlined text-[18px] text-gray-400">person</span>
+                  Hồ sơ &amp; đổi mật khẩu
+                </a>
+
+                <button
+                  onClick={handleLogout}
+                  disabled={loggingOut}
+                  role="menuitem"
+                  className="flex w-full items-center gap-2.5 border-t border-gray-100 px-4 py-2.5 text-sm text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    {loggingOut ? 'autorenew' : 'logout'}
+                  </span>
+                  {loggingOut ? 'Đang đăng xuất…' : 'Đăng xuất'}
+                </button>
               </div>
-
-              <a
-                href="/settings/"
-                role="menuitem"
-                className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-50"
-              >
-                <span className="material-symbols-outlined text-[18px] text-gray-400">person</span>
-                Hồ sơ &amp; đổi mật khẩu
-              </a>
-
-              <button
-                onClick={handleLogout}
-                disabled={loggingOut}
-                role="menuitem"
-                className="flex w-full items-center gap-2.5 border-t border-gray-100 px-4 py-2.5 text-sm text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
-              >
-                <span className="material-symbols-outlined text-[18px]">
-                  {loggingOut ? 'autorenew' : 'logout'}
-                </span>
-                {loggingOut ? 'Đang đăng xuất…' : 'Đăng xuất'}
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
     </header>

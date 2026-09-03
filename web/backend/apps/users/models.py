@@ -193,6 +193,50 @@ class ActivityLog(models.Model):
         return f"[{self.category}] {self.action} by {self.actor_label or 'system'}"
 
 
+class Notification(models.Model):
+    """Thông báo cá nhân hiển thị ở biểu tượng chuông cho mọi vai trò."""
+
+    class Kind(models.TextChoices):
+        SHARE = "share", "Chia sẻ"
+        PROCESSING = "processing", "Xử lý dữ liệu"
+        ROLE = "role", "Vai trò"
+        SYSTEM = "system", "Hệ thống"
+
+    class Level(models.TextChoices):
+        INFO = "info", "Thông tin"
+        SUCCESS = "success", "Thành công"
+        WARNING = "warning", "Cảnh báo"
+        ERROR = "error", "Lỗi"
+
+    recipient = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="notifications"
+    )
+    kind = models.CharField(max_length=16, choices=Kind.choices, default=Kind.SYSTEM)
+    level = models.CharField(max_length=16, choices=Level.choices, default=Level.INFO)
+    title = models.CharField(max_length=160)
+    message = models.CharField(max_length=500, blank=True)
+    # Chỉ lưu đường dẫn nội bộ do server tạo; frontend không nhận URL từ người dùng.
+    link = models.CharField(max_length=500, blank=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["recipient", "read_at", "-created_at"],
+                name="users_notif_rec_read_idx",
+            ),
+        ]
+
+    @property
+    def is_read(self) -> bool:
+        return self.read_at is not None
+
+    def __str__(self):
+        return f"{self.recipient}: {self.title}"
+
+
 class RoleRequest(models.Model):
     """Yêu cầu được cấp vai trò cao hơn khi tự đăng ký.
 
