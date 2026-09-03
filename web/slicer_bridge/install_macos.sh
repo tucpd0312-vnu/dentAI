@@ -14,10 +14,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OPEN_SCAN_PY="$SCRIPT_DIR/open_scan.py"
+SOURCE_OPEN_SCAN_PY="$SCRIPT_DIR/open_scan.py"
 
-if [[ ! -f "$OPEN_SCAN_PY" ]]; then
-    echo "Không tìm thấy open_scan.py cạnh script này ($OPEN_SCAN_PY)." >&2
+if [[ ! -f "$SOURCE_OPEN_SCAN_PY" ]]; then
+    echo "Không tìm thấy open_scan.py cạnh script này ($SOURCE_OPEN_SCAN_PY)." >&2
     exit 1
 fi
 
@@ -30,7 +30,9 @@ fi
 
 APP_DIR="$HOME/Applications/dentAI Slicer Bridge.app"
 CONTENTS="$APP_DIR/Contents"
-mkdir -p "$CONTENTS/MacOS"
+mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources"
+OPEN_SCAN_PY="$CONTENTS/Resources/open_scan.py"
+cp "$SOURCE_OPEN_SCAN_PY" "$OPEN_SCAN_PY"
 
 # argv cuối cùng macOS truyền vào app khi mở qua URL scheme là chính URL đó.
 cat > "$CONTENTS/MacOS/dentai-bridge" <<EOF

@@ -9,10 +9,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OPEN_SCAN_PY="$SCRIPT_DIR/open_scan.py"
+SOURCE_OPEN_SCAN_PY="$SCRIPT_DIR/open_scan.py"
 
-if [[ ! -f "$OPEN_SCAN_PY" ]]; then
-    echo "Không tìm thấy open_scan.py cạnh script này ($OPEN_SCAN_PY)." >&2
+if [[ ! -f "$SOURCE_OPEN_SCAN_PY" ]]; then
+    echo "Không tìm thấy open_scan.py cạnh script này ($SOURCE_OPEN_SCAN_PY)." >&2
     exit 1
 fi
 
@@ -29,6 +29,11 @@ if [[ ! -x "$SLICER_PATH" ]]; then
     echo "Không thực thi được: $SLICER_PATH" >&2
     exit 1
 fi
+
+INSTALL_DIR="$HOME/.local/share/dentai-slicer-bridge"
+mkdir -p "$INSTALL_DIR"
+OPEN_SCAN_PY="$INSTALL_DIR/open_scan.py"
+cp "$SOURCE_OPEN_SCAN_PY" "$OPEN_SCAN_PY"
 
 APPS_DIR="$HOME/.local/share/applications"
 mkdir -p "$APPS_DIR"
@@ -54,6 +59,7 @@ xdg-mime default dentai-slicer.desktop x-scheme-handler/dentai
 echo ""
 echo "Đã đăng ký dentai:// — lệnh sẽ chạy khi bấm link:"
 echo "  $SLICER_PATH --no-splash --python-script $OPEN_SCAN_PY %u"
+echo "Bridge đã được cài tại: $INSTALL_DIR"
 echo ""
 echo "Kiểm tra: xdg-open 'dentai://open?token=test&server=http://localhost:8002'"
 echo "Slicer sẽ khởi động và báo lỗi 'Server từ chối yêu cầu (HTTP 404)' — ĐÚNG như"

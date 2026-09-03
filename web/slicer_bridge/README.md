@@ -26,6 +26,10 @@ Mỗi script tự dò đường dẫn Slicer đã cài; nếu không tìm thấy
 powershell -ExecutionPolicy Bypass -File install_windows.ps1 -SlicerPath "C:\Program Files\Slicer 5.10.0\Slicer.exe"
 ```
 
+Script cài đặt sao chép `open_scan.py` vào vị trí cố định của người dùng rồi mới
+đăng ký `dentai://`. Vì vậy có thể xóa thư mục ZIP đã giải nén sau khi cài. Khi tải
+Bridge phiên bản mới, chạy lại script một lần để cập nhật bản đã cài.
+
 ## Kiểm tra đã đăng ký đúng chưa
 
 Gõ vào trình duyệt (hoặc chạy `xdg-open`/`open` tương ứng OS):
@@ -54,8 +58,11 @@ chặn popup không, hoặc thử trình duyệt khác.
 
 - Trình duyệt không bao giờ báo cho JS biết scheme handler có chạy hay không — trang
   web không thể tự xác nhận "đã mở thành công", xem PLAN_3D_CANINE.md §5.1.
+- Lượt **Kiểm tra mở Slicer** dùng token `test` và không giữ khóa mở phim. Lock của
+  bản Bridge cũ hoặc tiến trình đã thoát được tự dọn ở lần mở tiếp theo; khi tải/nạp
+  phim lỗi, cửa sổ hiện tại cũng nhả lock để người dùng thử lại ngay.
 - Bấm "Mở phim DICOM" khi đã có một Slicer khác đang mở phim từ dentAI → cửa sổ Slicer
-  mới vẫn nháy lên một chút rồi tự đóng kèm thông báo, KHÔNG tự chuyển phim sang cửa sổ
+  mới vẫn nháy lên một chút rồi dừng kèm thông báo, KHÔNG tự chuyển phim sang cửa sổ
   cũ (chỉ tránh tải phim thừa/chất RAM, không phải bring-to-front thật). Nhận biết qua
   lock file `%TEMP%/dentai_slicer_open.lock`.
 - `open_scan.py` dùng `DICOMUtils.TemporaryDICOMDatabase()` để tránh nạp nhầm bệnh
