@@ -88,7 +88,11 @@ export default function ShareModal(props: ShareModalProps) {
     const t = setTimeout(async () => {
       try {
         const users = await searchUsers(q);
-        setResults(isScan ? users.filter(user => user.role !== 'patient') : users);
+        setResults(
+          isScan
+            ? users.filter(user => user.role === 'admin' || user.role === 'doctor')
+            : users.filter(user => user.role !== 'receptionist'),
+        );
       } catch {
         setResults([]);
       } finally {
@@ -388,7 +392,12 @@ export default function ShareModal(props: ShareModalProps) {
                       className="shrink-0 rounded-lg border border-gray-300 px-2 py-1 text-xs focus:border-primary focus:outline-none"
                     >
                       <option value="view">{PERMISSION_LABEL.view}</option>
-                      <option value="edit" disabled={s.shared_with_role === 'patient'}>
+                      <option
+                        value="edit"
+                        disabled={
+                          s.shared_with_role !== 'admin' && s.shared_with_role !== 'doctor'
+                        }
+                      >
                         {isScan ? 'Xem và nộp phân vùng' : PERMISSION_LABEL.edit}
                       </option>
                     </select>

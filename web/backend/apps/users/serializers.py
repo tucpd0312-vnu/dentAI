@@ -23,8 +23,8 @@ class RegisterSerializer(serializers.Serializer):
     Chọn bệnh nhân → cấp ngay. Chọn bác sĩ → tài khoản vẫn là bệnh nhân, đồng thời
     sinh một `RoleRequest` chờ admin duyệt (xem `RoleRequest` docstring để biết vì sao).
 
-    KHÔNG cho phép xin vai trò `admin` qua form công khai — quản trị viên mới do admin
-    hiện tại tạo tay ở `/api/users/`.
+    KHÔNG cho phép xin vai trò `admin` hoặc `receptionist` qua form công khai — các
+    vai trò nội bộ này chỉ do admin hiện tại tạo tay ở `/api/users/`.
     """
 
     SELF_SERVE_ROLES = (Role.PATIENT, Role.DOCTOR)

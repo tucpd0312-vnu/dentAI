@@ -19,12 +19,13 @@ import { useAuth } from '@/components/providers/AuthProvider';
 import RoleRequestPanel from '@/components/users/RoleRequestPanel';
 
 const PAGE_SIZE = 20;
-const ROLES: Role[] = ['admin', 'doctor', 'patient'];
+const ROLES: Role[] = ['admin', 'doctor', 'patient', 'receptionist'];
 
 const ROLE_BADGE: Record<Role, string> = {
   admin: 'bg-purple-50 text-purple-700',
   doctor: 'bg-primary-50 text-primary',
   patient: 'bg-gray-100 text-gray-600',
+  receptionist: 'bg-teal-50 text-teal-700',
 };
 
 function fmtDate(iso: string | null): string {
@@ -107,6 +108,7 @@ function CreateUserModal({ onClose, onDone }: { onClose: () => void; onDone: () 
     last_name: '',
     phone: '',
   });
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -138,13 +140,27 @@ function CreateUserModal({ onClose, onDone }: { onClose: () => void; onDone: () 
           <input required type="email" value={form.email} onChange={set('email')} className={inputCls} />
         </Field>
         <Field label="Mật khẩu *">
-          <input
-            required
-            type="password"
-            value={form.password}
-            onChange={set('password')}
-            className={inputCls}
-          />
+          <div className="relative">
+            <input
+              required
+              type={showPassword ? 'text' : 'password'}
+              value={form.password}
+              onChange={set('password')}
+              className={`${inputCls} pr-10`}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(value => !value)}
+              disabled={saving}
+              aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+              title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:opacity-40"
+            >
+              <span className="material-symbols-outlined block text-[19px]">
+                {showPassword ? 'visibility_off' : 'visibility'}
+              </span>
+            </button>
+          </div>
           <p className="mt-1 text-[11px] text-gray-400">
             Tối thiểu 8 ký tự, gồm chữ hoa, chữ thường và chữ số.
           </p>
@@ -294,6 +310,12 @@ function EditUserModal({
             <p className="mt-1 text-[11px] text-amber-600">
               Hạ xuống Bệnh nhân sẽ tự động chuyển mọi quyền chia sẻ &ldquo;Xem và sửa&rdquo;
               của tài khoản này về &ldquo;Chỉ xem&rdquo;.
+            </p>
+          )}
+          {form.role === 'receptionist' && user.role !== 'receptionist' && (
+            <p className="mt-1 text-[11px] text-amber-600">
+              Chuyển sang Lễ tân sẽ thu hồi mọi quyền chia sẻ ca, phim và dữ liệu;
+              tài khoản chỉ còn truy cập trang Tổng quan.
             </p>
           )}
         </Field>

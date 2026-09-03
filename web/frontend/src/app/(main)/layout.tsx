@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -10,14 +10,19 @@ import SessionGuard from '@/components/providers/SessionGuard';
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const receptionistOutsideDashboard =
+    user?.role === 'receptionist' && pathname !== '/dashboard' && pathname !== '/dashboard/';
 
   useEffect(() => {
     if (!loading && !user) {
       router.push('/login/');
+    } else if (!loading && receptionistOutsideDashboard) {
+      router.replace('/dashboard/');
     }
-  }, [loading, user, router]);
+  }, [loading, receptionistOutsideDashboard, router, user]);
 
-  if (loading || !user) {
+  if (loading || !user || receptionistOutsideDashboard) {
     return (
       <div className="flex h-screen items-center justify-center bg-surface">
         <span className="material-symbols-outlined text-5xl text-gray-300 animate-spin">autorenew</span>

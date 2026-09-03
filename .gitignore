@@ -242,6 +242,7 @@ falc/
 web/media
 web/backend/scans_storage
 web/backend/library_storage/
+web/backend/reception_assignments_storage/
 
 # Test databases (local dev)
 web/backend/test*.db

@@ -23,7 +23,18 @@ class IsActiveUser(permissions.BasePermission):
     message = "Tài khoản không hợp lệ hoặc đã bị vô hiệu hoá."
 
     def has_permission(self, request, view):
-        return is_usable(request.user)
+        if not is_usable(request.user):
+            return False
+
+        # Giai đoạn đầu, lễ tân chỉ được dùng những view chủ động opt-in bằng
+        # ``allow_receptionist``. Chốt tại backend để việc gõ URL hoặc gọi API
+        # trực tiếp không vượt qua giới hạn chỉ ẩn menu ở frontend.
+        if request.user.role == Role.RECEPTIONIST and not getattr(
+            view, "allow_receptionist", False
+        ):
+            self.message = "Vai trò lễ tân hiện chỉ được sử dụng trang Tổng quan."
+            return False
+        return True
 
 
 class IsAdmin(IsActiveUser):
@@ -38,6 +49,16 @@ class IsDoctor(IsActiveUser):
 
     def has_permission(self, request, view):
         return super().has_permission(request, view) and request.user.role == Role.DOCTOR
+
+
+class IsReceptionist(IsActiveUser):
+    message = "Chỉ lễ tân mới có quyền thực hiện thao tác này."
+
+    def has_permission(self, request, view):
+        return (
+            super().has_permission(request, view)
+            and request.user.role == Role.RECEPTIONIST
+        )
 
 
 class IsAdminOrDoctor(IsActiveUser):

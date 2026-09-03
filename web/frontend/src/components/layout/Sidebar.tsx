@@ -79,7 +79,12 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { role, user } = useAuth();
 
-  const visible = (item: NavLeaf) => !item.roles || (role && item.roles.includes(role));
+  const visible = (item: NavLeaf) => {
+    // Giai đoạn đầu lễ tân chỉ có mục Tổng quan. Backend vẫn chặn độc lập để
+    // người dùng không thể vượt quyền bằng cách gõ URL hoặc gọi API trực tiếp.
+    if (role === 'receptionist') return item.href === '/dashboard';
+    return !item.roles || Boolean(role && item.roles.includes(role));
+  };
   const active = (item: NavLeaf) =>
     pathname.startsWith(item.prefix) ||
     Boolean(item.activePrefixes?.some(prefix => pathname.startsWith(prefix)));

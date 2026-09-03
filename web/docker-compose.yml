@@ -12,6 +12,7 @@ x-django-env: &django-env
   # CÙNG một thư mục trên máy host, và dữ liệu sống qua các lần dựng lại container.
   SCANS_ROOT:             /app/scans_storage
   LIBRARY_ROOT:           /app/library_storage
+  RECEPTION_ASSIGNMENTS_ROOT: /app/reception_assignments_storage
   SLICER_BRIDGE_ROOT:     /slicer_bridge
   CELERY_BROKER_URL:      redis://redis:6379/0
   CELERY_RESULT_BACKEND:  redis://redis:6379/0
