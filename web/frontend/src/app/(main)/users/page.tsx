@@ -19,11 +19,12 @@ import { useAuth } from '@/components/providers/AuthProvider';
 import RoleRequestPanel from '@/components/users/RoleRequestPanel';
 
 const PAGE_SIZE = 20;
-const ROLES: Role[] = ['admin', 'doctor', 'patient', 'receptionist'];
+const ROLES: Role[] = ['admin', 'doctor', 'student', 'patient', 'receptionist'];
 
 const ROLE_BADGE: Record<Role, string> = {
   admin: 'bg-purple-50 text-purple-700',
   doctor: 'bg-primary-50 text-primary',
+  student: 'bg-blue-50 text-blue-700',
   patient: 'bg-gray-100 text-gray-600',
   receptionist: 'bg-teal-50 text-teal-700',
 };
@@ -310,6 +311,12 @@ function EditUserModal({
             <p className="mt-1 text-[11px] text-amber-600">
               Hạ xuống Bệnh nhân sẽ tự động chuyển mọi quyền chia sẻ &ldquo;Xem và sửa&rdquo;
               của tài khoản này về &ldquo;Chỉ xem&rdquo;.
+            </p>
+          )}
+          {form.role === 'student' && user.role !== 'student' && (
+            <p className="mt-1 text-[11px] text-amber-600">
+              Sinh viên được sửa kết quả viêm lợi trong phạm vi được cấp, nhưng quyền
+              chia sẻ và phân vùng phim CBCT sẽ bị thu hồi.
             </p>
           )}
           {form.role === 'receptionist' && user.role !== 'receptionist' && (

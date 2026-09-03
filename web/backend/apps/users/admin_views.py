@@ -161,6 +161,13 @@ class UserDetailView(APIView):
             # Thu hồi hoàn toàn để việc nâng vai trò về sau không làm sống lại quyền cũ.
             revoked_scan_shares = ScanShare.objects.filter(shared_with=updated).count()
             ScanShare.objects.filter(shared_with=updated).delete()
+        elif updated.role == Role.STUDENT:
+            from apps.scans.models import ScanShare
+
+            # Sinh viên sửa được kết quả viêm lợi nhưng phạm vi CBCT giống bệnh nhân:
+            # chỉ phim tự tải và không nhận quyền chuyên môn/phân vùng từ người khác.
+            revoked_scan_shares = ScanShare.objects.filter(shared_with=updated).count()
+            ScanShare.objects.filter(shared_with=updated).delete()
         elif updated.role == Role.RECEPTIONIST:
             from apps.cases.models import CaseShare
             from apps.library.models import DataAssetShare

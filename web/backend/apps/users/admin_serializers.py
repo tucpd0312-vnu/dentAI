@@ -87,8 +87,8 @@ class UserSearchSerializer(serializers.ModelSerializer):
         return mask_email(obj.email)
 
     def get_can_receive_edit(self, obj):
-        """Chỉ bác sĩ/admin nhận được quyền sửa — frontend disable lựa chọn kia."""
-        return obj.role in (Role.ADMIN, Role.DOCTOR)
+        """Admin, giảng viên/bác sĩ và sinh viên nhận được quyền sửa ca 2D."""
+        return obj.role in (Role.ADMIN, Role.DOCTOR, Role.STUDENT)
 
     class Meta:
         model = User

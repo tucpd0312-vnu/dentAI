@@ -81,7 +81,7 @@ export interface CaseOwner {
   id: number;
   username: string;
   full_name: string;
-  role: "admin" | "doctor" | "patient" | "receptionist";
+  role: "admin" | "doctor" | "patient" | "student" | "receptionist";
 }
 
 export interface CaseListItem {

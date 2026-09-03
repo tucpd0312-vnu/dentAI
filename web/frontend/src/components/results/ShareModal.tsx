@@ -395,7 +395,12 @@ export default function ShareModal(props: ShareModalProps) {
                       <option
                         value="edit"
                         disabled={
-                          s.shared_with_role !== 'admin' && s.shared_with_role !== 'doctor'
+                          isScan
+                            ? s.shared_with_role !== 'admin' &&
+                              s.shared_with_role !== 'doctor'
+                            : s.shared_with_role !== 'admin' &&
+                              s.shared_with_role !== 'doctor' &&
+                              s.shared_with_role !== 'student'
                         }
                       >
                         {isScan ? 'Xem và nộp phân vùng' : PERMISSION_LABEL.edit}

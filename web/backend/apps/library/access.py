@@ -76,9 +76,9 @@ def asset_permission_for(user, asset) -> str:
 def can_see_patient_info(user, asset=None) -> bool:
     """Quyền đọc khối PHI của một tư liệu.
 
-    Bác sĩ/admin đọc được PHI trong phạm vi tư liệu họ truy cập. Bệnh nhân chỉ đọc
-    được PHI trên tư liệu do chính họ tải lên; nhận chia sẻ từ người khác không làm
-    lộ tên, tuổi, giới tính hay mô tả tình trạng của bệnh nhân khác.
+    Bác sĩ/admin đọc được PHI trong phạm vi tư liệu họ truy cập. Bệnh nhân và sinh
+    viên chỉ đọc PHI trên tư liệu do chính họ tải lên; nhận chia sẻ từ người khác
+    không làm lộ tên, tuổi, giới tính hay mô tả của bệnh nhân khác.
 
     ``asset=None`` dùng cho bộ lọc danh sách toàn cục và chỉ trả ``True`` cho vai
     trò chuyên môn, vì ở đó không có một tư liệu cụ thể để kiểm tra chủ sở hữu.

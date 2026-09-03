@@ -187,8 +187,8 @@ class ScanUploadInitView(APIView):
         d = ser.validated_data
 
         patient_code = d.get("patient_code", "").strip()
-        if request.user.role == Role.PATIENT:
-            # Patient không được dò hoặc gắn phim vào hồ sơ toàn hệ thống bằng mã BN.
+        if request.user.role in (Role.PATIENT, Role.STUDENT):
+            # Bệnh nhân/sinh viên không được dò hoặc gắn phim vào hồ sơ toàn hệ thống.
             # Mỗi lần tải tạo một hồ sơ nằm trong phạm vi sở hữu của chính tài khoản.
             patient = Patient.objects.create(
                 name=d["patient_name"],

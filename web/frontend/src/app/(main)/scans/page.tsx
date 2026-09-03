@@ -27,7 +27,7 @@ const inputCls =
   'focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30';
 
 export default function ScansPage() {
-  const { isAdmin, isPatient } = useAuth();
+  const { isAdmin, hasPatientScope } = useAuth();
 
   const [rows, setRows] = useState<ScanListItem[]>([]);
   const [count, setCount] = useState(0);
@@ -89,7 +89,7 @@ export default function ScansPage() {
           <h1 className="font-serif text-xl font-semibold text-gray-900">Phim răng nanh ngầm 3D</h1>
           <p className="mt-0.5 text-sm text-gray-500">
             {loading ? 'Đang tải…' : `${count} phim CBCT`}
-            {!isAdmin && (isPatient ? ' · chỉ phim do bạn tải lên' : ' · gồm phim của bạn và phim được chia sẻ')}
+            {!isAdmin && (hasPatientScope ? ' · chỉ phim do bạn tải lên' : ' · gồm phim của bạn và phim được chia sẻ')}
           </p>
         </div>
         <Link

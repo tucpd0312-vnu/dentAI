@@ -148,11 +148,11 @@ class AssetListView(APIView):
             patient_filters = Q(patient__name__icontains=q) | Q(
                 patient__patient_code__icontains=q
             )
-            # Vai trò chuyên môn tìm PHI trong toàn phạm vi. Bệnh nhân chỉ tìm PHI
-            # trên tư liệu của chính họ, không dò được tên trong dữ liệu được chia sẻ.
+            # Vai trò chuyên môn tìm PHI trong toàn phạm vi. Bệnh nhân/sinh viên chỉ
+            # tìm PHI trên tư liệu của mình, không dò tên trong dữ liệu được chia sẻ.
             if can_see_patient_info(request.user):
                 filters |= patient_filters
-            elif request.user.role == Role.PATIENT:
+            elif request.user.role in (Role.PATIENT, Role.STUDENT):
                 filters |= Q(uploaded_by=request.user) & patient_filters
             qs = qs.filter(filters)
 
@@ -181,7 +181,7 @@ class AssetListView(APIView):
                 is_anonymized=True,
             )
             if diagnosis == "canine3d" and request.user.role not in (
-                Role.ADMIN, Role.DOCTOR, Role.PATIENT,
+                Role.ADMIN, Role.DOCTOR, Role.PATIENT, Role.STUDENT,
             ):
                 qs = qs.none()
 
@@ -189,7 +189,7 @@ class AssetListView(APIView):
         if patient:
             if can_see_patient_info(request.user):
                 qs = qs.filter(patient_id=patient)
-            elif request.user.role == Role.PATIENT:
+            elif request.user.role in (Role.PATIENT, Role.STUDENT):
                 qs = qs.filter(patient_id=patient, uploaded_by=request.user)
 
         uploaded_by = request.query_params.get("uploaded_by")
@@ -394,9 +394,9 @@ class AssetUploadInitView(APIView):
         if not name and not code:
             return None
 
-        # Patient không được phép gắn mã đã tồn tại rồi đọc ngược hồ sơ của người
-        # khác. Giao diện không hỏi mã ở vai trò này; server luôn sinh mã riêng.
-        if request.user.role == Role.PATIENT:
+        # Bệnh nhân/sinh viên không được gắn mã đã tồn tại rồi đọc ngược hồ sơ của
+        # người khác. Giao diện không hỏi mã; server luôn sinh mã riêng.
+        if request.user.role in (Role.PATIENT, Role.STUDENT):
             if not name:
                 return None
             return Patient.objects.create(

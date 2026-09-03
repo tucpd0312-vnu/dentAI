@@ -4,7 +4,7 @@ from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.cases.access import can_edit_case
-from apps.cases.models import Case, CaseShare, Image, Patient
+from apps.cases.models import Caption, Case, CaseShare, Detection, Image, Patient
 from apps.library.models import DataAsset, DataAssetShare, DataCategory
 from apps.scans.models import Scan, ScanShare
 
@@ -109,6 +109,79 @@ class RoleCapabilityTests(APITestCase):
     def test_clinical_roles_can_edit_diagnostic_labels(self):
         self.assertTrue(User(role=Role.DOCTOR).can_edit_labels())
         self.assertTrue(User(role=Role.ADMIN).can_edit_labels())
+        self.assertTrue(User(role=Role.STUDENT).can_edit_labels())
+
+    def test_student_can_edit_own_ai_diagnosis(self):
+        student = User.objects.create_user(
+            username="diagnosis-student",
+            email="diagnosis-student@example.test",
+            password="StudentPass123",
+            role=Role.STUDENT,
+        )
+        patient = Patient.objects.create(name="Ca học tập", patient_code="STUDENT-001")
+        case = Case.objects.create(patient=patient, created_by=student)
+        image = Image.objects.create(
+            case=case,
+            order_index=0,
+            original_path="tests/student-edit.jpg",
+            status=Image.Status.DONE,
+        )
+        caption = Caption.objects.create(image=image, ai_text="Mô tả ban đầu của AI")
+        detection = Detection.objects.create(
+            image=image,
+            source=Detection.Source.AI,
+            tooth_fdi="11",
+            mgi_level=1,
+            x_center=0.5,
+            y_center=0.5,
+            width=0.2,
+            height=0.2,
+        )
+
+        self.client.force_authenticate(user=student)
+        response = self.client.patch(
+            f"/api/cases/{case.pk}/images/0/",
+            {"caption_text": "Mô tả đã được sinh viên hiệu chỉnh"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(can_edit_case(student, case))
+        caption.refresh_from_db()
+        self.assertEqual(caption.ai_text, "Mô tả ban đầu của AI")
+        self.assertEqual(caption.edited_text, "Mô tả đã được sinh viên hiệu chỉnh")
+        self.assertTrue(caption.is_edited)
+
+        response = self.client.patch(
+            f"/api/detections/{detection.pk}/", {"mgi_level": 3}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        detection.refresh_from_db()
+        self.assertEqual(detection.source, Detection.Source.AI)
+        self.assertEqual(detection.mgi_level, 3)
+        self.assertTrue(detection.is_modified)
+
+    def test_student_can_receive_edit_share_for_gingivitis_case(self):
+        lecturer = User.objects.create_user(
+            "sharing-lecturer", "sharing-lecturer@example.test", "LecturerPass123",
+            role=Role.DOCTOR,
+        )
+        student = User.objects.create_user(
+            "sharing-student", "sharing-student@example.test", "StudentPass123",
+            role=Role.STUDENT,
+        )
+        patient = Patient.objects.create(name="Ca được giao", patient_code="STUDENT-002")
+        case = Case.objects.create(patient=patient, created_by=lecturer)
+
+        self.client.force_authenticate(user=lecturer)
+        response = self.client.post(
+            f"/api/cases/{case.pk}/shares/",
+            {"user_id": student.pk, "permission": CaseShare.Permission.EDIT},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertTrue(can_edit_case(student, case))
 
 
 class PasswordResetTests(APITestCase):
@@ -210,6 +283,7 @@ class NotificationApiTests(APITestCase):
         users = [
             self.make_user("notif-admin", Role.ADMIN),
             self.make_user("notif-doctor", Role.DOCTOR),
+            self.make_user("notif-student", Role.STUDENT),
             self.make_user("notif-patient", Role.PATIENT),
             self.make_user("notif-receptionist", Role.RECEPTIONIST),
         ]
@@ -427,3 +501,89 @@ class ReceptionistAccessTests(APITestCase):
         self.assertFalse(CaseShare.objects.filter(shared_with=recipient).exists())
         self.assertFalse(ScanShare.objects.filter(shared_with=recipient).exists())
         self.assertFalse(DataAssetShare.objects.filter(shared_with=recipient).exists())
+
+
+class StudentRoleAdminTests(APITestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            "student-admin", "student-admin@example.test", "AdminPass123",
+            role=Role.ADMIN,
+        )
+
+    def test_public_registration_cannot_self_assign_student_role(self):
+        response = self.client.post(
+            "/api/auth/register/",
+            {
+                "username": "self-student",
+                "email": "self-student@example.test",
+                "password": "StudentPass123",
+                "confirm_password": "StudentPass123",
+                "requested_role": Role.STUDENT,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("requested_role", response.data)
+
+    def test_admin_can_create_student_and_student_is_searchable_as_editor(self):
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.post(
+            "/api/users/",
+            {
+                "username": "verified-student",
+                "email": "verified-student@example.test",
+                "password": "StudentPass123",
+                "role": Role.STUDENT,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data["role"], Role.STUDENT)
+        self.assertFalse(User.objects.get(pk=response.data["id"]).is_staff)
+
+        self.client.force_authenticate(user=self.admin)
+        search = self.client.get("/api/users/search/?q=verified-student")
+        self.assertEqual(search.status_code, status.HTTP_200_OK)
+        self.assertEqual(search.data[0]["role"], Role.STUDENT)
+        self.assertTrue(search.data[0]["can_receive_edit"])
+
+    def test_changing_doctor_to_student_keeps_case_edit_but_revokes_scan_share(self):
+        owner = User.objects.create_user(
+            "student-owner", "student-owner@example.test", "OwnerPass123",
+            role=Role.DOCTOR,
+        )
+        recipient = User.objects.create_user(
+            "student-recipient", "student-recipient@example.test", "Recipient123",
+            role=Role.DOCTOR,
+        )
+        patient = Patient.objects.create(name="BN sinh viên", patient_code="ROLE-STUDENT")
+        case = Case.objects.create(patient=patient, created_by=owner)
+        scan = Scan.objects.create(patient=patient, uploaded_by=owner)
+        asset = DataAsset.objects.create(
+            title="Dữ liệu học tập",
+            category=DataCategory.objects.get(slug="viem-loi"),
+            data_type=DataAsset.DataType.INTRAORAL,
+            uploaded_by=owner,
+        )
+        CaseShare.objects.create(
+            case=case, shared_with=recipient, shared_by=owner,
+            permission=CaseShare.Permission.EDIT,
+        )
+        ScanShare.objects.create(
+            scan=scan, shared_with=recipient, shared_by=owner,
+            permission=ScanShare.Permission.EDIT,
+        )
+        DataAssetShare.objects.create(
+            asset=asset, shared_with=recipient, shared_by=owner,
+            permission=DataAssetShare.Permission.EDIT,
+        )
+
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.patch(
+            f"/api/users/{recipient.pk}/", {"role": Role.STUDENT}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(CaseShare.objects.filter(shared_with=recipient).exists())
+        self.assertFalse(ScanShare.objects.filter(shared_with=recipient).exists())
+        self.assertTrue(DataAssetShare.objects.filter(shared_with=recipient).exists())

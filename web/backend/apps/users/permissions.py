@@ -71,13 +71,17 @@ class IsAdminOrDoctor(IsActiveUser):
         )
 
 
-class CanEditResults(IsAdminOrDoctor):
-    """Sửa nhãn (box / MGI / caption) — nhãn sửa sẽ được feed vào FALC.
+class CanEditResults(IsActiveUser):
+    """Sửa box/MGI/caption: admin, giảng viên/bác sĩ hoặc sinh viên."""
 
-    Bệnh nhân bị chặn ở đây: chỉ chuyên môn mới được tạo dữ liệu huấn luyện.
-    """
+    message = "Bạn không có quyền chỉnh sửa kết quả chẩn đoán."
 
-    message = "Chỉ bác sĩ hoặc quản trị viên mới được chỉnh sửa kết quả chẩn đoán."
+    def has_permission(self, request, view):
+        return super().has_permission(request, view) and request.user.role in (
+            Role.ADMIN,
+            Role.DOCTOR,
+            Role.STUDENT,
+        )
 
 
 class CanAccessCase(IsActiveUser):

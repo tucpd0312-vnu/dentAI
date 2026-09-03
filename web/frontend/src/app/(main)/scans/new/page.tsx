@@ -10,7 +10,7 @@ import { apiErrorMessage } from '@/lib/users';
 import LibraryAssetPicker, { InputSourceTabs, useLibraryInput } from '@/components/library/LibraryAssetPicker';
 
 export default function NewScanPage() {
-  const { isPatient } = useAuth();
+  const { hasPatientScope } = useAuth();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   // Phiên chunked upload dở từ lần submit lỗi trước — CÙNG file thì thử lại chỉ gửi
@@ -76,13 +76,13 @@ export default function NewScanPage() {
     try {
       const data = inputSource === 'library' ? await createScanFromLibrary({
         patientName: form.name.trim(),
-        patientCode: isPatient ? undefined : form.patient_code.trim() || undefined,
+        patientCode: hasPatientScope ? undefined : form.patient_code.trim() || undefined,
         note: form.note.trim() || undefined,
         assetId: selectedAssets[0].id,
       }) : await uploadScan(
         {
           patientName: form.name.trim(),
-          patientCode: isPatient ? undefined : form.patient_code.trim() || undefined,
+          patientCode: hasPatientScope ? undefined : form.patient_code.trim() || undefined,
           note: form.note.trim() || undefined,
           file: file!,
         },
@@ -117,7 +117,7 @@ export default function NewScanPage() {
           </h2>
         </div>
         <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
-          <div className={isPatient ? 'sm:col-span-2' : undefined}>
+          <div className={hasPatientScope ? 'sm:col-span-2' : undefined}>
             <label className="mb-1.5 block text-xs font-medium text-gray-600">
               Tên bệnh nhân <span className="text-red-500">*</span>
             </label>
@@ -136,7 +136,7 @@ export default function NewScanPage() {
               "
             />
           </div>
-          {!isPatient && <div>
+          {!hasPatientScope && <div>
             <label className="mb-1.5 block text-xs font-medium text-gray-600">Mã bệnh nhân</label>
             <input
               type="text"

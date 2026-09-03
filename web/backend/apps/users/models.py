@@ -10,6 +10,7 @@ class Role(models.TextChoices):
     ADMIN = "admin", "Administrator"
     DOCTOR = "doctor", "Bác sĩ nha khoa"
     PATIENT = "patient", "Bệnh nhân"
+    STUDENT = "student", "Sinh viên"
     RECEPTIONIST = "receptionist", "Lễ tân"
 
 
@@ -41,7 +42,7 @@ class User(AbstractUser):
 
     def can_edit_labels(self) -> bool:
         """Chỉ bác sĩ và admin được sửa nhãn (nhãn sửa sẽ feed vào FALC)."""
-        return self.role in (Role.ADMIN, Role.DOCTOR)
+        return self.role in (Role.ADMIN, Role.DOCTOR, Role.STUDENT)
 
     def soft_delete(self):
         self.is_deleted = True
