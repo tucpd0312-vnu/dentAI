@@ -5,14 +5,14 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
 
-type RequestedRole = 'patient' | 'doctor';
+type RequestedRole = 'patient' | 'student' | 'doctor';
 
 const inputCls =
   'w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none ' +
   'focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:bg-gray-50 ' +
   'disabled:text-gray-400 transition-colors';
 
-/** Ô chọn vai trò — hai thẻ lớn, có mô tả hệ quả của từng lựa chọn. */
+/** Ô chọn vai trò, có mô tả quyền và yêu cầu phê duyệt của từng lựa chọn. */
 function RoleCard({
   value,
   active,
@@ -145,13 +145,22 @@ export default function RegisterPage() {
           <label className="mb-1.5 block text-xs font-medium text-gray-600">
             Bạn đăng ký với vai trò
           </label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <RoleCard
               value="patient"
               active={role === 'patient'}
               icon="person"
               title="Bệnh nhân"
               desc="Tải ảnh và xem kết quả chẩn đoán của mình. Dùng được ngay."
+              onClick={setRole}
+              disabled={submitting}
+            />
+            <RoleCard
+              value="student"
+              active={role === 'student'}
+              icon="school"
+              title="Sinh viên"
+              desc="Xem và chỉnh sửa kết quả viêm lợi. Không cần admin duyệt."
               onClick={setRole}
               disabled={submitting}
             />

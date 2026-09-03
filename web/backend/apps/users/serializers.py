@@ -19,15 +19,14 @@ def _validate_password(value):
 class RegisterSerializer(serializers.Serializer):
     """Tự đăng ký.
 
-    `requested_role` là vai trò người dùng **mong muốn**, không phải vai trò được cấp.
-    Chọn bệnh nhân → cấp ngay. Chọn bác sĩ → tài khoản vẫn là bệnh nhân, đồng thời
-    sinh một `RoleRequest` chờ admin duyệt (xem `RoleRequest` docstring để biết vì sao).
+    Chọn bệnh nhân hoặc sinh viên → cấp vai trò ngay sau khi xác thực email.
+    Chọn bác sĩ → tài khoản tạm có vai trò bệnh nhân và sinh một `RoleRequest`
+    chờ admin duyệt (xem `RoleRequest` docstring để biết vì sao).
 
-    KHÔNG cho phép xin vai trò `admin`, `student` hoặc `receptionist` qua form công
-    khai — các vai trò nội bộ/được sửa nhãn này chỉ do admin cấp ở `/api/users/`.
+    Không cho phép xin vai trò `admin` hoặc `receptionist` qua form công khai.
     """
 
-    SELF_SERVE_ROLES = (Role.PATIENT, Role.DOCTOR)
+    SELF_SERVE_ROLES = (Role.PATIENT, Role.STUDENT, Role.DOCTOR)
 
     username = serializers.CharField(max_length=150)
     email = serializers.EmailField()
@@ -80,8 +79,8 @@ class RegisterSerializer(serializers.Serializer):
 
         user = User.objects.create_user(
             **validated_data,
-            # Vai trò được cấp LUÔN là bệnh nhân ở bước này. Bác sĩ phải qua duyệt.
-            role=Role.PATIENT,
+            # Chỉ bác sĩ phải dùng quyền bệnh nhân trong lúc chờ admin duyệt.
+            role=Role.PATIENT if requested_role == Role.DOCTOR else requested_role,
             is_active=False,
         )
         user.set_password(password)

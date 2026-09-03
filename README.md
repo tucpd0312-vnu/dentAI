@@ -153,10 +153,12 @@ web/
   Đăng nhập/đăng ký có nút hiện mật khẩu; quên mật khẩu dùng OTP để đặt lại.
 - Người đăng ký làm bác sĩ vẫn có vai trò bệnh nhân trong lúc chờ admin phê duyệt.
   Phê duyệt đổi vai trò, không đổi mật khẩu.
+- Người đăng ký làm sinh viên được cấp vai trò sau khi xác thực OTP, không cần admin
+  phê duyệt.
 - Tài khoản lễ tân do admin tạo. Lễ tân chỉ vào Tổng quan, nhận thông báo và tải
   file phân công `.xlsx`/`.xls` tối đa 10 MB; mỗi lần tải được giữ thành một phiên bản.
-- Tài khoản sinh viên do admin cấp. Sinh viên chỉ xem dữ liệu của mình hoặc được
-  chia sẻ, được sửa kết quả viêm lợi nhưng không được nộp phân vùng CBCT.
+- Sinh viên chỉ xem dữ liệu của mình hoặc được chia sẻ, được sửa kết quả viêm lợi
+  nhưng không được nộp phân vùng CBCT.
 - Kho dữ liệu dùng được với mọi vai trò. Người dùng thường chỉ thấy dữ liệu của mình
   hoặc được chia sẻ; admin có quyền xem toàn hệ thống.
 - Admin, bác sĩ, sinh viên và bệnh nhân được dùng các luồng AI theo phạm vi dữ liệu.
@@ -547,7 +549,8 @@ Muốn phân tích viêm lợi, chạy thêm worker ở mục 4.6 hoặc worker 
 
 #### Đăng ký tài khoản mới
 
-1. Mở trang đăng ký, nhập thông tin, mật khẩu và xác nhận mật khẩu; chọn vai trò muốn đăng ký.
+1. Mở trang đăng ký, nhập thông tin, mật khẩu và xác nhận mật khẩu; chọn bệnh nhân,
+   sinh viên hoặc bác sĩ.
 2. Nhận OTP 6 số và nhập trên trang xác thực. Mặc định môi trường local in email ra log:
 
 ```powershell
@@ -555,7 +558,8 @@ docker compose logs --tail=100 backend
 ```
 
 3. Nếu đăng ký bác sĩ, chờ admin duyệt yêu cầu tại trang quản lý tài khoản.
-   Trước khi được duyệt, tài khoản vẫn có quyền bệnh nhân. Không chia sẻ log chứa OTP.
+   Trước khi được duyệt, tài khoản vẫn có quyền bệnh nhân. Sinh viên không cần bước
+   duyệt này. Không chia sẻ log chứa OTP.
 
 #### Đăng nhập
 
