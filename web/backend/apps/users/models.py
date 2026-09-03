@@ -10,11 +10,12 @@ class Role(models.TextChoices):
     ADMIN = "admin", "Administrator"
     DOCTOR = "doctor", "Bác sĩ nha khoa"
     PATIENT = "patient", "Bệnh nhân"
+    RECEPTIONIST = "receptionist", "Lễ tân"
 
 
 class User(AbstractUser):
     role = models.CharField(
-        max_length=10, choices=Role.choices, default=Role.PATIENT
+        max_length=20, choices=Role.choices, default=Role.PATIENT
     )
     phone = models.CharField(max_length=20, blank=True)
     email_verified = models.BooleanField(default=False)
@@ -26,8 +27,12 @@ class User(AbstractUser):
     deleted_at = models.DateTimeField(null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.role == Role.ADMIN:
-            self.is_staff = True
+        # Django Admin dựa trên ``is_staff``; luôn đồng bộ hai chiều để tài khoản
+        # bị hạ khỏi admin (đặc biệt sang lễ tân) không giữ quyền quản trị cũ.
+        # Superuser chuẩn của Django luôn được chuẩn hoá về vai trò admin.
+        if self.is_superuser:
+            self.role = Role.ADMIN
+        self.is_staff = self.role == Role.ADMIN
         super().save(*args, **kwargs)
 
     @property
@@ -257,7 +262,7 @@ class RoleRequest(models.Model):
         REJECTED = "rejected", "Đã từ chối"
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="role_requests")
-    requested_role = models.CharField(max_length=10, choices=Role.choices)
+    requested_role = models.CharField(max_length=20, choices=Role.choices)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
 
     # Thông tin người đăng ký khai để admin có căn cứ duyệt

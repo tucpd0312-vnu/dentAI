@@ -83,9 +83,14 @@ class CaseShareListCreateView(APIView):
         if not user_id:
             return _bad("Thiếu người nhận (user_id).")
 
-        recipient = User.objects.filter(pk=user_id, is_active=True, is_deleted=False).first()
+        recipient = User.objects.filter(
+            pk=user_id,
+            is_active=True,
+            is_deleted=False,
+            role__in=(Role.ADMIN, Role.DOCTOR, Role.PATIENT),
+        ).first()
         if not recipient:
-            return _bad("Không tìm thấy tài khoản người nhận.")
+            return _bad("Không tìm thấy tài khoản người nhận phù hợp.")
         if recipient.pk == request.user.pk:
             return _bad("Bạn không cần chia sẻ ca cho chính mình.")
         if recipient.pk == case.created_by_id:

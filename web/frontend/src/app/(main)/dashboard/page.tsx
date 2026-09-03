@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { ROLE_LABEL, type AuthUser, type Role } from '@/lib/auth';
 import {
@@ -12,6 +12,14 @@ import {
   type DashboardData,
 } from '@/lib/dashboard';
 import { useAuth } from '@/components/providers/AuthProvider';
+import {
+  ASSIGNMENT_WORKBOOK_ACCEPT,
+  ASSIGNMENT_WORKBOOK_MAX_SIZE,
+  assignmentUploadError,
+  fetchLatestAssignmentWorkbook,
+  uploadAssignmentWorkbook,
+  type AssignmentWorkbook,
+} from '@/lib/reception';
 
 const MGI_LEVELS = ['0', '1', '2', '3', '4'];
 
@@ -304,6 +312,193 @@ function RoleRequestBanner({
   );
 }
 
+function ReceptionistDashboard({ user }: { user: AuthUser | null }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [latestWorkbook, setLatestWorkbook] = useState<AssignmentWorkbook | null>(null);
+  const [isLoadingWorkbook, setIsLoadingWorkbook] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchLatestAssignmentWorkbook()
+      .then(setLatestWorkbook)
+      .catch(error => setUploadError(assignmentUploadError(error)))
+      .finally(() => setIsLoadingWorkbook(false));
+  }, []);
+
+  async function handleFileSelected(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setUploadError(null);
+    setUploadSuccess(null);
+    const extension = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+    if (!['.xlsx', '.xls'].includes(extension)) {
+      setUploadError('Chỉ chấp nhận file Excel có định dạng .xlsx hoặc .xls.');
+      return;
+    }
+    if (file.size === 0) {
+      setUploadError('File tải lên đang trống.');
+      return;
+    }
+    if (file.size > ASSIGNMENT_WORKBOOK_MAX_SIZE) {
+      setUploadError('File Excel không được vượt quá 10 MB.');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const uploaded = await uploadAssignmentWorkbook(file);
+      setLatestWorkbook(uploaded);
+      setUploadSuccess(`Đã tải lên “${uploaded.original_filename}” thành công.`);
+    } catch (error) {
+      setUploadError(assignmentUploadError(error));
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
+  function formatFileSize(bytes: number) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  return (
+    <div className="mx-auto max-w-5xl space-y-5">
+      <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-teal-600 via-primary to-primary-700 px-6 py-7 text-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-5">
+          <div>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white/90">
+              <span className="material-symbols-outlined text-[16px]">support_agent</span>
+              Không gian làm việc Lễ tân
+            </span>
+            <h1 className="mt-3 font-serif text-2xl font-semibold">
+              Xin chào, {user?.full_name || user?.username}
+            </h1>
+            <p className="mt-1 max-w-xl text-sm leading-relaxed text-white/80">
+              Tài khoản của bạn đã sẵn sàng. Trong giai đoạn hiện tại, vai trò Lễ tân
+              chỉ sử dụng trang Tổng quan.
+            </p>
+          </div>
+          <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15">
+            <span className="material-symbols-outlined text-[34px]">space_dashboard</span>
+          </span>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard icon="badge" label="Vai trò hiện tại" value="Lễ tân" tone="green" />
+        <StatCard icon="dashboard" label="Khu vực khả dụng" value="Tổng quan" />
+        <StatCard icon="notifications" label="Trung tâm thông báo" value="Đang hoạt động" />
+      </div>
+
+      <Section title="File Excel phân công">
+        <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="rounded-xl border border-dashed border-primary/35 bg-primary-50/40 p-5">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={ASSIGNMENT_WORKBOOK_ACCEPT}
+              className="hidden"
+              onChange={handleFileSelected}
+            />
+            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-primary shadow-sm">
+                <span className="material-symbols-outlined text-[27px]">upload_file</span>
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-gray-900">
+                  Tải lịch phân công từ máy tính
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                  Hỗ trợ .xlsx và .xls, tối đa 10 MB. Mỗi lần tải lên được lưu thành một
+                  phiên bản mới.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={isUploading}
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span
+                  className={`material-symbols-outlined text-[19px] ${
+                    isUploading ? 'animate-spin' : ''
+                  }`}
+                >
+                  {isUploading ? 'autorenew' : 'upload'}
+                </span>
+                {isUploading ? 'Đang tải lên...' : 'Tải file Excel lên'}
+              </button>
+            </div>
+
+            {uploadError && (
+              <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+                <span className="material-symbols-outlined mt-0.5 text-[18px]">error</span>
+                <span>{uploadError}</span>
+              </div>
+            )}
+            {uploadSuccess && (
+              <div className="mt-4 flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-700">
+                <span className="material-symbols-outlined mt-0.5 text-[18px]">
+                  check_circle
+                </span>
+                <span>{uploadSuccess}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
+            <div className="flex items-center gap-2 text-gray-700">
+              <span className="material-symbols-outlined text-[20px]">description</span>
+              <p className="text-sm font-semibold">File gần nhất</p>
+            </div>
+            {isLoadingWorkbook ? (
+              <div className="mt-5 flex items-center gap-2 text-sm text-gray-400">
+                <span className="material-symbols-outlined animate-spin text-[19px]">
+                  autorenew
+                </span>
+                Đang kiểm tra...
+              </div>
+            ) : latestWorkbook ? (
+              <div className="mt-4 min-w-0">
+                <p className="truncate text-sm font-medium text-gray-900" title={latestWorkbook.original_filename}>
+                  {latestWorkbook.original_filename}
+                </p>
+                <p className="mt-1 text-xs text-gray-500">
+                  {formatFileSize(latestWorkbook.file_size)} · Tải lúc{' '}
+                  {new Date(latestWorkbook.created_at).toLocaleString('vi-VN')}
+                </p>
+                <span className="mt-3 inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700">
+                  <span className="material-symbols-outlined text-[15px]">cloud_done</span>
+                  Đã lưu an toàn
+                </span>
+              </div>
+            ) : (
+              <p className="mt-4 text-sm leading-relaxed text-gray-500">
+                Bạn chưa tải file phân công nào lên hệ thống.
+              </p>
+            )}
+          </div>
+        </div>
+      </Section>
+
+      <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <span className="material-symbols-outlined mt-0.5 shrink-0 text-[20px]">
+          construction
+        </span>
+        <p>
+          Giao diện lịch, bảng làm việc và chức năng chỉnh sửa dữ liệu Excel sẽ được phát
+          triển ở giai đoạn tiếp theo. Hiện tại hệ thống chỉ tiếp nhận và lưu phiên bản file.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ── Trang ────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -334,6 +529,10 @@ export default function DashboardPage() {
         </span>
       </div>
     );
+  }
+
+  if (data.scope === 'receptionist') {
+    return <ReceptionistDashboard user={user} />;
   }
 
   const { cases, scans, library, mgi, users, activity } = data;

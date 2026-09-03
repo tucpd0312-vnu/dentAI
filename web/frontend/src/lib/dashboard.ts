@@ -30,7 +30,7 @@ export interface DashboardStorageModule {
 
 export type LogCategory = 'admin' | 'auth' | 'business' | 'error';
 
-export interface DashboardData {
+export interface OperationalDashboardData {
   scope: 'all' | 'own';
   cases: DashboardCases;
   scans: DashboardStorageModule;
@@ -41,6 +41,13 @@ export interface DashboardData {
   users?: DashboardUsers;
   activity?: { last_7d_by_category: Record<LogCategory, number> };
 }
+
+export interface ReceptionistDashboardData {
+  scope: 'receptionist';
+  available_modules: ['dashboard'];
+}
+
+export type DashboardData = OperationalDashboardData | ReceptionistDashboardData;
 
 export async function fetchDashboard(): Promise<DashboardData> {
   const res = await api.get<DashboardData>('/dashboard/');

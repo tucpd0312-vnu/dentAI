@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     "apps.dashboard",
     "apps.scans",
     "apps.library",
+    "apps.reception",
 ]
 
 AUTH_USER_MODEL = "users.User"
@@ -112,6 +113,16 @@ LIBRARY_UPLOAD_CHUNK_SIZE = int(
 # vào kho; 2GB đủ cho một chuỗi CBCT đầy đủ (§J câu 6).
 LIBRARY_MAX_ASSET_SIZE = int(
     os.environ.get("LIBRARY_MAX_ASSET_SIZE", 2 * 1024 * 1024 * 1024)
+)
+
+# ── Reception (lịch phân công lễ tân) ────────────────────────────────────────
+# File Excel có thể chứa thông tin vận hành nội bộ nên cũng phải nằm ngoài
+# MEDIA_ROOT. Chỉ API đã xác thực mới được phép ghi/đọc metadata của file.
+RECEPTION_ASSIGNMENTS_ROOT = os.environ.get(
+    "RECEPTION_ASSIGNMENTS_ROOT", str(BASE_DIR / "reception_assignments_storage")
+)
+RECEPTION_ASSIGNMENT_MAX_SIZE = int(
+    os.environ.get("RECEPTION_ASSIGNMENT_MAX_SIZE", 10 * 1024 * 1024)
 )
 
 # View nhận chunk đọc `request.body` thô (không multipart) — Django chặn theo

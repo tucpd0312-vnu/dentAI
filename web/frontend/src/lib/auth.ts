@@ -2,7 +2,7 @@ import api from "./api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type Role = "admin" | "doctor" | "patient";
+export type Role = "admin" | "doctor" | "patient" | "receptionist";
 
 export interface AuthUser {
   id: number;
@@ -50,6 +50,7 @@ export const ROLE_LABEL: Record<Role, string> = {
   admin: 'Quản trị viên',
   doctor: 'Bác sĩ',
   patient: 'Bệnh nhân',
+  receptionist: 'Lễ tân',
 };
 
 export interface AuthTokens {

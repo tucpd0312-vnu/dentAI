@@ -21,6 +21,12 @@ class DashboardScopeTests(TestCase):
         self.patient_user = User.objects.create_user(
             "dashboard-patient", "dashboard-patient@example.test", "pw", role=Role.PATIENT
         )
+        self.receptionist = User.objects.create_user(
+            "dashboard-receptionist",
+            "dashboard-receptionist@example.test",
+            "pw",
+            role=Role.RECEPTIONIST,
+        )
         self.patient = Patient.objects.create(name="BN Dashboard", patient_code="DASH-001")
         category = DataCategory.objects.get(slug="viem-loi")
 
@@ -111,3 +117,20 @@ class DashboardScopeTests(TestCase):
         self.assertEqual(response.data["scans"]["total"], 2)
         self.assertEqual(response.data["library"]["total"], 2)
         self.assertIn("users", response.data)
+
+    def test_receptionist_dashboard_never_returns_clinical_data(self):
+        # Kể cả một quyền chia sẻ cũ còn tồn tại, dashboard lễ tân không được
+        # truy vấn/trả ca, phim, kho dữ liệu hoặc thông tin bệnh nhân.
+        CaseShare.objects.create(
+            case=self.shared_case,
+            shared_with=self.receptionist,
+            shared_by=self.other,
+        )
+
+        response = self.get_dashboard(self.receptionist)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data,
+            {"scope": "receptionist", "available_modules": ["dashboard"]},
+        )

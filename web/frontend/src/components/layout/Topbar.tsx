@@ -113,14 +113,16 @@ export default function Topbar() {
                   </span>
                 </div>
 
-                <a
-                  href="/settings/"
-                  role="menuitem"
-                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-50"
-                >
-                  <span className="material-symbols-outlined text-[18px] text-gray-400">person</span>
-                  Hồ sơ &amp; đổi mật khẩu
-                </a>
+                {user.role !== 'receptionist' && (
+                  <a
+                    href="/settings/"
+                    role="menuitem"
+                    className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-50"
+                  >
+                    <span className="material-symbols-outlined text-[18px] text-gray-400">person</span>
+                    Hồ sơ &amp; đổi mật khẩu
+                  </a>
+                )}
 
                 <button
                   onClick={handleLogout}

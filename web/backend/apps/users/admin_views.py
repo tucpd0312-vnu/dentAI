@@ -1,7 +1,8 @@
 """API quản trị người dùng + lịch sử hệ thống + tìm người nhận chia sẻ.
 
 Toàn bộ view ở đây là `IsAdmin`, TRỪ `UserSearchView` (mọi tài khoản hợp lệ, vì ai
-cũng cần tìm người để chia sẻ ca).
+cũng cần tìm người để chia sẻ ca). Tài khoản lễ tân bị loại khỏi tìm kiếm trong
+giai đoạn chưa được cấp quyền vào các module nghiệp vụ.
 """
 from datetime import timedelta
 
@@ -128,6 +129,8 @@ class UserDetailView(APIView):
             return _bad("Bạn không thể tự thay đổi vai trò của chính mình.")
         if is_self and new_active is False:
             return _bad("Bạn không thể tự khoá tài khoản của chính mình.")
+        if user.is_superuser and new_role is not None and new_role != Role.ADMIN:
+            return _bad("Không thể hạ vai trò của tài khoản superuser.")
 
         demoting = new_role is not None and new_role != Role.ADMIN and user.role == Role.ADMIN
         locking = new_active is False and user.is_active
@@ -145,6 +148,8 @@ class UserDetailView(APIView):
         # Hạ role xuống patient ⇒ mọi quyền chia sẻ 'edit' đang có phải hạ về 'view'
         # (bệnh nhân không được sửa nhãn — xem apps/cases/access.can_edit_case).
         downgraded = 0
+        revoked_case_shares = 0
+        revoked_library_shares = 0
         if updated.role == Role.PATIENT:
             from apps.cases.models import CaseShare
             from apps.scans.models import ScanShare
@@ -156,6 +161,21 @@ class UserDetailView(APIView):
             # Thu hồi hoàn toàn để việc nâng vai trò về sau không làm sống lại quyền cũ.
             revoked_scan_shares = ScanShare.objects.filter(shared_with=updated).count()
             ScanShare.objects.filter(shared_with=updated).delete()
+        elif updated.role == Role.RECEPTIONIST:
+            from apps.cases.models import CaseShare
+            from apps.library.models import DataAssetShare
+            from apps.scans.models import ScanShare
+
+            # Lễ tân giai đoạn đầu không có module dữ liệu. Xoá quyền chia sẻ cũ
+            # để chúng không tự sống lại nếu tài khoản được đổi vai trò về sau.
+            revoked_case_shares = CaseShare.objects.filter(shared_with=updated).count()
+            revoked_scan_shares = ScanShare.objects.filter(shared_with=updated).count()
+            revoked_library_shares = DataAssetShare.objects.filter(
+                shared_with=updated
+            ).count()
+            CaseShare.objects.filter(shared_with=updated).delete()
+            ScanShare.objects.filter(shared_with=updated).delete()
+            DataAssetShare.objects.filter(shared_with=updated).delete()
         else:
             revoked_scan_shares = 0
 
@@ -172,14 +192,27 @@ class UserDetailView(APIView):
 
         if downgraded:
             changes["shares_downgraded_to_view"] = downgraded
+        if revoked_case_shares:
+            changes["case_shares_revoked"] = revoked_case_shares
         if revoked_scan_shares:
             changes["scan_shares_revoked"] = revoked_scan_shares
+        if revoked_library_shares:
+            changes["library_shares_revoked"] = revoked_library_shares
 
         log_activity(
             LogCategory.ADMIN, action,
             actor=request.user, request=request, target_user=updated,
             detail=changes,
         )
+        if before["role"] != after["role"]:
+            notify_user(
+                updated,
+                kind=Notification.Kind.ROLE,
+                level=Notification.Level.SUCCESS,
+                title="Vai trò tài khoản đã thay đổi",
+                message=f"Quản trị viên đã đổi vai trò của bạn thành {updated.get_role_display()}.",
+                link="/dashboard/",
+            )
         return Response(AdminUserSerializer(self._get(pk)).data)
 
     def delete(self, request, pk):
@@ -225,10 +258,10 @@ class UserRestoreView(APIView):
 
 
 class UserSearchView(APIView):
-    """Autocomplete chọn người nhận chia sẻ — mọi tài khoản hợp lệ đều gọi được.
+    """Autocomplete chọn người nhận chia sẻ — tài khoản nghiệp vụ hợp lệ gọi được.
 
     Ràng buộc chống lạm dụng: bắt buộc ≥2 ký tự, tối đa 10 kết quả, email che một
-    phần, loại chính mình và các tài khoản đã khoá/xoá.
+    phần, loại chính mình, lễ tân và các tài khoản đã khoá/xoá.
     """
 
     permission_classes = [IsActiveUser]
@@ -242,6 +275,7 @@ class UserSearchView(APIView):
 
         qs = (
             User.objects.filter(is_active=True, is_deleted=False)
+            .exclude(role=Role.RECEPTIONIST)
             .exclude(pk=request.user.pk)
             .filter(
                 Q(username__icontains=q) | Q(email__icontains=q)

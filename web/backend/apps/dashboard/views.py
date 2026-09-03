@@ -4,7 +4,8 @@ Gộp một request thay vì nhiều để trang không phải chờ nhiều vò
 
 MỌI số liệu về ca đều đi qua `scoped_cases()`: bác sĩ/bệnh nhân chỉ thấy thống kê
 của ca mình (+ ca được chia sẻ), admin thấy toàn hệ thống. Khối `users` và
-`activity` chỉ có trong response của admin.
+`activity` chỉ có trong response của admin. Lễ tân nhận response tối thiểu, không
+truy vấn hoặc trả dữ liệu lâm sàng trong giai đoạn đầu.
 """
 from datetime import timedelta
 
@@ -36,9 +37,18 @@ def _counts(qs, field, choices):
 
 class DashboardView(APIView):
     permission_classes = [IsActiveUser]
+    allow_receptionist = True
 
     def get(self, request):
         user = request.user
+        if user.role == Role.RECEPTIONIST:
+            # Không truy vấn ca, phim, kho dữ liệu hoặc thông tin bệnh nhân. Khi
+            # nghiệp vụ lễ tân được bổ sung, response này có thể mở rộng độc lập.
+            return Response({
+                "scope": "receptionist",
+                "available_modules": ["dashboard"],
+            })
+
         is_admin = user.role == Role.ADMIN
         cases = scoped_cases(user)
         scans = scoped_scans(user)

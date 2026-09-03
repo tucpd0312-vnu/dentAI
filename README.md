@@ -98,10 +98,9 @@ Worker web gọi các thành phần pipeline qua `tasks.py`, không chạy trự
 
 ## 2. Ứng dụng web (`web/`)
 
-Ứng dụng có ba vai trò: **quản trị viên (admin)**, **bác sĩ (doctor)** và
-**bệnh nhân (patient)**. Sidebar gom Chẩn đoán viêm lợi, RNNHT 3D và Mảng bám vào
-**AI hỗ trợ chẩn đoán lâm sàng**. **Kho dữ liệu** và **Trò chuyện** là hai mục lớn
-độc lập, hiển thị cho mọi vai trò; nhóm **Lưu trữ** cũ đã được bỏ.
+Ứng dụng có bốn vai trò: **quản trị viên (admin)**, **bác sĩ (doctor)**,
+**bệnh nhân (patient)** và **lễ tân (receptionist)**. Ba vai trò đầu sử dụng các
+module theo quyền; lễ tân hiện dùng Tổng quan để tải file Excel phân công.
 
 ### 2.1. Tech stack
 
@@ -126,10 +125,12 @@ web/
 │   │   ├── cases/        # ca viêm lợi, kết quả, chia sẻ, export
 │   │   ├── scans/        # phim CBCT, chia sẻ, phân vùng
 │   │   ├── library/      # kho dữ liệu, import và dùng dữ liệu để chẩn đoán
+│   │   ├── reception/    # file Excel phân công của lễ tân
 │   │   ├── common/       # tiện ích dùng chung
 │   │   └── settings_app/
 │   ├── scans_storage/    # phim CBCT; truy cập qua API có kiểm tra quyền
-│   └── library_storage/  # tư liệu trong kho; truy cập qua API có kiểm tra quyền
+│   ├── library_storage/  # tư liệu trong kho; truy cập qua API có kiểm tra quyền
+│   └── reception_assignments_storage/ # file phân công riêng tư
 ├── media/                # ảnh gốc, ảnh chú thích và file xuất của ca viêm lợi
 ├── slicer_bridge/        # cầu nối giao thức dentai://
 └── docker-compose.yml
@@ -152,6 +153,8 @@ web/
   Đăng nhập/đăng ký có nút hiện mật khẩu; quên mật khẩu dùng OTP để đặt lại.
 - Người đăng ký làm bác sĩ vẫn có vai trò bệnh nhân trong lúc chờ admin phê duyệt.
   Phê duyệt đổi vai trò, không đổi mật khẩu.
+- Tài khoản lễ tân do admin tạo. Lễ tân chỉ vào Tổng quan, nhận thông báo và tải
+  file phân công `.xlsx`/`.xls` tối đa 10 MB; mỗi lần tải được giữ thành một phiên bản.
 - Kho dữ liệu dùng được với mọi vai trò. Người dùng thường chỉ thấy dữ liệu của mình
   hoặc được chia sẻ; admin có quyền xem toàn hệ thống.
 - Mọi vai trò được dùng các luồng AI hiện có. Bệnh nhân tạo ca/phim và xem lại kết quả
@@ -218,7 +221,7 @@ Thông tin bệnh nhân trên tư liệu được chia sẻ được ẩn với 
 | Route | Chức năng |
 |---|---|
 | `/login`, `/register`, `/verify-otp`, `/forgot-password` | Đăng nhập, đăng ký, xác thực, đặt lại mật khẩu |
-| `/dashboard` | Tổng quan theo quyền của tài khoản |
+| `/dashboard` | Tổng quan theo quyền; lễ tân tải và xem metadata file phân công mới nhất |
 | `/gingivitis` | Quản lý phim/ca viêm lợi |
 | `/analysis/new` | Tạo ca từ máy hoặc kho dữ liệu |
 | `/analysis/[caseId]/processing` | Theo dõi xử lý |
@@ -246,6 +249,7 @@ Các đường dẫn dưới đây dùng tiền tố `/api/`. API nghiệp vụ 
 | Tài khoản | `POST auth/forgot-password/`, `auth/reset-password/`; `GET auth/me/` | Đặt lại mật khẩu, đọc tài khoản |
 | Quản trị | `GET/POST users/`; `GET role-requests/`; `POST role-requests/{id}/approve/` hoặc `role-requests/{id}/reject/` | Quản lý người dùng và duyệt bác sĩ |
 | Tổng quan | `GET dashboard/`, `GET activity-logs/` | Thống kê và nhật ký theo quyền |
+| Lễ tân | `POST reception/assignments/`; `GET reception/assignments/latest/` | Tải Excel và đọc metadata phiên bản mới nhất của chính tài khoản |
 | Viêm lợi | `GET/POST cases/`; `POST cases/from-library/` | Danh sách, tạo ca từ máy/kho |
 | Viêm lợi | `GET cases/{id}/status/`; `GET/PATCH cases/{id}/images/{image_index}/` | Theo dõi, đọc kết quả, sửa mô tả |
 | Nhãn | `POST cases/{id}/images/{image_index}/detections/`; `PATCH/DELETE detections/{id}/` | Thêm/sửa/xoá box |
@@ -274,6 +278,7 @@ Các đường dẫn dưới đây dùng tiền tố `/api/`. API nghiệp vụ 
 | `CaseShare`, `ScanShare` | Người nhận và quyền xem/sửa ca/phim |
 | `Scan`, `Segmentation`, `ScanAccessToken` | Phim CBCT, kết quả phân vùng và token tải ngắn hạn |
 | `DataCategory`, `DataAsset`, `DataAssetShare` | Phân loại, file + metadata, nguồn gốc/biến thể ảnh và quyền truy cập kho |
+| `AssignmentWorkbook` | Lịch sử file Excel phân công theo tài khoản lễ tân |
 
 ---
 
@@ -393,7 +398,7 @@ Giá trị dưới đây mô tả cấu hình Compose đi kèm; đường dẫn 
 | `DATABASE_URL` | Compose kết nối `db:5432`; worker host dùng `localhost:5432`, cùng thông tin DB |
 | `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND` | Compose: `redis://redis:6379/0`; host: `redis://localhost:6380/0` |
 | `MEDIA_ROOT` | Compose: `/app/media`; host: đường dẫn tuyệt đối tới `web/media` |
-| `SCANS_ROOT`, `LIBRARY_ROOT` | Compose: `/app/scans_storage`, `/app/library_storage`, nằm ngoài media công khai |
+| `SCANS_ROOT`, `LIBRARY_ROOT`, `RECEPTION_ASSIGNMENTS_ROOT` | Các vùng lưu file riêng tư ngoài media công khai |
 | `INFERENCES_DIR`, `YOLOV9_DIR` | Worker Docker: `/inferences`, `/yolov9`; host: đường dẫn tương ứng trong repo |
 | `INFERENCE_DEVICE` | `cpu` hoặc số GPU; mặc định Django là `cpu`, worker Docker đặt `0` |
 | `CAPTION_MODE` | `auto` (mặc định, T5 hoặc luật), `rule` (chỉ luật), `t5` (bắt buộc T5) |
@@ -446,7 +451,8 @@ docker compose down
   Worker Docker: cập nhật với `docker compose --profile worker-docker up -d --build worker`.
 - `docker compose down` giữ named volume. Không thêm `-v` để sửa lỗi thông thường:
   tuỳ chọn này xoá volume DB/Redis. Sao lưu DB cùng `web/media`,
-  `web/backend/scans_storage` và `web/backend/library_storage` trước thao tác ảnh hưởng dữ liệu.
+  `web/backend/scans_storage`, `web/backend/library_storage` và
+  `web/backend/reception_assignments_storage` trước thao tác ảnh hưởng dữ liệu.
 
 ### 3.7. Xử lý sự cố
 

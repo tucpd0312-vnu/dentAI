@@ -31,6 +31,7 @@ interface AuthContextValue {
   isAdmin: boolean;
   isDoctor: boolean;
   isPatient: boolean;
+  isReceptionist: boolean;
   /** Bác sĩ và quản trị viên mới được sửa nhãn (nhãn sửa feed vào FALC). */
   canEditLabels: boolean;
 }
@@ -111,6 +112,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     isAdmin: role === 'admin',
     isDoctor: role === 'doctor',
     isPatient: role === 'patient',
+    isReceptionist: role === 'receptionist',
     canEditLabels: role === 'admin' || role === 'doctor',
   };
 

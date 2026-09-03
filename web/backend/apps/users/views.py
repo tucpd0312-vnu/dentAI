@@ -314,6 +314,7 @@ class RefreshView(APIView):
 
 class MeView(APIView):
     permission_classes = [IsActiveUser]
+    allow_receptionist = True
 
     def get(self, request):
         return Response(UserSerializer(request.user).data)
@@ -327,6 +328,7 @@ class MeView(APIView):
 
 class ChangePasswordView(APIView):
     permission_classes = [IsActiveUser]
+    allow_receptionist = True
 
     def post(self, request):
         ser = ChangePasswordSerializer(data=request.data, context={"request": request})
@@ -344,6 +346,7 @@ class NotificationListView(APIView):
     """Danh sách thông báo của chính người gọi, dùng chung cho mọi vai trò."""
 
     permission_classes = [IsActiveUser]
+    allow_receptionist = True
 
     def get(self, request):
         try:
@@ -360,6 +363,7 @@ class NotificationListView(APIView):
 
 class NotificationReadView(APIView):
     permission_classes = [IsActiveUser]
+    allow_receptionist = True
 
     def patch(self, request, pk):
         notification = Notification.objects.filter(
@@ -375,6 +379,7 @@ class NotificationReadView(APIView):
 
 class NotificationReadAllView(APIView):
     permission_classes = [IsActiveUser]
+    allow_receptionist = True
 
     def post(self, request):
         updated = Notification.objects.filter(

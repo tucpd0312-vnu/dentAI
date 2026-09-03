@@ -4,7 +4,9 @@ from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.cases.access import can_edit_case
-from apps.cases.models import Case, Image, Patient
+from apps.cases.models import Case, CaseShare, Image, Patient
+from apps.library.models import DataAsset, DataAssetShare, DataCategory
+from apps.scans.models import Scan, ScanShare
 
 from .models import EmailOTP, Notification, Role, RoleRequest, User
 from .notifications import notify_user
@@ -209,6 +211,7 @@ class NotificationApiTests(APITestCase):
             self.make_user("notif-admin", Role.ADMIN),
             self.make_user("notif-doctor", Role.DOCTOR),
             self.make_user("notif-patient", Role.PATIENT),
+            self.make_user("notif-receptionist", Role.RECEPTIONIST),
         ]
         for user in users:
             notify_user(
@@ -267,3 +270,160 @@ class NotificationApiTests(APITestCase):
         notification = Notification.objects.get(recipient=recipient)
         self.assertEqual(notification.kind, Notification.Kind.SHARE)
         self.assertEqual(notification.link, "/history/")
+
+
+class ReceptionistAccessTests(APITestCase):
+    def setUp(self):
+        self.receptionist = User.objects.create_user(
+            username="front-desk",
+            email="front-desk@example.test",
+            password="Reception123",
+            role=Role.RECEPTIONIST,
+            is_active=True,
+            email_verified=True,
+        )
+
+    def test_receptionist_keeps_account_dashboard_and_notification_access(self):
+        self.client.force_authenticate(user=self.receptionist)
+
+        for path in (
+            "/api/auth/me/",
+            "/api/auth/notifications/",
+            "/api/dashboard/",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(self.client.get(path).status_code, status.HTTP_200_OK)
+
+    def test_receptionist_is_denied_every_operational_module(self):
+        self.client.force_authenticate(user=self.receptionist)
+
+        for path in (
+            "/api/cases/",
+            "/api/scans/",
+            "/api/library/assets/",
+            "/api/settings/",
+            "/api/users/search/?q=doctor",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(
+                    self.client.get(path).status_code,
+                    status.HTTP_403_FORBIDDEN,
+                )
+
+    def test_public_registration_cannot_request_receptionist_role(self):
+        response = self.client.post(
+            "/api/auth/register/",
+            {
+                "username": "self-registered-receptionist",
+                "email": "self-reception@example.test",
+                "password": "Reception123",
+                "confirm_password": "Reception123",
+                "requested_role": Role.RECEPTIONIST,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("requested_role", response.data)
+
+    def test_admin_can_create_receptionist_and_search_hides_it(self):
+        admin = User.objects.create_user(
+            username="reception-admin",
+            email="reception-admin@example.test",
+            password="AdminPass123",
+            role=Role.ADMIN,
+            is_active=True,
+            email_verified=True,
+        )
+        self.client.force_authenticate(user=admin)
+        response = self.client.post(
+            "/api/users/",
+            {
+                "username": "second-front-desk",
+                "email": "second-front-desk@example.test",
+                "password": "Reception123",
+                "role": Role.RECEPTIONIST,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data["role"], Role.RECEPTIONIST)
+        self.assertFalse(User.objects.get(pk=response.data["id"]).is_staff)
+
+        doctor = User.objects.create_user(
+            username="searching-doctor",
+            email="searching-doctor@example.test",
+            password="DoctorPass123",
+            role=Role.DOCTOR,
+            is_active=True,
+            email_verified=True,
+        )
+        self.client.force_authenticate(user=doctor)
+        search = self.client.get("/api/users/search/?q=front")
+        self.assertEqual(search.status_code, status.HTTP_200_OK)
+        self.assertEqual(search.data, [])
+
+    def test_changing_user_to_receptionist_revokes_existing_shares(self):
+        admin = User.objects.create_user(
+            "role-admin",
+            "role-admin@example.test",
+            "AdminPass123",
+            role=Role.ADMIN,
+        )
+        owner = User.objects.create_user(
+            "role-owner",
+            "role-owner@example.test",
+            "OwnerPass123",
+            role=Role.DOCTOR,
+        )
+        recipient = User.objects.create_user(
+            "role-recipient",
+            "role-recipient@example.test",
+            "Recipient123",
+            role=Role.ADMIN,
+        )
+        self.assertTrue(recipient.is_staff)
+        patient = Patient.objects.create(name="BN phân quyền", patient_code="ROLE-001")
+        case = Case.objects.create(patient=patient, created_by=owner)
+        scan = Scan.objects.create(patient=patient, uploaded_by=owner)
+        category = DataCategory.objects.get(slug="viem-loi")
+        asset = DataAsset.objects.create(
+            title="Dữ liệu phân quyền",
+            category=category,
+            data_type=DataAsset.DataType.INTRAORAL,
+            uploaded_by=owner,
+        )
+        CaseShare.objects.create(
+            case=case,
+            shared_with=recipient,
+            shared_by=owner,
+            permission=CaseShare.Permission.EDIT,
+        )
+        ScanShare.objects.create(
+            scan=scan,
+            shared_with=recipient,
+            shared_by=owner,
+            permission=ScanShare.Permission.EDIT,
+        )
+        DataAssetShare.objects.create(
+            asset=asset,
+            shared_with=recipient,
+            shared_by=owner,
+            permission=DataAssetShare.Permission.EDIT,
+        )
+
+        self.client.force_authenticate(user=admin)
+        response = self.client.patch(
+            f"/api/users/{recipient.pk}/",
+            {"role": Role.RECEPTIONIST},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data["role"], Role.RECEPTIONIST)
+        recipient.refresh_from_db()
+        self.assertFalse(recipient.is_staff)
+        self.assertFalse(CaseShare.objects.filter(shared_with=recipient).exists())
+        self.assertFalse(ScanShare.objects.filter(shared_with=recipient).exists())
+        self.assertFalse(DataAssetShare.objects.filter(shared_with=recipient).exists())
