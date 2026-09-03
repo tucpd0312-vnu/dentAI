@@ -452,7 +452,7 @@ class SourceImportTests(LibraryTestCase):
         self.assertEqual(DataAsset.objects.filter(source_image=self.image).count(), 1)
         enqueue.assert_not_called()
 
-    def test_recipient_of_shared_case_cannot_copy_it_to_library(self):
+    def test_doctor_with_edit_share_copies_case_to_own_library(self):
         from apps.cases.models import CaseShare
 
         CaseShare.objects.create(
@@ -461,12 +461,61 @@ class SourceImportTests(LibraryTestCase):
             shared_by=self.doctor,
             permission=CaseShare.Permission.EDIT,
         )
+        with mock.patch("apps.library.views.process_asset_task.apply_async"):
+            res = self.client_for(self.other_doctor).post(
+                f"/api/library/imports/cases/{self.case.pk}/images/0/",
+                {"variant": "original"},
+                format="json",
+            )
+
+        self.assertEqual(res.status_code, 201, res.data)
+        asset = DataAsset.objects.get(pk=res.data["asset"]["id"])
+        self.assertEqual(asset.uploaded_by, self.other_doctor)
+        self.assertEqual(asset.source_image, self.image)
+        self.assertEqual(res.data["asset"]["permission"], "owner")
+        self.assertNotEqual(asset.file_path, self.original_path)
+
+    def test_patient_with_view_share_copies_case_to_own_library(self):
+        from apps.cases.models import CaseShare
+
+        CaseShare.objects.create(
+            case=self.case,
+            shared_with=self.patient,
+            shared_by=self.doctor,
+            permission=CaseShare.Permission.VIEW,
+        )
+        with mock.patch("apps.library.views.process_asset_task.apply_async"):
+            res = self.client_for(self.patient).post(
+                f"/api/library/imports/cases/{self.case.pk}/images/0/",
+                {"variant": "original"},
+                format="json",
+            )
+
+        self.assertEqual(res.status_code, 201, res.data)
+        asset = DataAsset.objects.get(pk=res.data["asset"]["id"])
+        self.assertEqual(asset.uploaded_by, self.patient)
+        self.assertEqual(res.data["asset"]["permission"], "owner")
+
+    def test_unshared_user_cannot_copy_case_to_library(self):
         res = self.client_for(self.other_doctor).post(
             f"/api/library/imports/cases/{self.case.pk}/images/0/",
             {"variant": "original"},
             format="json",
         )
-        self.assertEqual(res.status_code, 403)
+        self.assertEqual(res.status_code, 404)
+
+    def test_admin_copies_visible_case_to_own_library(self):
+        with mock.patch("apps.library.views.process_asset_task.apply_async"):
+            res = self.client_for(self.admin).post(
+                f"/api/library/imports/cases/{self.case.pk}/images/0/",
+                {"variant": "original"},
+                format="json",
+            )
+
+        self.assertEqual(res.status_code, 201, res.data)
+        asset = DataAsset.objects.get(pk=res.data["asset"]["id"])
+        self.assertEqual(asset.uploaded_by, self.admin)
+        self.assertEqual(res.data["asset"]["permission"], "admin")
 
     def test_annotated_variant_requires_annotated_file(self):
         self.image.annotated_path = ""
@@ -521,7 +570,7 @@ class SourceImportTests(LibraryTestCase):
         self.assertNotEqual(asset.file_path, self.scan_path)
         enqueue.assert_called_once_with(args=[asset.pk], queue="scans")
 
-    def test_shared_scan_recipient_cannot_import_to_library(self):
+    def test_shared_scan_recipient_imports_to_own_library(self):
         from apps.scans.models import ScanShare
 
         ScanShare.objects.create(
@@ -530,9 +579,139 @@ class SourceImportTests(LibraryTestCase):
             shared_by=self.doctor,
             permission=ScanShare.Permission.EDIT,
         )
+        with mock.patch("apps.library.views.process_asset_task.apply_async"):
+            res = self.client_for(self.other_doctor).post(
+                f"/api/library/imports/scans/{self.scan.pk}/",
+                {},
+                format="json",
+            )
+
+        self.assertEqual(res.status_code, 201, res.data)
+        asset = DataAsset.objects.get(pk=res.data["asset"]["id"])
+        self.assertEqual(asset.uploaded_by, self.other_doctor)
+        self.assertEqual(asset.source_scan, self.scan)
+        self.assertEqual(res.data["asset"]["permission"], "owner")
+
+    def test_unshared_user_cannot_import_scan_to_library(self):
         res = self.client_for(self.other_doctor).post(
             f"/api/library/imports/scans/{self.scan.pk}/",
             {},
             format="json",
         )
-        self.assertEqual(res.status_code, 403)
+        self.assertEqual(res.status_code, 404)
+
+    def test_admin_imports_visible_scan_to_own_library(self):
+        with mock.patch("apps.library.views.process_asset_task.apply_async"):
+            res = self.client_for(self.admin).post(
+                f"/api/library/imports/scans/{self.scan.pk}/",
+                {},
+                format="json",
+            )
+
+        self.assertEqual(res.status_code, 201, res.data)
+        asset = DataAsset.objects.get(pk=res.data["asset"]["id"])
+        self.assertEqual(asset.uploaded_by, self.admin)
+        self.assertEqual(res.data["asset"]["permission"], "admin")
+
+    def test_case_from_library_uses_unique_dir_when_canonical_dir_is_stale(self):
+        from django.test import override_settings
+
+        from apps.cases.models import Case, Image
+
+        from .imports import import_gingivitis_image
+
+        asset, _ = import_gingivitis_image(
+            image=self.image,
+            user=self.doctor,
+            variant=DataAsset.SourceVariant.ORIGINAL,
+            title="Ảnh chẩn đoán lại",
+            condition_note="",
+        )
+        asset.status = DataAsset.Status.READY
+        asset.is_anonymized = True
+        asset.save(update_fields=["status", "is_anonymized"])
+
+        # Dùng một bản ghi thăm dò để biết chính xác ID kế tiếp, rồi mô phỏng thư
+        # mục còn sót lại sau khi database từng được khôi phục/xoá cứng.
+        probe = Case.objects.create(
+            patient=self.source_patient, created_by=self.doctor
+        )
+        expected_id = probe.pk + 1
+        probe.delete()
+        media_root = os.path.join(TEMP_ROOT, "diagnosis-media")
+        stale_dir = os.path.join(media_root, "originals", str(expected_id))
+        os.makedirs(stale_dir, exist_ok=True)
+        sentinel = os.path.join(stale_dir, "do-not-overwrite.txt")
+        with open(sentinel, "wb") as stream:
+            stream.write(b"stale-data")
+
+        with override_settings(MEDIA_ROOT=media_root), mock.patch(
+            "apps.cases.views.run_inference_task.apply_async"
+        ) as enqueue:
+            res = self.client_for(self.doctor).post(
+                "/api/cases/from-library/",
+                {
+                    "patient_name": self.source_patient.name,
+                    "patient_code": self.source_patient.patient_code,
+                    "asset_ids": [asset.pk],
+                },
+                format="json",
+            )
+
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(res.data["id"], expected_id)
+        copied = Image.objects.get(case_id=expected_id, order_index=0)
+        self.assertNotEqual(os.path.dirname(copied.original_path), stale_dir)
+        self.assertTrue(os.path.isfile(copied.original_path))
+        self.assertTrue(os.path.isfile(sentinel))
+        enqueue.assert_called_once_with(args=[copied.pk], queue="inference")
+
+    def test_scan_from_library_uses_unique_dir_when_canonical_dir_is_stale(self):
+        from django.test import override_settings
+
+        from apps.scans.models import Scan
+
+        from .imports import import_scan
+
+        asset, _ = import_scan(
+            scan=self.scan,
+            user=self.doctor,
+            title="Phim chẩn đoán lại",
+            condition_note="",
+        )
+        asset.status = DataAsset.Status.READY
+        asset.is_anonymized = True
+        asset.save(update_fields=["status", "is_anonymized"])
+
+        probe = Scan.objects.create(
+            patient=self.source_patient, uploaded_by=self.doctor
+        )
+        expected_id = probe.pk + 1
+        probe.delete()
+        scans_root = os.path.join(TEMP_ROOT, "diagnosis-scans")
+        stale_dir = os.path.join(scans_root, str(expected_id))
+        os.makedirs(stale_dir, exist_ok=True)
+        sentinel = os.path.join(stale_dir, "do-not-overwrite.txt")
+        with open(sentinel, "wb") as stream:
+            stream.write(b"stale-data")
+
+        with override_settings(SCANS_ROOT=scans_root), mock.patch(
+            "apps.scans.views.process_scan_upload.apply_async"
+        ) as enqueue:
+            res = self.client_for(self.doctor).post(
+                "/api/scans/from-library/",
+                {
+                    "patient_name": self.source_patient.name,
+                    "patient_code": self.source_patient.patient_code,
+                    "asset_id": asset.pk,
+                },
+                format="json",
+            )
+
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(res.data["id"], expected_id)
+        copied = Scan.objects.get(pk=expected_id)
+        self.assertNotEqual(os.path.dirname(copied.zip_path), stale_dir)
+        self.assertTrue(os.path.isfile(copied.zip_path))
+        self.assertTrue(os.path.isfile(sentinel))
+        enqueue.assert_called_once_with(args=[copied.pk], queue="scans")

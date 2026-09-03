@@ -129,7 +129,11 @@ class ScanFromLibraryView(APIView):
     permission_classes = [IsActiveUser]
 
     def post(self, request):
-        from apps.library.diagnosis import get_diagnosis_assets, patient_for_diagnosis
+        from apps.library.diagnosis import (
+            create_diagnosis_storage_dir,
+            get_diagnosis_assets,
+            patient_for_diagnosis,
+        )
 
         serializer = ScanFromLibrarySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -144,8 +148,7 @@ class ScanFromLibraryView(APIView):
                     patient=patient, uploaded_by=request.user,
                     status=Scan.Status.PROCESSING, note=data.get("note", ""),
                 )
-                scan_dir = os.path.join(settings.SCANS_ROOT, str(scan.pk))
-                os.makedirs(scan_dir, exist_ok=False)
+                scan_dir = create_diagnosis_storage_dir(settings.SCANS_ROOT, scan.pk)
                 directory_created = True
                 scan.zip_path = os.path.join(scan_dir, "original.zip")
                 shutil.copy2(asset.file_path, scan.zip_path)
