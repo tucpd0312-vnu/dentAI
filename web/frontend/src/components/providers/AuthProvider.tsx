@@ -31,8 +31,11 @@ interface AuthContextValue {
   isAdmin: boolean;
   isDoctor: boolean;
   isPatient: boolean;
+  isStudent: boolean;
+  /** Bệnh nhân và sinh viên cùng dùng phạm vi dữ liệu cá nhân. */
+  hasPatientScope: boolean;
   isReceptionist: boolean;
-  /** Bác sĩ và quản trị viên mới được sửa nhãn (nhãn sửa feed vào FALC). */
+  /** Admin, bác sĩ/giảng viên và sinh viên được sửa nhãn viêm lợi. */
   canEditLabels: boolean;
 }
 
@@ -112,8 +115,10 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     isAdmin: role === 'admin',
     isDoctor: role === 'doctor',
     isPatient: role === 'patient',
+    isStudent: role === 'student',
+    hasPatientScope: role === 'patient' || role === 'student',
     isReceptionist: role === 'receptionist',
-    canEditLabels: role === 'admin' || role === 'doctor',
+    canEditLabels: role === 'admin' || role === 'doctor' || role === 'student',
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -21,6 +21,9 @@ class DashboardScopeTests(TestCase):
         self.patient_user = User.objects.create_user(
             "dashboard-patient", "dashboard-patient@example.test", "pw", role=Role.PATIENT
         )
+        self.student = User.objects.create_user(
+            "dashboard-student", "dashboard-student@example.test", "pw", role=Role.STUDENT
+        )
         self.receptionist = User.objects.create_user(
             "dashboard-receptionist",
             "dashboard-receptionist@example.test",
@@ -109,6 +112,18 @@ class DashboardScopeTests(TestCase):
         self.assertEqual(response.data["scans"]["by_status"]["ready"], 1)
         self.assertEqual(response.data["scans"]["shared_with_me"], 0)
         self.assertEqual(response.data["library"]["total"], 1)
+
+    def test_student_dashboard_uses_patient_data_scope(self):
+        Scan.objects.create(
+            patient=self.patient,
+            uploaded_by=self.student,
+            status=Scan.Status.READY,
+        )
+        response = self.get_dashboard(self.student)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["scope"], "own")
+        self.assertEqual(response.data["scans"]["total"], 1)
+        self.assertEqual(response.data["scans"]["shared_with_me"], 0)
 
     def test_admin_receives_system_wide_module_statistics(self):
         response = self.get_dashboard(self.admin)

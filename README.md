@@ -98,9 +98,9 @@ Worker web gọi các thành phần pipeline qua `tasks.py`, không chạy trự
 
 ## 2. Ứng dụng web (`web/`)
 
-Ứng dụng có bốn vai trò: **quản trị viên (admin)**, **bác sĩ (doctor)**,
-**bệnh nhân (patient)** và **lễ tân (receptionist)**. Ba vai trò đầu sử dụng các
-module theo quyền; lễ tân hiện dùng Tổng quan để tải file Excel phân công.
+Ứng dụng có năm vai trò: **quản trị viên**, **bác sĩ/giảng viên**, **sinh viên**,
+**bệnh nhân** và **lễ tân**. Sinh viên dùng phạm vi dữ liệu như bệnh nhân nhưng
+được sửa kết quả viêm lợi; lễ tân hiện chỉ dùng Tổng quan và tải file phân công.
 
 ### 2.1. Tech stack
 
@@ -155,12 +155,14 @@ web/
   Phê duyệt đổi vai trò, không đổi mật khẩu.
 - Tài khoản lễ tân do admin tạo. Lễ tân chỉ vào Tổng quan, nhận thông báo và tải
   file phân công `.xlsx`/`.xls` tối đa 10 MB; mỗi lần tải được giữ thành một phiên bản.
+- Tài khoản sinh viên do admin cấp. Sinh viên chỉ xem dữ liệu của mình hoặc được
+  chia sẻ, được sửa kết quả viêm lợi nhưng không được nộp phân vùng CBCT.
 - Kho dữ liệu dùng được với mọi vai trò. Người dùng thường chỉ thấy dữ liệu của mình
   hoặc được chia sẻ; admin có quyền xem toàn hệ thống.
-- Mọi vai trò được dùng các luồng AI hiện có. Bệnh nhân tạo ca/phim và xem lại kết quả
-  trong phạm vi của mình, nhưng kết quả luôn ở chế độ chỉ xem.
-- Chỉnh sửa nhãn viêm lợi cần vai trò bác sĩ/admin và quyền sửa trên ca. Nộp phân vùng
-  RNNHT 3D cũng chỉ dành cho admin hoặc bác sĩ có quyền chuyên môn trên phim.
+- Admin, bác sĩ, sinh viên và bệnh nhân được dùng các luồng AI theo phạm vi dữ liệu.
+  Bệnh nhân luôn chỉ xem kết quả; sinh viên sửa nhãn viêm lợi trên ca mình sở hữu
+  hoặc được chia sẻ quyền sửa.
+- Nộp phân vùng RNNHT 3D chỉ dành cho admin hoặc bác sĩ có quyền trên phim.
 
 **Chẩn đoán viêm lợi**
 
@@ -199,8 +201,8 @@ Thông tin bệnh nhân trên tư liệu được chia sẻ được ẩn với 
 
 - Tải chuỗi DICOM ZIP từ máy hoặc chọn từ kho → xử lý → xem preview →
   mở trong 3D Slicer; người có quyền sửa có thể nộp kết quả phân vùng.
-- Admin xem mọi phim; doctor xem phim mình tải hoặc được chia sẻ; patient chỉ xem phim
-  do chính tài khoản tải lên. Patient có thể xem/tải kết quả nhưng không nộp phân vùng.
+- Admin xem mọi phim; bác sĩ xem phim mình tải hoặc được chia sẻ; bệnh nhân và sinh
+  viên chỉ xem phim do chính tài khoản tải lên, không được nộp phân vùng.
 - Chia sẻ cá nhân có quyền xem/sửa. Chủ sở hữu hoặc admin quản lý chia sẻ;
   người nhận phim không được cấp lại quyền cho người khác.
   Phim chỉ chia sẻ tới doctor/admin; patient có thể chia sẻ phim mình sở hữu cho tài
@@ -425,7 +427,7 @@ SMTP, sao lưu và quyền truy cập file. Đặc biệt, ảnh viêm lợi tro
 4. Khi worker `inference` đã sẵn sàng, tạo ca từ ảnh trên máy hoặc ảnh hợp lệ trong kho.
    Log phải xuất hiện task `apps.cases.tasks.run_inference_task` và kết quả hoặc cảnh báo độ tin cậy thấp.
 5. Với tài khoản đang hoạt động và ZIP DICOM hợp lệ, kiểm tra preview CBCT trong đúng
-   phạm vi vai trò; với patient, danh sách chỉ được chứa phim do tài khoản đó tải lên.
+   phạm vi vai trò; với bệnh nhân/sinh viên, danh sách chỉ chứa phim do tài khoản đó tải lên.
    Kiểm tra mở phim thật trong Slicer trên máy đã cài Slicer + Bridge.
 
 Dùng dữ liệu thử nghiệm đã được phép sử dụng, không tải thông tin bệnh nhân thật lên môi trường demo.

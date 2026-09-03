@@ -38,7 +38,7 @@ function fmtDateTime(iso: string | null): string {
 }
 
 export default function ScanDetailPage() {
-  const { isPatient } = useAuth();
+  const { hasPatientScope } = useAuth();
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
@@ -221,11 +221,11 @@ export default function ScanDetailPage() {
           tự cập nhật khi xong.
         </div>
       )}
-      {isPatient && (
+      {hasPatientScope && (
         <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-800">
           <span className="material-symbols-outlined shrink-0 text-[18px]">visibility</span>
           <span>
-            Kết quả phân vùng ở chế độ <strong>chỉ xem</strong> — tài khoản bệnh nhân
+            Kết quả phân vùng ở chế độ <strong>chỉ xem</strong> — bệnh nhân và sinh viên
             không thể nộp hoặc chỉnh sửa phân vùng 3D.
           </span>
         </div>

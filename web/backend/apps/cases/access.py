@@ -53,8 +53,8 @@ def can_view_case(user, case) -> bool:
 def can_edit_case(user, case) -> bool:
     """Sửa nhãn: phải vừa có quyền chuyên môn, vừa có quyền trên chính ca đó.
 
-    Bệnh nhân KHÔNG BAO GIỜ sửa được, kể cả ca của chính mình — nhãn sửa đi thẳng
-    vào FALC làm dữ liệu huấn luyện, chỉ chuyên môn mới được tạo.
+    Bệnh nhân không sửa được. Sinh viên được sửa như bác sĩ/giảng viên nhưng vẫn
+    chỉ trong ca của mình hoặc ca được chia sẻ quyền ``edit``.
     """
     if not (user and user.is_authenticated):
         return False

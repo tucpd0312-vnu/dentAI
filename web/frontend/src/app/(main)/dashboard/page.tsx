@@ -602,7 +602,7 @@ export default function DashboardPage() {
             icon="view_in_ar"
             title="Răng nanh ngầm 3D"
             description={
-              user?.role === 'patient'
+              user?.role === 'patient' || user?.role === 'student'
                 ? 'Tải phim CBCT và xem kết quả phân vùng của bạn'
                 : 'Phim CBCT, phân vùng và chia sẻ 3D Slicer'
             }

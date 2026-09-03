@@ -45,6 +45,9 @@ class ChunkedUploadTests(TestCase):
         self.patient = User.objects.create_user(
             "pat", "pat@x.local", "pw", role=Role.PATIENT
         )
+        self.student = User.objects.create_user(
+            "student", "student@x.local", "pw", role=Role.STUDENT
+        )
         self.client = APIClient()
         self.client.force_authenticate(user=self.doctor)
 
@@ -119,6 +122,24 @@ class ChunkedUploadTests(TestCase):
         self.assertTrue(scan.patient.patient_code.startswith("CBCT-"))
         self.assertNotEqual(scan.patient.patient_code, "CODE-KHONG-DUOC-DUNG")
 
+    def test_student_upload_uses_the_same_patient_data_scope(self):
+        client = APIClient()
+        client.force_authenticate(user=self.student)
+        res = client.post(
+            "/api/scans/uploads/",
+            {
+                "patient_name": "Ca thực hành",
+                "patient_code": "GLOBAL-CODE",
+                "filename": "student.zip",
+                "total_size": 10,
+            },
+            format="json",
+        )
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED, res.data)
+        scan = Scan.objects.select_related("patient").get(pk=res.data["scan_id"])
+        self.assertTrue(scan.patient.patient_code.startswith("CBCT-"))
+        self.assertNotEqual(scan.patient.patient_code, "GLOBAL-CODE")
+
 
 class ScanSharingTests(APITestCase):
     def setUp(self):
@@ -127,6 +148,7 @@ class ScanSharingTests(APITestCase):
         self.editor = self.make_user("editor", Role.DOCTOR)
         self.outsider = self.make_user("outsider", Role.DOCTOR)
         self.patient_user = self.make_user("patient-user", Role.PATIENT)
+        self.student_user = self.make_user("student-user", Role.STUDENT)
         patient = Patient.objects.create(name="Nguyễn Văn A", patient_code="CBCT-TEST")
         self.scan = Scan.objects.create(
             patient=patient,
@@ -212,6 +234,12 @@ class ScanSharingTests(APITestCase):
             ScanShare.objects.filter(scan=self.scan, shared_with=self.patient_user).exists()
         )
 
+        response = self.share(self.student_user, "edit")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            ScanShare.objects.filter(scan=self.scan, shared_with=self.student_user).exists()
+        )
+
     def test_patient_only_sees_own_scan_and_cannot_submit_segmentation(self):
         own_patient = Patient.objects.create(
             name="Ca của bệnh nhân", patient_code="CBCT-PATIENT-OWN"
@@ -233,6 +261,28 @@ class ScanSharingTests(APITestCase):
         self.assertEqual(listing.status_code, status.HTTP_200_OK)
         self.assertEqual([row["id"] for row in listing.data["results"]], [own_scan.pk])
         self.assertEqual(detail.status_code, status.HTTP_200_OK)
+        self.assertEqual(detail.data["access_level"], "owner")
+        self.assertEqual(segmentation.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_student_only_sees_own_scan_and_cannot_submit_segmentation(self):
+        own_patient = Patient.objects.create(
+            name="Ca thực hành", patient_code="CBCT-STUDENT-OWN"
+        )
+        own_scan = Scan.objects.create(
+            patient=own_patient,
+            uploaded_by=self.student_user,
+            status=Scan.Status.READY,
+            is_anonymized=True,
+        )
+        self.auth(self.student_user)
+
+        listing = self.client.get("/api/scans/")
+        detail = self.client.get(f"/api/scans/{own_scan.pk}/")
+        segmentation = self.client.post(
+            f"/api/scans/{own_scan.pk}/segmentations/", {}
+        )
+
+        self.assertEqual([row["id"] for row in listing.data["results"]], [own_scan.pk])
         self.assertEqual(detail.data["access_level"], "owner")
         self.assertEqual(segmentation.status_code, status.HTTP_403_FORBIDDEN)
 

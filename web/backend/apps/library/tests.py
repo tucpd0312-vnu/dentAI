@@ -55,6 +55,9 @@ class LibraryTestCase(TestCase):
         self.patient = User.objects.create_user(
             "patient1", "patient1@x.local", "pw", role=Role.PATIENT
         )
+        self.student = User.objects.create_user(
+            "student1", "student1@x.local", "pw", role=Role.STUDENT
+        )
         self.category = DataCategory.objects.get(slug="viem-loi")
 
     def client_for(self, user) -> APIClient:
@@ -105,7 +108,7 @@ class LibraryTestCase(TestCase):
 
 class CategoryApiTests(LibraryTestCase):
     def test_seed_categories_visible_to_every_role(self):
-        for user in (self.admin, self.doctor, self.patient):
+        for user in (self.admin, self.doctor, self.student, self.patient):
             res = self.client_for(user).get("/api/library/categories/")
             self.assertEqual(res.status_code, 200)
             self.assertTrue(any(c["slug"] == "viem-loi" for c in res.data))
@@ -176,6 +179,21 @@ class UploadTests(LibraryTestCase):
         self.assertTrue(detail.data["can_see_patient_info"])
         self.assertEqual(detail.data["patient"]["name"], "Nguyễn Văn A")
         self.assertEqual(detail.data["condition_note"], "mô tả")
+
+    def test_student_upload_uses_patient_scope_and_keeps_own_phi_visible(self):
+        asset = self.upload(self.student, extra={
+            "patient_name": "Ca học tập",
+            "patient_code": "GLOBAL-CODE",
+            "birth_year": 2001,
+            "condition_note": "mô tả thực hành",
+        })
+        self.assertTrue(asset.patient.patient_code.startswith("LIB-"))
+        self.assertNotEqual(asset.patient.patient_code, "GLOBAL-CODE")
+
+        detail = self.client_for(self.student).get(f"/api/library/assets/{asset.pk}/")
+        self.assertEqual(detail.status_code, 200)
+        self.assertTrue(detail.data["can_see_patient_info"])
+        self.assertEqual(detail.data["patient"]["name"], "Ca học tập")
 
     def test_extension_must_match_data_type(self):
         res = self.client_for(self.doctor).post(

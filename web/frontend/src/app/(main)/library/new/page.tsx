@@ -45,7 +45,7 @@ function normalize(value: string): string {
 
 export default function NewAssetPage() {
   const router = useRouter();
-  const { isPatient, loading: authLoading } = useAuth();
+  const { hasPatientScope, loading: authLoading } = useAuth();
 
   const inputRef = useRef<HTMLInputElement>(null);
   // Phiên upload dở từ lần submit lỗi trước — bấm lại chỉ gửi nốt chunk còn thiếu,
@@ -158,7 +158,7 @@ export default function NewAssetPage() {
           dataType,
           dataTypeOther: dataTypeOther.trim() || undefined,
           patientName: patient.name.trim() || undefined,
-          patientCode: isPatient ? undefined : patient.code.trim() || undefined,
+          patientCode: hasPatientScope ? undefined : patient.code.trim() || undefined,
           // Hệ thống lưu NĂM SINH, không lưu tuổi — quy đổi ngay tại đây.
           birthYear: age ? CURRENT_YEAR - age : undefined,
           gender: patient.gender,
@@ -244,7 +244,7 @@ export default function NewAssetPage() {
                 className={inputCls}
               />
             </div>
-            {!isPatient && (
+            {!hasPatientScope && (
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-gray-600">
                   Mã bệnh nhân

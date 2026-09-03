@@ -48,10 +48,14 @@ def _can_manage_shares(user, case) -> bool:
 
 
 def _validate_permission_for(recipient, permission) -> str | None:
-    """Bệnh nhân không bao giờ nhận được quyền 'edit' — nhãn sửa feed thẳng vào FALC."""
-    if permission == CaseShare.Permission.EDIT and recipient.role not in (Role.ADMIN, Role.DOCTOR):
-        return ("Chỉ có thể cấp quyền chỉnh sửa cho tài khoản bác sĩ hoặc quản trị viên. "
-                "Với bệnh nhân, hãy chọn quyền 'Chỉ xem'.")
+    """Chỉ các vai trò đã được cấp quyền sửa nhãn mới nhận quyền ``edit``."""
+    if permission == CaseShare.Permission.EDIT and recipient.role not in (
+        Role.ADMIN, Role.DOCTOR, Role.STUDENT,
+    ):
+        return (
+            "Chỉ có thể cấp quyền chỉnh sửa cho bác sĩ, sinh viên hoặc quản trị viên. "
+            "Với bệnh nhân, hãy chọn quyền 'Chỉ xem'."
+        )
     return None
 
 
@@ -87,7 +91,7 @@ class CaseShareListCreateView(APIView):
             pk=user_id,
             is_active=True,
             is_deleted=False,
-            role__in=(Role.ADMIN, Role.DOCTOR, Role.PATIENT),
+            role__in=(Role.ADMIN, Role.DOCTOR, Role.PATIENT, Role.STUDENT),
         ).first()
         if not recipient:
             return _bad("Không tìm thấy tài khoản người nhận phù hợp.")

@@ -6,8 +6,8 @@ Mọi view trong `apps.scans` phải lấy queryset qua `scoped_scans()` thay v�
 
   - **admin**       → mọi phim
   - **bác sĩ**      → phim do mình tải lên hoặc được chia sẻ
-  - **bệnh nhân**   → chỉ phim do chính tài khoản tải lên; được xem kết quả nhưng
-                       không được nộp/chỉnh sửa phân vùng chuyên môn
+  - **bệnh nhân/sinh viên** → chỉ phim do chính tài khoản tải lên; được xem kết quả
+                              nhưng không được nộp/chỉnh sửa phân vùng chuyên môn
 """
 from django.db.models import Q
 
@@ -27,7 +27,7 @@ def scoped_scans(user):
         return qs
     if not (user and user.is_authenticated):
         return qs.none()
-    if user.role == Role.PATIENT:
+    if user.role in (Role.PATIENT, Role.STUDENT):
         return qs.filter(uploaded_by=user)
     if user.role != Role.DOCTOR:
         return qs.none()
@@ -40,7 +40,7 @@ def can_view_scan(user, scan) -> bool:
     if not (user and user.is_authenticated):
         return False
     if scan.uploaded_by_id == user.pk:
-        return user.role in (Role.DOCTOR, Role.PATIENT)
+        return user.role in (Role.DOCTOR, Role.PATIENT, Role.STUDENT)
     if user.role != Role.DOCTOR:
         return False
     return ScanShare.objects.filter(scan=scan, shared_with=user).exists()
@@ -51,7 +51,9 @@ def can_manage_scan(user, scan) -> bool:
     if _is_admin(user):
         return True
     return bool(
-        user and user.is_authenticated and user.role in (Role.DOCTOR, Role.PATIENT)
+        user
+        and user.is_authenticated
+        and user.role in (Role.DOCTOR, Role.PATIENT, Role.STUDENT)
         and scan.uploaded_by_id == user.pk
     )
 
@@ -59,8 +61,8 @@ def can_manage_scan(user, scan) -> bool:
 def can_contribute_scan(user, scan) -> bool:
     """Nộp phân vùng: chỉ admin hoặc bác sĩ chủ phim/được cấp quyền ``edit``.
 
-    Quyền này cố ý không kế thừa ``can_manage_scan``: bệnh nhân quản lý bản phim
-    mình tải lên nhưng kết quả chẩn đoán luôn ở chế độ chỉ xem.
+    Quyền này cố ý không kế thừa ``can_manage_scan``: bệnh nhân/sinh viên quản lý
+    bản phim mình tải lên nhưng kết quả phân vùng luôn ở chế độ chỉ xem.
     """
     if _is_admin(user):
         return True
@@ -80,7 +82,11 @@ def scan_permission_for(user, scan) -> str:
     if not (user and user.is_authenticated):
         return "none"
     if scan.uploaded_by_id == user.pk:
-        return "owner" if user.role in (Role.DOCTOR, Role.PATIENT) else "none"
+        return (
+            "owner"
+            if user.role in (Role.DOCTOR, Role.PATIENT, Role.STUDENT)
+            else "none"
+        )
     if user.role != Role.DOCTOR:
         return "none"
     share = ScanShare.objects.filter(scan=scan, shared_with=user).first()
