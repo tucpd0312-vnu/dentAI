@@ -71,6 +71,16 @@ class IsAdminOrDoctor(IsActiveUser):
         )
 
 
+class IsAdminOrReceptionist(IsActiveUser):
+    message = "Chỉ quản trị viên hoặc lễ tân mới có quyền thực hiện thao tác này."
+
+    def has_permission(self, request, view):
+        return super().has_permission(request, view) and request.user.role in (
+            Role.ADMIN,
+            Role.RECEPTIONIST,
+        )
+
+
 class CanEditResults(IsActiveUser):
     """Sửa box/MGI/caption: admin, giảng viên/bác sĩ hoặc sinh viên."""
 

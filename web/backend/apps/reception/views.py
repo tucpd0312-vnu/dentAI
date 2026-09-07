@@ -8,7 +8,7 @@ from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.users.permissions import IsReceptionist
+from apps.users.permissions import IsAdminOrReceptionist
 
 from .models import AssignmentWorkbook
 from .serializers import AssignmentWorkbookSerializer
@@ -44,7 +44,7 @@ def _validate_workbook(uploaded_file):
 
 
 class AssignmentWorkbookUploadView(APIView):
-    permission_classes = [IsReceptionist]
+    permission_classes = [IsAdminOrReceptionist]
     parser_classes = [MultiPartParser]
     allow_receptionist = True
 
@@ -83,11 +83,11 @@ class AssignmentWorkbookUploadView(APIView):
 
 
 class LatestAssignmentWorkbookView(APIView):
-    permission_classes = [IsReceptionist]
+    permission_classes = [IsAdminOrReceptionist]
     allow_receptionist = True
 
     def get(self, request):
-        workbook = AssignmentWorkbook.objects.filter(uploaded_by=request.user).first()
+        workbook = AssignmentWorkbook.objects.select_related("uploaded_by").first()
         return Response(
             {
                 "latest": (

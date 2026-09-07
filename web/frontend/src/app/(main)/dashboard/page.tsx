@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { ROLE_LABEL, type AuthUser, type Role } from '@/lib/auth';
 import {
@@ -312,20 +312,41 @@ function RoleRequestBanner({
   );
 }
 
-function ReceptionistDashboard({ user }: { user: AuthUser | null }) {
+function AssignmentWorkbookPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const latestRequest = useRef(0);
   const [latestWorkbook, setLatestWorkbook] = useState<AssignmentWorkbook | null>(null);
   const [isLoadingWorkbook, setIsLoadingWorkbook] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+  const [latestError, setLatestError] = useState<string | null>(null);
+
+  const refreshLatest = useCallback(async () => {
+    const request = ++latestRequest.current;
+    setIsLoadingWorkbook(true);
+    setLatestError(null);
+    try {
+      const latest = await fetchLatestAssignmentWorkbook();
+      if (request === latestRequest.current) setLatestWorkbook(latest);
+    } catch {
+      if (request === latestRequest.current) {
+        setLatestError('Không thể tải thông tin file mới nhất. Vui lòng tải lại.');
+      }
+    } finally {
+      if (request === latestRequest.current) setIsLoadingWorkbook(false);
+    }
+  }, []);
 
   useEffect(() => {
-    fetchLatestAssignmentWorkbook()
-      .then(setLatestWorkbook)
-      .catch(error => setUploadError(assignmentUploadError(error)))
-      .finally(() => setIsLoadingWorkbook(false));
-  }, []);
+    void refreshLatest();
+    const onFocus = () => { void refreshLatest(); };
+    window.addEventListener('focus', onFocus);
+    return () => {
+      latestRequest.current += 1;
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [refreshLatest]);
 
   async function handleFileSelected(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -351,8 +372,10 @@ function ReceptionistDashboard({ user }: { user: AuthUser | null }) {
     setIsUploading(true);
     try {
       const uploaded = await uploadAssignmentWorkbook(file);
+      latestRequest.current += 1;
       setLatestWorkbook(uploaded);
       setUploadSuccess(`Đã tải lên “${uploaded.original_filename}” thành công.`);
+      await refreshLatest();
     } catch (error) {
       setUploadError(assignmentUploadError(error));
     } finally {
@@ -367,41 +390,21 @@ function ReceptionistDashboard({ user }: { user: AuthUser | null }) {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
-      <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-teal-600 via-primary to-primary-700 px-6 py-7 text-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-5">
-          <div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white/90">
-              <span className="material-symbols-outlined text-[16px]">support_agent</span>
-              Không gian làm việc Lễ tân
-            </span>
-            <h1 className="mt-3 font-serif text-2xl font-semibold">
-              Xin chào, {user?.full_name || user?.username}
-            </h1>
-            <p className="mt-1 max-w-xl text-sm leading-relaxed text-white/80">
-              Tài khoản của bạn đã sẵn sàng. Trong giai đoạn hiện tại, vai trò Lễ tân
-              chỉ sử dụng trang Tổng quan.
-            </p>
-          </div>
-          <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15">
-            <span className="material-symbols-outlined text-[34px]">space_dashboard</span>
-          </span>
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <StatCard icon="badge" label="Vai trò hiện tại" value="Lễ tân" tone="green" />
-        <StatCard icon="dashboard" label="Khu vực khả dụng" value="Tổng quan" />
-        <StatCard icon="notifications" label="Trung tâm thông báo" value="Đang hoạt động" />
-      </div>
-
-      <Section title="File Excel phân công">
+    <div className="space-y-4">
+      <Section title="File Excel phân công" action={
+        <button type="button" onClick={() => void refreshLatest()}
+          disabled={isLoadingWorkbook || isUploading}
+          className="text-xs font-medium text-primary hover:underline disabled:opacity-40">
+          Tải lại thông tin
+        </button>
+      }>
         <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="rounded-xl border border-dashed border-primary/35 bg-primary-50/40 p-5">
             <input
               ref={fileInputRef}
               type="file"
               accept={ASSIGNMENT_WORKBOOK_ACCEPT}
+              disabled={isUploading}
               className="hidden"
               onChange={handleFileSelected}
             />
@@ -454,7 +457,7 @@ function ReceptionistDashboard({ user }: { user: AuthUser | null }) {
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
             <div className="flex items-center gap-2 text-gray-700">
               <span className="material-symbols-outlined text-[20px]">description</span>
-              <p className="text-sm font-semibold">File gần nhất</p>
+              <p className="text-sm font-semibold">File mới nhất toàn hệ thống</p>
             </div>
             {isLoadingWorkbook ? (
               <div className="mt-5 flex items-center gap-2 text-sm text-gray-400">
@@ -463,6 +466,8 @@ function ReceptionistDashboard({ user }: { user: AuthUser | null }) {
                 </span>
                 Đang kiểm tra...
               </div>
+            ) : latestError ? (
+              <p role="alert" className="mt-4 text-sm text-red-700">{latestError}</p>
             ) : latestWorkbook ? (
               <div className="mt-4 min-w-0">
                 <p className="truncate text-sm font-medium text-gray-900" title={latestWorkbook.original_filename}>
@@ -472,6 +477,9 @@ function ReceptionistDashboard({ user }: { user: AuthUser | null }) {
                   {formatFileSize(latestWorkbook.file_size)} · Tải lúc{' '}
                   {new Date(latestWorkbook.created_at).toLocaleString('vi-VN')}
                 </p>
+                <p className="mt-1 text-xs text-gray-500">
+                  Người tải: {latestWorkbook.uploaded_by.full_name || latestWorkbook.uploaded_by.username}
+                </p>
                 <span className="mt-3 inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700">
                   <span className="material-symbols-outlined text-[15px]">cloud_done</span>
                   Đã lưu an toàn
@@ -479,7 +487,7 @@ function ReceptionistDashboard({ user }: { user: AuthUser | null }) {
               </div>
             ) : (
               <p className="mt-4 text-sm leading-relaxed text-gray-500">
-                Bạn chưa tải file phân công nào lên hệ thống.
+                Hệ thống chưa có file Excel phân công.
               </p>
             )}
           </div>
@@ -495,6 +503,41 @@ function ReceptionistDashboard({ user }: { user: AuthUser | null }) {
           triển ở giai đoạn tiếp theo. Hiện tại hệ thống chỉ tiếp nhận và lưu phiên bản file.
         </p>
       </div>
+    </div>
+  );
+}
+
+function ReceptionistDashboard({ user }: { user: AuthUser | null }) {
+  return (
+    <div className="mx-auto max-w-5xl space-y-5">
+      <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-teal-600 via-primary to-primary-700 px-6 py-7 text-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-5">
+          <div>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white/90">
+              <span className="material-symbols-outlined text-[16px]">support_agent</span>
+              Không gian làm việc Lễ tân
+            </span>
+            <h1 className="mt-3 font-serif text-2xl font-semibold">
+              Xin chào, {user?.full_name || user?.username}
+            </h1>
+            <p className="mt-1 max-w-xl text-sm leading-relaxed text-white/80">
+              Tài khoản của bạn đã sẵn sàng. Trong giai đoạn hiện tại, vai trò Lễ tân
+              chỉ sử dụng trang Tổng quan.
+            </p>
+          </div>
+          <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15">
+            <span className="material-symbols-outlined text-[34px]">space_dashboard</span>
+          </span>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard icon="badge" label="Vai trò hiện tại" value="Lễ tân" tone="green" />
+        <StatCard icon="dashboard" label="Khu vực khả dụng" value="Tổng quan" />
+        <StatCard icon="notifications" label="Trung tâm thông báo" value="Đang hoạt động" />
+      </div>
+
+      <AssignmentWorkbookPanel />
     </div>
   );
 }
@@ -627,6 +670,8 @@ export default function DashboardPage() {
           shared={library.shared_with_me}
         />
       </div>
+
+      {isAdmin && <AssignmentWorkbookPanel />}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Section title="Trạng thái ca chẩn đoán">
