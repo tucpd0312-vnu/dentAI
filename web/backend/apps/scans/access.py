@@ -5,9 +5,9 @@ Mọi view trong `apps.scans` phải lấy queryset qua `scoped_scans()` thay v�
 đã hỗ trợ chia sẻ cho tài khoản chuyên môn:
 
   - **admin**       → mọi phim
-  - **bác sĩ**      → phim do mình tải lên hoặc được chia sẻ
-  - **bệnh nhân/sinh viên** → chỉ phim do chính tài khoản tải lên; được xem kết quả
-                              nhưng không được nộp/chỉnh sửa phân vùng chuyên môn
+  - **bác sĩ/sinh viên** → phim do mình tải lên hoặc được chia sẻ;
+                           sinh viên chỉ xem/tải xuống, không sửa phân vùng
+  - **bệnh nhân** → chỉ phim do chính tài khoản tải lên, không sửa phân vùng
 """
 from django.db.models import Q
 
@@ -27,9 +27,9 @@ def scoped_scans(user):
         return qs
     if not (user and user.is_authenticated):
         return qs.none()
-    if user.role in (Role.PATIENT, Role.STUDENT):
+    if user.role == Role.PATIENT:
         return qs.filter(uploaded_by=user)
-    if user.role != Role.DOCTOR:
+    if user.role not in (Role.DOCTOR, Role.STUDENT):
         return qs.none()
     return qs.filter(Q(uploaded_by=user) | Q(shares__shared_with=user)).distinct()
 
@@ -41,7 +41,7 @@ def can_view_scan(user, scan) -> bool:
         return False
     if scan.uploaded_by_id == user.pk:
         return user.role in (Role.DOCTOR, Role.PATIENT, Role.STUDENT)
-    if user.role != Role.DOCTOR:
+    if user.role not in (Role.DOCTOR, Role.STUDENT):
         return False
     return ScanShare.objects.filter(scan=scan, shared_with=user).exists()
 
@@ -87,7 +87,7 @@ def scan_permission_for(user, scan) -> str:
             if user.role in (Role.DOCTOR, Role.PATIENT, Role.STUDENT)
             else "none"
         )
-    if user.role != Role.DOCTOR:
+    if user.role not in (Role.DOCTOR, Role.STUDENT):
         return "none"
     share = ScanShare.objects.filter(scan=scan, shared_with=user).first()
-    return share.permission if share else "none"
+    return ("view" if user.role == Role.STUDENT else share.permission) if share else "none"

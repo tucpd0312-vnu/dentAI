@@ -49,6 +49,7 @@ export interface Caption {
 export type CasePermission = "admin" | "owner" | "edit" | "view" | "none";
 
 export interface ImageResult {
+  library_save_options: { original: boolean; annotated: boolean; reason: string; source_owned: boolean };
   id: number;
   order_index: number;
   status: "queued" | "processing" | "done" | "low_confidence" | "failed";

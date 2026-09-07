@@ -38,7 +38,7 @@ function fmtDateTime(iso: string | null): string {
 }
 
 export default function ScanDetailPage() {
-  const { hasPatientScope } = useAuth();
+  const { hasPatientScope, user } = useAuth();
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
@@ -420,6 +420,7 @@ export default function ScanDetailPage() {
     {savingToLibrary && (
       <SaveToLibraryModal
         kind="scan"
+        sourceOwned={scan.uploaded_by?.id === user?.id}
         scanId={scan.id}
         patientName={scan.patient.name}
         defaultTitle={`Phim RNNHT 3D · Scan #${scan.id}`}

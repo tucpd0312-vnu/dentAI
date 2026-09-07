@@ -144,7 +144,10 @@ export default function ResultsPage() {
           kind="gingivitis"
           caseId={caseId}
           imageIndex={idx}
-          hasAnnotated={Boolean(imgData.annotated_path)}
+          hasAnnotated={imgData.library_save_options.annotated}
+          sourceOwned={imgData.library_save_options.source_owned}
+          originalAvailable={imgData.library_save_options.original}
+          annotationReason={imgData.library_save_options.reason}
           defaultTitle={`Kết quả viêm lợi · Ca #${caseId} · Ảnh ${idx + 1}`}
           defaultConditionNote={captionText}
           onClose={() => setSavingToLibrary(false)}

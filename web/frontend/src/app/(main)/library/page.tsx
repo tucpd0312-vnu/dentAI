@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/components/providers/AuthProvider';
 import {
   ASSET_STATUS_CLASS,
+  libraryTabs,
   ASSET_STATUS_LABEL,
   DATA_TYPE_ICON,
   DATA_TYPE_LABEL,
@@ -28,11 +29,6 @@ const PAGE_SIZE = 20;
 /** Tab lọc — `all` theo phạm vi kho dữ liệu được backend cấp cho mỗi vai trò. */
 type Tab = 'all' | 'mine' | 'shared' | 'others';
 
-const TABS: { value: Tab; label: string }[] = [
-  { value: 'all', label: 'Tất cả' },
-  { value: 'mine', label: 'Của tôi' },
-  { value: 'shared', label: 'Được chia sẻ' },
-];
 
 function fmtDate(iso: string): string {
   const d = new Date(iso);
@@ -47,7 +43,8 @@ const inputCls =
 export default function LibraryPage() {
   // Không dùng useRequireRole: kho dữ liệu mở cho MỌI vai trò (§B.4) — phạm vi dữ liệu
   // đã bị backend giới hạn theo `scoped_assets`, không cần chặn ở route.
-  const { canViewAllLibrary, canEditLabels, loading: authLoading } = useAuth();
+  const { canViewAllLibrary, canEditLabels, isDoctor, loading: authLoading } = useAuth();
+  const [editableOnly, setEditableOnly] = useState(false);
 
   const [rows, setRows] = useState<DataAsset[]>([]);
   const [categories, setCategories] = useState<DataCategory[]>([]);
@@ -78,6 +75,7 @@ export default function LibraryPage() {
         mine: tab === 'mine',
         shared: tab === 'shared',
         others: tab === 'others',
+        editable: tab === 'others' && editableOnly,
         page,
       });
       if (version !== requestVersion.current) return;
@@ -91,7 +89,7 @@ export default function LibraryPage() {
     } finally {
       if (version === requestVersion.current) setLoading(false);
     }
-  }, [q, category, dataType, tab, page]);
+  }, [q, category, dataType, tab, page, editableOnly]);
 
   useEffect(() => {
     void load();
@@ -220,7 +218,7 @@ export default function LibraryPage() {
         <div id="library-filters" className="space-y-2 rounded-xl border border-gray-200 bg-white p-3">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
             <div className="flex shrink-0 gap-1 overflow-x-auto">
-              {(canViewAllLibrary ? [...TABS, { value: 'others' as Tab, label: 'Của người khác' }] : TABS).map(t => (
+              {libraryTabs(canViewAllLibrary).map(t => (
                 <button
                   key={t.value}
                   type="button"
@@ -290,12 +288,10 @@ export default function LibraryPage() {
             </select>
           </div>
 
-          {canViewAllLibrary && tab === 'shared' && (
-            <p className="text-xs text-gray-500">
-              Chỉ gồm tư liệu được chia sẻ trực tiếp cho tài khoản của bạn.
-              Các tư liệu khác trong toàn hệ thống nằm ở “Của người khác”.
-            </p>
-          )}
+          {isDoctor && tab === 'others' && <label className="flex items-center gap-2 text-xs text-gray-600">
+            <input type="checkbox" checked={editableOnly} onChange={e => { setEditableOnly(e.target.checked); setPage(1); }} />
+            Được cấp quyền sửa
+          </label>}
         </div>
       )}
 
@@ -366,6 +362,7 @@ export default function LibraryPage() {
                           <p className="max-w-[220px] truncate text-[11px] text-gray-400">
                             {a.original_filename}
                           </p>
+                          <span className="text-[11px] text-primary">{a.permission === 'owner' ? 'Của tôi' : a.permission === 'admin' ? 'Quản trị' : a.permission === 'edit' ? 'Được cấp quyền sửa' : 'Chỉ xem'}</span>
                         </div>
                       </div>
                     </td>

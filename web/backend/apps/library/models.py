@@ -127,6 +127,12 @@ class DataAsset(models.Model):
     source_variant = models.CharField(
         max_length=16, choices=SourceVariant.choices, blank=True, default="",
     )
+    # Existing assets remain independent copies. New linked snapshots retain the
+    # source owner; the actor who saved them is recorded separately.
+    save_mode = models.CharField(max_length=8, default="copy", choices=[("copy", "Bản sao"), ("linked", "Liên kết nguồn")])
+    saved_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                 null=True, blank=True, related_name="saved_library_assets")
+    source_revision = models.CharField(max_length=64, blank=True, default="")
     source_scan = models.ForeignKey(
         "scans.Scan", on_delete=models.SET_NULL, null=True, blank=True,
         related_name="library_assets",
@@ -175,9 +181,8 @@ class DataAssetShare(models.Model):
     Sao đúng khuôn `cases.CaseShare`: không có link công khai, không gửi tới email lạ —
     dữ liệu y tế chỉ tới được người đã đăng nhập.
 
-    Model có từ đợt này vì `access.scoped_assets()` phải biết tới nó ngay (đổi phạm vi
-    truy cập về sau là chỗ dễ lộ dữ liệu nhất). API + giao diện chia sẻ thuộc mục D/E
-    của docs/02-KE-HOACH-NANG-CAP.md, chưa làm ở đợt này.
+    API chia sẻ trực tiếp nằm trong share_views. Quyền nhận qua ca/phim nguồn
+    nằm trong DataAssetSourceLink để việc thu hồi nguồn không xoá quyền trực tiếp.
     """
 
     class Permission(models.TextChoices):
@@ -206,3 +211,23 @@ class DataAssetShare(models.Model):
 
     def __str__(self):
         return f"Asset #{self.asset_id} → {self.shared_with} ({self.permission})"
+
+
+class DataAssetSourceLink(models.Model):
+    """Read access inherited from one live source share, removed on revocation.
+
+    Separate from explicit library shares: editing clinical labels never grants
+    ownership or permission to edit/share library metadata.
+    """
+    asset = models.ForeignKey(DataAsset, on_delete=models.CASCADE, related_name="source_links")
+    case_share = models.ForeignKey("cases.CaseShare", on_delete=models.CASCADE, null=True, blank=True)
+    scan_share = models.ForeignKey("scans.ScanShare", on_delete=models.CASCADE, null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(check=(models.Q(case_share__isnull=False, scan_share__isnull=True)
+                                              | models.Q(case_share__isnull=True, scan_share__isnull=False)),
+                                   name="library_link_one_source"),
+            models.UniqueConstraint(fields=["asset", "case_share"], name="library_link_unique_case"),
+            models.UniqueConstraint(fields=["asset", "scan_share"], name="library_link_unique_scan"),
+        ]

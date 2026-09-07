@@ -134,6 +134,8 @@ class LogAction(models.TextChoices):
     ASSET_UPLOAD = "asset_upload", "Tải dữ liệu lên kho"
     ASSET_DOWNLOAD = "asset_download", "Tải dữ liệu từ kho"
     ASSET_DELETE = "asset_delete", "Xoá dữ liệu khỏi kho"
+    ASSET_SHARE = "asset_share", "Chia sẻ tư liệu trong kho"
+    ASSET_UNSHARE = "asset_unshare", "Thu hồi chia sẻ tư liệu"
     # ── error ────────────────────────────────────────────────────────────────
     TASK_ERROR = "task_error", "Lỗi tác vụ nền"
     PIPELINE_ERROR = "pipeline_error", "Lỗi pipeline AI"

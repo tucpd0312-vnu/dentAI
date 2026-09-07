@@ -4,6 +4,20 @@ import type { Role } from './auth';
 
 export type SharePermission = 'view' | 'edit';
 
+export interface AssetShare extends Omit<ScanShare, 'scan'> { asset: number }
+export async function fetchAssetShares(id: number | string): Promise<AssetShare[]> {
+  return (await api.get<AssetShare[]>(`/library/assets/${id}/shares/`)).data;
+}
+export async function createAssetShare(id: number | string, userId: number, permission: SharePermission, note = ''): Promise<AssetShare> {
+  return (await api.post<AssetShare>(`/library/assets/${id}/shares/`, { user_id: userId, permission, note })).data;
+}
+export async function updateAssetShare(id: number, permission: SharePermission): Promise<AssetShare> {
+  return (await api.patch<AssetShare>(`/library/shares/${id}/`, { permission })).data;
+}
+export async function deleteAssetShare(id: number): Promise<void> {
+  await api.delete(`/library/shares/${id}/`);
+}
+
 export interface CaseShare {
   id: number;
   case: number;

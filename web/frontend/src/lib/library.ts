@@ -5,6 +5,14 @@ import type { Paginated } from './users';
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type AssetStatus = 'uploading' | 'processing' | 'ready' | 'failed';
+export type LibraryScope = 'all' | 'mine' | 'shared' | 'others';
+export function libraryTabs(global: boolean): { value: LibraryScope; label: string }[] {
+  return [
+    { value: 'all', label: global ? 'Tất cả hệ thống' : 'Tất cả' },
+    { value: 'mine', label: 'Của tôi' },
+    global ? { value: 'others', label: 'Của người khác' } : { value: 'shared', label: 'Được chia sẻ' },
+  ];
+}
 export type DiagnosisTarget = 'gingivitis' | 'canine3d';
 
 export const DIAGNOSIS_ROUTES: Record<DiagnosisTarget, { path: string; label: string }> = {
@@ -98,6 +106,12 @@ export interface DataAsset {
 }
 
 export interface DataAssetDetail extends DataAsset {
+  provenance: {
+    mode: 'copy' | 'linked';
+    original_owner: { id: number; name: string } | null;
+    saved_by: { id: number; name: string } | null;
+    revision: string;
+  };
   data_type_other: string;
   visibility: 'private' | 'shared';
   mime_type: string;
@@ -120,6 +134,7 @@ export interface AssetFilters {
   mine?: boolean;
   shared?: boolean;
   others?: boolean;
+  editable?: boolean;
   diagnosis?: DiagnosisTarget;
   page?: number;
   pageSize?: number;
@@ -146,6 +161,7 @@ export interface SourceImportResponse {
 }
 
 export interface SourceImportPayload {
+  mode?: 'auto' | 'linked' | 'copy';
   title?: string;
   conditionNote?: string;
 }
@@ -251,6 +267,7 @@ export async function fetchAssets(filters: AssetFilters = {}): Promise<Paginated
   if (filters.mine) params.mine = 1;
   if (filters.shared) params.shared = 1;
   if (filters.others) params.others = 1;
+  if (filters.editable) params.editable = 1;
   if (filters.diagnosis) params.diagnosis = filters.diagnosis;
   if (filters.page && filters.page > 1) params.page = filters.page;
   if (filters.pageSize) params.page_size = filters.pageSize;
@@ -299,6 +316,7 @@ export async function importScanToLibrary(
   payload: SourceImportPayload,
 ): Promise<SourceImportResponse> {
   const res = await api.post<SourceImportResponse>(`/library/imports/scans/${scanId}/`, {
+    mode: payload.mode ?? 'auto',
     title: payload.title ?? '',
     condition_note: payload.conditionNote ?? '',
   });
@@ -316,6 +334,7 @@ export async function importGingivitisToLibrary(
       title: payload.title ?? '',
       condition_note: payload.conditionNote ?? '',
       variant: payload.variant,
+      mode: payload.mode ?? 'auto',
     },
   );
   return res.data;

@@ -1,11 +1,13 @@
 from django.urls import re_path
 
-from . import views
+from . import views, share_views
 
 # APPEND_SLASH = False ⇒ mọi pattern phải chấp nhận cả hai dạng có/không dấu "/" cuối.
 # Thứ tự quan trọng: "assets/uploads/..." phải đứng TRƯỚC "assets/(?P<pk>\d+)/" để
 # "uploads" không bị hiểu nhầm là một khoá chính.
 urlpatterns = [
+    re_path(r"^library/assets/(?P<pk>\d+)/shares/?$", share_views.AssetShareListCreateView.as_view()),
+    re_path(r"^library/shares/(?P<share_id>\d+)/?$", share_views.AssetShareDetailView.as_view()),
     re_path(
         r"^library/categories/?$",
         views.CategoryListCreateView.as_view(), name="library-category-list",

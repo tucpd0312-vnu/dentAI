@@ -40,6 +40,7 @@ from .access import (
     can_view_asset,
     can_view_all_assets,
     scoped_assets,
+    shared_assets,
 )
 from .imports import SourceImportError, import_gingivitis_image, import_scan
 from .models import DataAsset, DataCategory
@@ -67,7 +68,7 @@ def _get_uploading_asset(request, pk):
     404 ngay cả khi nó tồn tại nhưng thuộc người khác.
     """
     asset = get_object_or_404(DataAsset, pk=pk)
-    if not can_edit_asset(request.user, asset):
+    if asset.uploaded_by_id != request.user.pk and request.user.role != Role.ADMIN:
         raise Http404
     return asset
 
@@ -104,7 +105,7 @@ class CategoryListCreateView(APIView):
 
     def get(self, request):
         qs = DataCategory.objects.annotate(
-            asset_count=Count("assets", filter=Q(assets__is_deleted=False))
+            asset_count=Count("assets", filter=Q(assets__in=scoped_assets(request.user)))
         )
         return Response(DataCategorySerializer(qs, many=True).data)
 
@@ -202,14 +203,16 @@ class AssetListView(APIView):
         if request.query_params.get("mine") == "1":
             qs = qs.filter(uploaded_by=request.user)
         if request.query_params.get("shared") == "1":
-            qs = qs.filter(shares__shared_with=request.user).exclude(uploaded_by=request.user).distinct()
+            qs = qs.filter(pk__in=shared_assets(request.user).values("pk"))
         if request.query_params.get("others") == "1":
             # Quyền xem toàn kho không phải một lời chia sẻ cá nhân.
             if not can_view_all_assets(request.user):
                 return Response({"detail": "Chỉ quản trị viên hoặc bác sĩ/giảng viên được dùng bộ lọc này."}, status=403)
             qs = qs.exclude(uploaded_by=request.user)
+        if request.query_params.get("editable") == "1":
+            qs = qs.filter(_edit_share=True).exclude(uploaded_by=request.user)
 
-        qs = qs.order_by("-created_at")
+        qs = qs.order_by("-created_at", "-pk")
         paginator = AssetPagination()
         page = paginator.paginate_queryset(qs, request, view=self)
         return paginator.get_paginated_response(
@@ -253,8 +256,10 @@ class ScanSourceImportView(APIView):
                     user=request.user,
                     title=data.get("title", ""),
                     condition_note=data.get("condition_note", scan.note or ""),
+                    mode=data["mode"],
                 )
             except SourceImportError as exc:
+                transaction.set_rollback(True)
                 return Response(
                     {"detail": str(exc)}, status=status.HTTP_409_CONFLICT
                 )
@@ -318,8 +323,10 @@ class GingivitisSourceImportView(APIView):
                     variant=data["variant"],
                     title=data.get("title", ""),
                     condition_note=data.get("condition_note", default_note),
+                    mode=data["mode"],
                 )
             except SourceImportError as exc:
+                transaction.set_rollback(True)
                 return Response(
                     {"detail": str(exc)}, status=status.HTTP_409_CONFLICT
                 )

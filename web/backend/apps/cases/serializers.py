@@ -51,6 +51,15 @@ class _CasePermissionMixin:
 
 
 class ImageSerializer(_CasePermissionMixin, serializers.ModelSerializer):
+    library_save_options = serializers.SerializerMethodField()
+
+    def get_library_save_options(self, obj):
+        from .storage import library_save_options
+        options = library_save_options(obj)
+        user = getattr(self.context.get("request"), "user", None)
+        options["source_owned"] = bool(user and obj.case.created_by_id == user.pk)
+        return options
+
     detections = DetectionSerializer(many=True, read_only=True)
     masks = MaskSerializer(many=True, read_only=True)
     caption = CaptionSerializer(read_only=True)
@@ -69,7 +78,7 @@ class ImageSerializer(_CasePermissionMixin, serializers.ModelSerializer):
             "id", "order_index", "status", "is_low_confidence",
             "original_path", "annotated_path", "width", "height",
             "detections", "masks", "caption", "created_at",
-            "case_permission", "can_edit",
+            "case_permission", "can_edit", "library_save_options",
         ]
 
 
