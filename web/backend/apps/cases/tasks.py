@@ -22,7 +22,12 @@ def run_inference_task(self, image_id: int) -> dict:
     img.save(update_fields=["status"])
 
     try:
-        result = _run_pipeline(img.original_path, img.case_id, image_id)
+        result = _run_pipeline(
+            img.original_path,
+            img.case_id,
+            image_id,
+            img.case.confidence_threshold,
+        )
 
         Caption.objects.update_or_create(
             image=img,
@@ -68,7 +73,12 @@ def run_inference_task(self, image_id: int) -> dict:
 # Cannot modify the inference files, so we call low-level functions here.
 # ---------------------------------------------------------------------------
 
-def _run_pipeline(image_path: str, case_id: int, image_id: int) -> dict:
+def _run_pipeline(
+    image_path: str,
+    case_id: int,
+    image_id: int,
+    confidence_threshold: float,
+) -> dict:
     import cv2
     from get_caption import build_t5_input, generate_caption
     from get_image import draw_box_on_mask, get_box, get_mask, get_roi
@@ -149,7 +159,7 @@ def _run_pipeline(image_path: str, case_id: int, image_id: int) -> dict:
 
     else:
         matches = matcher.match(teeth_data, boxes_data, img_diag)
-        ok, warning = confidence_gate(matches)
+        ok, warning = confidence_gate(matches, threshold=confidence_threshold)
 
         if ok:
             t5_input = build_t5_input(matches, teeth_data, boxes_data)

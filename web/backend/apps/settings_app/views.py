@@ -5,10 +5,7 @@ from apps.users.activity import log_activity
 from apps.users.models import LogAction, LogCategory
 from apps.users.permissions import IsActiveUser, IsAdmin
 
-from .models import AppSettings
-
-_CONFIDENCE_KEY = "confidence_threshold"
-_DEFAULT_THRESHOLD = "0.5"
+from .models import AppSettings, CONFIDENCE_THRESHOLD_KEY
 
 
 class SettingsView(APIView):
@@ -25,9 +22,7 @@ class SettingsView(APIView):
 
     def get(self, request):
         return Response({
-            "confidence_threshold": float(
-                AppSettings.get(_CONFIDENCE_KEY, _DEFAULT_THRESHOLD)
-            )
+            "confidence_threshold": AppSettings.confidence_threshold()
         })
 
     def patch(self, request):
@@ -40,11 +35,11 @@ class SettingsView(APIView):
         except (ValueError, AssertionError):
             return Response({"detail": "Must be a float in [0, 1]"}, status=400)
 
-        old = float(AppSettings.get(_CONFIDENCE_KEY, _DEFAULT_THRESHOLD))
-        AppSettings.set(_CONFIDENCE_KEY, value)
+        old = AppSettings.confidence_threshold()
+        AppSettings.set(CONFIDENCE_THRESHOLD_KEY, value)
         log_activity(
             LogCategory.ADMIN, LogAction.SETTINGS_UPDATE,
             actor=request.user, request=request,
-            detail={"key": _CONFIDENCE_KEY, "before": old, "after": value},
+            detail={"key": CONFIDENCE_THRESHOLD_KEY, "before": old, "after": value},
         )
         return Response({"confidence_threshold": value})

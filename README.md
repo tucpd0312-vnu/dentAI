@@ -83,8 +83,8 @@ Worker web gọi các thành phần pipeline qua `tasks.py`, không chạy trự
 - Checkpoint cần `config.json`, tokenizer (`tokenizer.json` hoặc `spiece.model`) và
   `model.safetensors`/`pytorch_model.bin`, hoặc file index cùng đầy đủ các shard.
   Cần dùng checkpoint đã huấn luyện cho đầu vào MGI; mô hình T5 nền không mặc nhiên sinh được mô tả phù hợp.
-- Hiện worker dùng ngưỡng mặc định trong `matching.py`. Giá trị lưu ở `/settings`
-  và snapshot trên ca chưa được truyền vào lời gọi `confidence_gate`.
+- Mỗi ca lưu snapshot ngưỡng confidence hiện hành khi được tạo. Worker truyền snapshot
+  này vào `confidence_gate`, nên việc đổi `/settings` chỉ áp dụng cho các ca tạo sau đó.
 
 ### 1.5. Đánh giá
 

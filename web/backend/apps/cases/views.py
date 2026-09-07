@@ -15,6 +15,7 @@ from rest_framework.views import APIView
 from apps.users.activity import log_activity
 from apps.users.models import LogAction, LogCategory
 from apps.users.permissions import IsActiveUser
+from apps.settings_app.models import AppSettings
 
 from .access import can_edit_case, scoped_cases, scoped_images
 from .models import Case, Detection, Image, Patient
@@ -71,7 +72,11 @@ class CaseListCreateView(APIView):
                 patient_code=f"BN-{uuid4().hex[:8].upper()}",
                 notes=d.get("notes", ""),
             )
-        case = Case.objects.create(patient=patient, created_by=request.user)
+        case = Case.objects.create(
+            patient=patient,
+            created_by=request.user,
+            confidence_threshold=AppSettings.confidence_threshold(),
+        )
 
         # Save uploaded images, create Image records, enqueue tasks
         media_dir = os.path.join(settings.MEDIA_ROOT, "originals", str(case.pk))
@@ -130,7 +135,11 @@ class CaseFromLibraryView(APIView):
         try:
             with transaction.atomic():
                 patient = patient_for_diagnosis(request.user, assets[0], data)
-                case = Case.objects.create(patient=patient, created_by=request.user)
+                case = Case.objects.create(
+                    patient=patient,
+                    created_by=request.user,
+                    confidence_threshold=AppSettings.confidence_threshold(),
+                )
                 media_dir = create_diagnosis_storage_dir(
                     os.path.join(settings.MEDIA_ROOT, "originals"), case.pk
                 )
