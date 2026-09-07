@@ -17,7 +17,7 @@ from rest_framework.views import APIView
 from apps.cases.access import scoped_cases
 from apps.cases.models import Case, Detection, Image
 from apps.cases.serializers import CaseListSerializer
-from apps.library.access import scoped_assets
+from apps.library.access import scoped_assets, shared_assets
 from apps.library.models import DataAsset
 from apps.scans.access import scoped_scans
 from apps.scans.models import Scan
@@ -79,10 +79,9 @@ class DashboardView(APIView):
             },
             "library": {
                 "total": assets.count(),
+                "others": assets.exclude(uploaded_by=user).count(),
                 "by_status": _counts(assets, "status", DataAsset.Status.values),
-                "shared_with_me": DataAsset.objects.filter(
-                    is_deleted=False, shares__shared_with=user
-                ).distinct().count(),
+                "shared_with_me": shared_assets(user).count(),
             },
         }
 

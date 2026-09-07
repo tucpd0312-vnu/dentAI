@@ -35,7 +35,7 @@ _CANINE3D_ACTIONS = frozenset({
     "scan_share", "scan_unshare",
 })
 _LIBRARY_ACTIONS = frozenset({
-    "asset_upload", "asset_download", "asset_delete",
+    "asset_upload", "asset_download", "asset_delete", "asset_share", "asset_unshare",
 })
 
 

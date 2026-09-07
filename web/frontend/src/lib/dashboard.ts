@@ -34,7 +34,7 @@ export interface OperationalDashboardData {
   scope: 'all' | 'own';
   cases: DashboardCases;
   scans: DashboardStorageModule;
-  library: DashboardStorageModule;
+  library: DashboardStorageModule & { others: number };
   /** Khoá là mức MGI dạng chuỗi: '0'…'4'. */
   mgi: Record<string, number>;
   /** Chỉ có trong response của admin. */

@@ -148,6 +148,8 @@ class UserDetailView(APIView):
         # Hạ role xuống patient ⇒ mọi quyền chia sẻ 'edit' đang có phải hạ về 'view'
         # (bệnh nhân không được sửa nhãn — xem apps/cases/access.can_edit_case).
         downgraded = 0
+        downgraded_scan_shares = 0
+        revoked_scan_shares = 0
         revoked_case_shares = 0
         revoked_library_shares = 0
         if updated.role == Role.PATIENT:
@@ -163,11 +165,10 @@ class UserDetailView(APIView):
             ScanShare.objects.filter(shared_with=updated).delete()
         elif updated.role == Role.STUDENT:
             from apps.scans.models import ScanShare
-
-            # Sinh viên sửa được kết quả viêm lợi nhưng phạm vi CBCT giống bệnh nhân:
-            # chỉ phim tự tải và không nhận quyền chuyên môn/phân vùng từ người khác.
-            revoked_scan_shares = ScanShare.objects.filter(shared_with=updated).count()
-            ScanShare.objects.filter(shared_with=updated).delete()
+            # Keep CBCT read access, without restoring previous editing rights.
+            downgraded_scan_shares = ScanShare.objects.filter(shared_with=updated).exclude(
+                permission=ScanShare.Permission.VIEW,
+            ).update(permission=ScanShare.Permission.VIEW)
         elif updated.role == Role.RECEPTIONIST:
             from apps.cases.models import CaseShare
             from apps.library.models import DataAssetShare
@@ -199,6 +200,8 @@ class UserDetailView(APIView):
 
         if downgraded:
             changes["shares_downgraded_to_view"] = downgraded
+        if downgraded_scan_shares:
+            changes["scan_shares_downgraded_to_view"] = downgraded_scan_shares
         if revoked_case_shares:
             changes["case_shares_revoked"] = revoked_case_shares
         if revoked_scan_shares:

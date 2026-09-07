@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/components/providers/AuthProvider';
+import { libraryTabs } from '@/lib/library';
 import { DATA_TYPE_ICON, fetchAsset, fetchAssets, fetchAssetThumbnailBlob, type DataAsset, type DiagnosisTarget } from '@/lib/library';
 import { apiErrorMessage } from '@/lib/users';
 
@@ -69,7 +70,8 @@ export default function LibraryAssetPicker({ target, selected, onChange, disable
   target: DiagnosisTarget; selected: DataAsset[]; onChange: (assets: DataAsset[]) => void;
   disabled: boolean; initialError?: string | null;
 }) {
-  const { canViewAllLibrary } = useAuth();
+  const { canViewAllLibrary, isDoctor } = useAuth();
+  const [editableOnly, setEditableOnly] = useState(false);
   const [rows, setRows] = useState<DataAsset[]>([]);
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
@@ -90,13 +92,13 @@ export default function LibraryAssetPicker({ target, selected, onChange, disable
     setLoading(true);
     setError(null);
     fetchAssets({ diagnosis: target, q: query, mine: scope === 'mine', shared: scope === 'shared',
-      others: scope === 'others', page, pageSize: PAGE_SIZE }).then(data => {
+      others: scope === 'others', editable: scope === 'others' && editableOnly, page, pageSize: PAGE_SIZE }).then(data => {
       if (active) { setRows(data.results); setCount(data.count); }
     }).catch(err => {
       if (active) { setRows([]); setCount(0); setError(apiErrorMessage(err, 'Không tải được Kho dữ liệu.')); }
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [target, query, page, scope]);
+  }, [target, query, page, scope, editableOnly]);
 
   function toggle(asset: DataAsset) {
     if (disabled) return;
@@ -130,10 +132,11 @@ export default function LibraryAssetPicker({ target, selected, onChange, disable
           className="min-w-48 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm" />
         <select value={scope} disabled={disabled} aria-label="Phạm vi Kho dữ liệu"
           onChange={event => { setScope(event.target.value); setPage(1); }} className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
-          <option value="all">{canViewAllLibrary ? 'Tất cả hệ thống' : 'Tất cả được truy cập'}</option>
-          <option value="mine">Của tôi</option><option value="shared">Được chia sẻ</option>
-          {canViewAllLibrary && <option value="others">Của người khác</option>}
+          {libraryTabs(canViewAllLibrary).map(tab => <option key={tab.value} value={tab.value}>{tab.label}</option>)}
         </select>
+        {isDoctor && scope === 'others' && <label className="flex items-center gap-1 text-xs">
+          <input type="checkbox" checked={editableOnly} disabled={disabled} onChange={e => { setEditableOnly(e.target.checked); setPage(1); }} />Được cấp quyền sửa
+        </label>}
       </div>
       {selected.length > 0 && (
         <div className="flex flex-wrap gap-1.5" aria-label="Tư liệu đã chọn">

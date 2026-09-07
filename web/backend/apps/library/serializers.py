@@ -131,6 +131,7 @@ class AssetUploadInitSerializer(serializers.Serializer):
 class AssetSourceImportSerializer(serializers.Serializer):
     """Metadata cho dữ liệu được sao chép từ module nghiệp vụ sang Kho dữ liệu."""
 
+    mode = serializers.ChoiceField(choices=["auto", "linked", "copy"], default="auto")
     title = serializers.CharField(
         max_length=255, required=False, allow_blank=True, default=""
     )
@@ -230,8 +231,23 @@ class AssetListSerializer(_AssetBaseSerializer):
 
 
 class AssetDetailSerializer(_AssetBaseSerializer):
+    visibility = serializers.SerializerMethodField()
+
+    def get_visibility(self, obj):
+        return "shared" if obj.shares.exists() or obj.source_links.exists() else "private"
+
     can_see_patient_info = serializers.SerializerMethodField()
     source = serializers.SerializerMethodField()
+    provenance = serializers.SerializerMethodField()
+
+    def get_provenance(self, obj):
+        owner = (obj.source_case.created_by if obj.source_case_id else
+                 obj.source_scan.uploaded_by if obj.source_scan_id else None)
+        def person(user):
+            return {"id": user.pk, "name": user.full_name or user.username} if user else None
+        return {"mode": obj.save_mode, "original_owner": person(owner),
+                "saved_by": person(obj.saved_by or obj.uploaded_by),
+                "revision": obj.source_revision[:12]}
 
     def get_can_see_patient_info(self, obj):
         return can_see_patient_info(self._user(), obj)
@@ -259,7 +275,7 @@ class AssetDetailSerializer(_AssetBaseSerializer):
             "data_type_display", "status", "status_display", "visibility",
             "file_size", "original_filename", "mime_type", "source_variant",
             "preview_count", "is_anonymized", "error_message",
-            "uploaded_by", "permission", "can_edit", "diagnosis_target", "source",
+            "uploaded_by", "permission", "can_edit", "diagnosis_target", "source", "provenance",
             "created_at", "updated_at",
         ]
         # file_path / preview_dir / thumbnail_path CỐ Ý không có ở đây — không lộ đường

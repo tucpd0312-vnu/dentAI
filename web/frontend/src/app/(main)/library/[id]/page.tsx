@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 import SliceViewer from '@/components/viewer/SliceViewer';
+import ShareModal from '@/components/results/ShareModal';
 import {
   ASSET_STATUS_CLASS,
   ASSET_STATUS_LABEL,
@@ -46,6 +47,7 @@ export default function AssetDetailPage() {
   const [loadError, setLoadError] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   const [editing, setEditing] = useState(false);
   const [categories, setCategories] = useState<DataCategory[]>([]);
@@ -263,6 +265,10 @@ export default function AssetDetailPage() {
         {/* ── Cột phải ── */}
         <div className="w-full shrink-0 space-y-4 sm:w-80">
           <div className="space-y-2">
+            {(asset.permission === 'owner' || asset.permission === 'admin') && <button
+              onClick={() => setSharing(true)} className="w-full rounded-xl border border-primary px-4 py-2 text-sm text-primary">
+              Chia sẻ tư liệu
+            </button>}
             {asset.diagnosis_target && (
               <Link
                 href={diagnosisUrl(asset)!}
@@ -349,6 +355,15 @@ export default function AssetDetailPage() {
             </Card>
           )}
 
+          <Card title="Nguồn và bản lưu">
+            <InfoRow label="Cách lưu" value={asset.provenance.mode === 'linked' ? 'Liên kết với nguồn' : 'Bản sao độc lập'} />
+            <InfoRow label="Chủ sở hữu" value={asset.uploaded_by?.full_name || asset.uploaded_by?.username || 'Không xác định'} />
+            {asset.provenance.original_owner && <InfoRow label="Người tạo nguồn" value={asset.provenance.original_owner.name} />}
+            {asset.provenance.saved_by && <InfoRow label="Người lưu" value={asset.provenance.saved_by.name} />}
+            <InfoRow label="Lưu lúc" value={fmtDateTime(asset.created_at)} />
+            {asset.provenance.revision && <InfoRow label="Phiên bản" value={asset.provenance.revision} />}
+            {asset.provenance.mode === 'linked' && <p className="mt-2 text-xs text-gray-500">Quyền nhận qua nguồn được quản lý tại ca/phim gốc. Các quyền chia sẻ trực tiếp được quản lý riêng.</p>}
+          </Card>
           <Card title="Phân loại & loại dữ liệu">
             {editing ? (
               <div className="space-y-3">
@@ -449,6 +464,7 @@ export default function AssetDetailPage() {
           )}
         </div>
       </div>
+      {sharing && <ShareModal assetId={asset.id} onClose={() => { setSharing(false); void load(); }} />}
     </div>
   );
 }

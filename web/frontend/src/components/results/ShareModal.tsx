@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ROLE_LABEL } from '@/lib/auth';
 import {
   PERMISSION_LABEL,
+  createAssetShare, fetchAssetShares, updateAssetShare, deleteAssetShare, type AssetShare,
   createScanShare,
   createShare,
   deleteScanShare,
@@ -30,15 +31,20 @@ const MIN_QUERY = 2;
  * không dùng để thu thập email nội bộ được.
  */
 type ShareModalProps =
-  | { caseId: number | string; scanId?: never; patientName?: string; onClose: () => void }
-  | { scanId: number | string; caseId?: never; patientName?: string; onClose: () => void };
+  | { caseId: number | string; scanId?: never; assetId?: never; patientName?: string; onClose: () => void }
+  | { scanId: number | string; caseId?: never; assetId?: never; patientName?: string; onClose: () => void }
+  | { assetId: number | string; caseId?: never; scanId?: never; patientName?: string; onClose: () => void };
 
-type ShareRecord = CaseShare | ScanShare;
+type ShareRecord = CaseShare | ScanShare | AssetShare;
 
 export default function ShareModal(props: ShareModalProps) {
   const isScan = props.scanId !== undefined;
-  const resourceId = isScan ? props.scanId : props.caseId;
-  const resourceLabel = isScan ? 'phim' : 'ca';
+  const isAsset = props.assetId !== undefined;
+  const resourceId = (props.assetId ?? props.scanId ?? props.caseId)!;
+  const resourceLabel = isAsset ? 'tư liệu' : isScan ? 'phim' : 'ca';
+  const canReceiveEdit = (role: string) => isAsset || (isScan
+    ? role === 'admin' || role === 'doctor'
+    : role === 'admin' || role === 'doctor' || role === 'student');
   const { patientName, onClose } = props;
   const [shares, setShares] = useState<ShareRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,13 +64,13 @@ export default function ShareModal(props: ShareModalProps) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setShares(isScan ? await fetchScanShares(resourceId) : await fetchShares(resourceId));
+      setShares(isAsset ? await fetchAssetShares(resourceId) : isScan ? await fetchScanShares(resourceId) : await fetchShares(resourceId));
     } catch (err) {
       setError(apiErrorMessage(err, `Không tải được danh sách chia sẻ ${resourceLabel}.`));
     } finally {
       setLoading(false);
     }
-  }, [isScan, resourceId, resourceLabel]);
+  }, [isAsset, isScan, resourceId, resourceLabel]);
 
   useEffect(() => {
     void load();
@@ -90,7 +96,7 @@ export default function ShareModal(props: ShareModalProps) {
         const users = await searchUsers(q);
         setResults(
           isScan
-            ? users.filter(user => user.role === 'admin' || user.role === 'doctor')
+            ? users.filter(user => user.role === 'admin' || user.role === 'doctor' || user.role === 'student')
             : users.filter(user => user.role !== 'receptionist'),
         );
       } catch {
@@ -105,8 +111,8 @@ export default function ShareModal(props: ShareModalProps) {
   // Bệnh nhân không nhận được quyền sửa — backend trả 400, nên tự hạ về 'view'
   // ngay khi chọn để người dùng không phải chạm vào lỗi.
   useEffect(() => {
-    if (picked && !picked.can_receive_edit && permission === 'edit') setPermission('view');
-  }, [picked, permission]);
+    if (picked && !isAsset && (isScan ? !['admin', 'doctor'].includes(picked.role) : !picked.can_receive_edit) && permission === 'edit') setPermission('view');
+  }, [picked, permission, isAsset, isScan]);
 
   function flash(msg: string) {
     setNotice(msg);
@@ -119,7 +125,8 @@ export default function ShareModal(props: ShareModalProps) {
     setSaving(true);
     setError(null);
     try {
-      if (isScan) await createScanShare(resourceId, picked.id, permission, note);
+      if (isAsset) await createAssetShare(resourceId, picked.id, permission, note);
+      else if (isScan) await createScanShare(resourceId, picked.id, permission, note);
       else await createShare(resourceId, picked.id, permission, note);
       flash(`Đã chia sẻ cho ${picked.full_name || picked.username}.`);
       setPicked(null);
@@ -137,7 +144,8 @@ export default function ShareModal(props: ShareModalProps) {
   async function changePermission(share: ShareRecord, next: SharePermission) {
     setError(null);
     try {
-      if (isScan) await updateScanShare(share.id, next);
+      if (isAsset) await updateAssetShare(share.id, next);
+      else if (isScan) await updateScanShare(share.id, next);
       else await updateShare(share.id, next);
       await load();
     } catch (err) {
@@ -148,7 +156,8 @@ export default function ShareModal(props: ShareModalProps) {
   async function revoke(share: ShareRecord) {
     setError(null);
     try {
-      if (isScan) await deleteScanShare(share.id);
+      if (isAsset) await deleteAssetShare(share.id);
+      else if (isScan) await deleteScanShare(share.id);
       else await deleteShare(share.id);
       flash(`Đã thu hồi chia sẻ với ${share.shared_with_username}.`);
       await load();
@@ -163,7 +172,7 @@ export default function ShareModal(props: ShareModalProps) {
         <div className="flex items-start justify-between border-b border-gray-100 px-5 py-3.5">
           <div>
             <h2 className="font-serif text-[15px] font-semibold text-gray-900">
-              {isScan ? 'Chia sẻ phim RNNHT 3D' : 'Chia sẻ ca chẩn đoán'}
+              {isAsset ? 'Chia sẻ tư liệu trong kho' : isScan ? 'Chia sẻ phim RNNHT 3D' : 'Chia sẻ ca chẩn đoán'}
             </h2>
             {patientName && <p className="text-xs text-gray-500">Bệnh nhân: {patientName}</p>}
           </div>
@@ -177,6 +186,10 @@ export default function ShareModal(props: ShareModalProps) {
         </div>
 
         <div className="space-y-4 p-5">
+          {isAsset && <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
+            Quyền sửa chỉ áp dụng cho thông tin tư liệu, không cấp quyền sửa kết quả chẩn đoán hoặc xóa nguồn.
+            Quyền nhận qua ca/phim được quản lý riêng tại nguồn.
+          </p>}
           {error && (
             <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               <span className="material-symbols-outlined mt-0.5 shrink-0 text-[16px]">error</span>
@@ -296,7 +309,7 @@ export default function ShareModal(props: ShareModalProps) {
                   <label className="mb-1.5 block text-xs font-medium text-gray-600">Quyền</label>
                   <div className="grid grid-cols-2 gap-2">
                     {(['view', 'edit'] as SharePermission[]).map(p => {
-                      const disabled = p === 'edit' && !picked.can_receive_edit;
+                      const disabled = p === 'edit' && !canReceiveEdit(picked.role);
                       return (
                         <button
                           key={p}
@@ -319,10 +332,9 @@ export default function ShareModal(props: ShareModalProps) {
                       );
                     })}
                   </div>
-                  {!picked.can_receive_edit && (
+                  {!canReceiveEdit(picked.role) && (
                     <p className="mt-1 text-[11px] text-amber-600">
-                      Tài khoản bệnh nhân chỉ nhận được quyền xem — nhãn chẩn đoán do bác sĩ
-                      chỉnh sửa sẽ được dùng để huấn luyện lại mô hình.
+                      Tài khoản này chỉ được xem và tải xuống dữ liệu được chia sẻ.
                     </p>
                   )}
                 </div>
@@ -395,12 +407,12 @@ export default function ShareModal(props: ShareModalProps) {
                       <option
                         value="edit"
                         disabled={
-                          isScan
+                          !isAsset && (isScan
                             ? s.shared_with_role !== 'admin' &&
                               s.shared_with_role !== 'doctor'
                             : s.shared_with_role !== 'admin' &&
                               s.shared_with_role !== 'doctor' &&
-                              s.shared_with_role !== 'student'
+                              s.shared_with_role !== 'student')
                         }
                       >
                         {isScan ? 'Xem và nộp phân vùng' : PERMISSION_LABEL.edit}

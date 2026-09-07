@@ -26,7 +26,7 @@ MASK_ALPHA = 97   # 0.38 * 255, same as the canvas layer opacity
 
 
 def render_annotated(img: Image, detections, masks=None) -> bytes | None:
-    """PNG bytes of the original photo with `detections` (and masks) drawn on it.
+    """JPEG bytes of the original photo with `detections` (and masks) drawn on it.
     None if the original is missing from disk."""
     src = local_media_path(img.original_path)
     if not src or not os.path.exists(src):

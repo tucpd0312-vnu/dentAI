@@ -24,3 +24,27 @@ def local_media_path(stored: str) -> str:
         rel = norm[idx + len(marker):]
         return os.path.join(settings.MEDIA_ROOT, *rel.split("/"))
     return stored
+
+
+def library_save_options(img):
+    """Availability is based on the readable original and current annotations,
+    rather than an absolute path left by another process's AI output.
+    """
+    from PIL import Image as PILImage
+    ready = img.status in ("done", "low_confidence")
+    readable = False
+    path = local_media_path(img.original_path)
+    if ready and path and os.path.isfile(path):
+        try:
+            with PILImage.open(path) as source:
+                source.verify()
+            readable = True
+        except (OSError, ValueError, PILImage.DecompressionBombError):
+            pass
+    annotated = readable and (
+        not img.is_low_confidence or img.detections.filter(is_deleted=False).exists()
+        or img.masks.exists()
+    )
+    reason = ("" if annotated else "Ảnh gốc bị thiếu hoặc không đọc được." if ready and not readable
+              else "Ảnh chưa có chú thích hợp lệ để lưu." if ready else "Ảnh chưa xử lý xong.")
+    return {"original": readable, "annotated": bool(annotated), "reason": reason}

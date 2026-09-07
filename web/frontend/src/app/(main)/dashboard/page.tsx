@@ -98,6 +98,7 @@ function ModuleCard({
   ready,
   processing,
   shared,
+  sharedLabel = 'Được chia sẻ',
 }: {
   href: string;
   icon: string;
@@ -107,12 +108,13 @@ function ModuleCard({
   ready: number;
   processing: number;
   shared: number;
+  sharedLabel?: string;
 }) {
   const stats: Array<[string, number]> = [
     ['Tổng', total],
     ['Sẵn sàng', ready],
     ['Đang xử lý', processing],
-    ['Được chia sẻ', shared],
+    [sharedLabel, shared],
   ];
   return (
     <Link
@@ -667,7 +669,8 @@ export default function DashboardPage() {
           total={library.total}
           ready={library.by_status.ready}
           processing={(library.by_status.uploading ?? 0) + (library.by_status.processing ?? 0)}
-          shared={library.shared_with_me}
+          shared={canViewAllLibrary ? library.others : library.shared_with_me}
+          sharedLabel={canViewAllLibrary ? 'Của người khác' : 'Được chia sẻ'}
         />
       </div>
 

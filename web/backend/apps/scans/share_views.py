@@ -48,7 +48,7 @@ def _bad(message):
 
 def _recipient(user_id):
     return User.objects.filter(
-        pk=user_id, is_active=True, is_deleted=False, role__in=(Role.ADMIN, Role.DOCTOR)
+        pk=user_id, is_active=True, is_deleted=False, role__in=(Role.ADMIN, Role.DOCTOR, Role.STUDENT)
     ).first()
 
 
@@ -84,7 +84,7 @@ class ScanShareListCreateView(APIView):
             return _bad("Thiếu người nhận (user_id).")
         recipient = _recipient(user_id)
         if not recipient:
-            return _bad("Chỉ có thể chia sẻ phim CBCT cho bác sĩ hoặc quản trị viên đang hoạt động.")
+            return _bad("Chỉ có thể chia sẻ phim CBCT cho bác sĩ, sinh viên hoặc quản trị viên đang hoạt động.")
         if recipient.pk == request.user.pk:
             return _bad("Bạn không cần chia sẻ phim cho chính mình.")
         if recipient.pk == scan.uploaded_by_id:
@@ -93,6 +93,8 @@ class ScanShareListCreateView(APIView):
         permission = request.data.get("permission", ScanShare.Permission.VIEW)
         if permission not in ScanShare.Permission.values:
             return _bad("Quyền chia sẻ không hợp lệ.")
+        if recipient.role == Role.STUDENT and permission != ScanShare.Permission.VIEW:
+            return _bad("Sinh viên chỉ được xem và tải xuống phim CBCT.")
 
         share, created = ScanShare.objects.update_or_create(
             scan=scan,
@@ -143,6 +145,8 @@ class ScanShareDetailView(APIView):
         permission = request.data.get("permission")
         if permission not in ScanShare.Permission.values:
             return _bad("Quyền chia sẻ không hợp lệ.")
+        if share.shared_with.role == Role.STUDENT and permission != ScanShare.Permission.VIEW:
+            return _bad("Sinh viên chỉ được xem và tải xuống phim CBCT.")
         before = share.permission
         share.permission = permission
         if "note" in request.data:
