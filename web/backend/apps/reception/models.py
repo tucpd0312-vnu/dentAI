@@ -3,7 +3,7 @@ from django.db import models
 
 
 class AssignmentWorkbook(models.Model):
-    """Một phiên bản file Excel phân công do lễ tân tải lên."""
+    """Một phiên bản Excel phân công dùng chung, do admin hoặc lễ tân tải lên."""
 
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

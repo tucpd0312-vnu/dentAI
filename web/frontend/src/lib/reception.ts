@@ -9,6 +9,11 @@ export interface AssignmentWorkbook {
   original_filename: string;
   file_size: number;
   created_at: string;
+  uploaded_by: {
+    id: number;
+    username: string;
+    full_name: string;
+  };
 }
 
 interface LatestAssignmentWorkbookResponse {

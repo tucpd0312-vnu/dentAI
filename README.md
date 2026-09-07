@@ -125,7 +125,7 @@ web/
 │   │   ├── cases/        # ca viêm lợi, kết quả, chia sẻ, export
 │   │   ├── scans/        # phim CBCT, chia sẻ, phân vùng
 │   │   ├── library/      # kho dữ liệu, import và dùng dữ liệu để chẩn đoán
-│   │   ├── reception/    # file Excel phân công của lễ tân
+│   │   ├── reception/    # file Excel phân công chung của admin/lễ tân
 │   │   ├── common/       # tiện ích dùng chung
 │   │   └── settings_app/
 │   ├── scans_storage/    # phim CBCT; truy cập qua API có kiểm tra quyền
@@ -157,6 +157,8 @@ web/
   phê duyệt.
 - Tài khoản lễ tân do admin tạo. Lễ tân chỉ vào Tổng quan, nhận thông báo và tải
   file phân công `.xlsx`/`.xls` tối đa 10 MB; mỗi lần tải được giữ thành một phiên bản.
+- Admin cũng tải Excel phân công tại Tổng quan. Admin và lễ tân cùng xem thông tin
+  bản mới nhất toàn hệ thống, gồm người tải lên; các phiên bản trước được giữ lại.
 - Sinh viên chỉ xem dữ liệu của mình hoặc được chia sẻ, được sửa kết quả viêm lợi
   nhưng không được nộp phân vùng CBCT.
 - Kho dữ liệu: admin và bác sĩ/giảng viên xem, tải xuống và thêm dữ liệu trong kho toàn
@@ -228,7 +230,7 @@ Thông tin bệnh nhân trên tư liệu được chia sẻ được ẩn với 
 | Route | Chức năng |
 |---|---|
 | `/login`, `/register`, `/verify-otp`, `/forgot-password` | Đăng nhập, đăng ký, xác thực, đặt lại mật khẩu |
-| `/dashboard` | Tổng quan theo quyền; lễ tân tải và xem metadata file phân công mới nhất |
+| `/dashboard` | Tổng quan theo quyền; admin/lễ tân tải Excel và xem metadata bản phân công chung mới nhất |
 | `/gingivitis` | Quản lý phim/ca viêm lợi |
 | `/analysis/new` | Tạo ca từ máy hoặc kho dữ liệu |
 | `/analysis/[caseId]/processing` | Theo dõi xử lý |
@@ -285,7 +287,7 @@ Các đường dẫn dưới đây dùng tiền tố `/api/`. API nghiệp vụ 
 | `CaseShare`, `ScanShare` | Người nhận và quyền xem/sửa ca/phim |
 | `Scan`, `Segmentation`, `ScanAccessToken` | Phim CBCT, kết quả phân vùng và token tải ngắn hạn |
 | `DataCategory`, `DataAsset`, `DataAssetShare` | Phân loại, file + metadata, nguồn gốc/biến thể ảnh và quyền truy cập kho |
-| `AssignmentWorkbook` | Lịch sử file Excel phân công theo tài khoản lễ tân |
+| `AssignmentWorkbook` | Phiên bản Excel phân công chung của admin/lễ tân, lưu người tải lên |
 
 ---
 
