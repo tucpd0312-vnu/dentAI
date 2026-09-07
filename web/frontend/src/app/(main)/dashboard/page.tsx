@@ -502,7 +502,7 @@ function ReceptionistDashboard({ user }: { user: AuthUser | null }) {
 // ── Trang ────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, canViewAllLibrary } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -552,7 +552,9 @@ export default function DashboardPage() {
             <p className="mt-1 max-w-xl text-sm text-white/75">
               {data.scope === 'all'
                 ? 'Theo dõi toàn bộ hoạt động chẩn đoán và lưu trữ của hệ thống.'
-                : 'Theo dõi dữ liệu do bạn tạo và những nội dung được chia sẻ với bạn.'}
+                : canViewAllLibrary
+                  ? 'Theo dõi ca/phim của bạn, nội dung được chia sẻ và kho dữ liệu toàn hệ thống.'
+                  : 'Theo dõi dữ liệu do bạn tạo và những nội dung được chia sẻ với bạn.'}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -616,7 +618,9 @@ export default function DashboardPage() {
           href="/library/"
           icon="inventory_2"
           title="Kho dữ liệu"
-          description="DICOM, ảnh trong miệng, Pano và tài liệu"
+          description={canViewAllLibrary
+            ? 'Kho toàn hệ thống · DICOM, ảnh trong miệng, Pano và tài liệu'
+            : 'DICOM, ảnh trong miệng, Pano và tài liệu'}
           total={library.total}
           ready={library.by_status.ready}
           processing={(library.by_status.uploading ?? 0) + (library.by_status.processing ?? 0)}

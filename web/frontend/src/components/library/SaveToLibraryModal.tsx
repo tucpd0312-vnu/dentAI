@@ -130,8 +130,8 @@ export default function SaveToLibraryModal(props: SaveToLibraryModalProps) {
         ) : (
           <form onSubmit={submit} className="space-y-4 p-5">
             <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2.5 text-xs leading-relaxed text-blue-800">
-              Hệ thống tạo một bản sao có truy vết nguồn. Chỉ bạn và quản trị viên thấy
-              mục này trong Kho dữ liệu.
+              Hệ thống tạo một bản sao có truy vết nguồn trong Kho dữ liệu.
+              Bạn, quản trị viên và bác sĩ/giảng viên có thể xem tư liệu này.
             </div>
 
             {error && (

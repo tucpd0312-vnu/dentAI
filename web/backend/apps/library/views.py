@@ -38,6 +38,7 @@ from .access import (
     can_edit_asset,
     can_see_patient_info,
     can_view_asset,
+    can_view_all_assets,
     scoped_assets,
 )
 from .imports import SourceImportError, import_gingivitis_image, import_scan
@@ -196,16 +197,16 @@ class AssetListView(APIView):
         if uploaded_by:
             qs = qs.filter(uploaded_by_id=uploaded_by)
 
-        # Tab "Của tôi" / "Được chia sẻ" — với admin, `mine=1` là cách duy nhất để lọc
+        # Tab "Của tôi" / "Được chia sẻ" — với admin/doctor, `mine=1` dùng để lọc
         # ra tư liệu của chính họ giữa toàn bộ kho.
         if request.query_params.get("mine") == "1":
             qs = qs.filter(uploaded_by=request.user)
         if request.query_params.get("shared") == "1":
             qs = qs.filter(shares__shared_with=request.user).exclude(uploaded_by=request.user).distinct()
         if request.query_params.get("others") == "1":
-            # Quyền quản trị toàn hệ thống không phải một lời chia sẻ cá nhân.
-            if request.user.role != Role.ADMIN:
-                return Response({"detail": "Chỉ quản trị viên được dùng bộ lọc này."}, status=403)
+            # Quyền xem toàn kho không phải một lời chia sẻ cá nhân.
+            if not can_view_all_assets(request.user):
+                return Response({"detail": "Chỉ quản trị viên hoặc bác sĩ/giảng viên được dùng bộ lọc này."}, status=403)
             qs = qs.exclude(uploaded_by=request.user)
 
         qs = qs.order_by("-created_at")
