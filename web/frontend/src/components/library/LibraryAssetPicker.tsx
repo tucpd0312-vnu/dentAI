@@ -69,7 +69,7 @@ export default function LibraryAssetPicker({ target, selected, onChange, disable
   target: DiagnosisTarget; selected: DataAsset[]; onChange: (assets: DataAsset[]) => void;
   disabled: boolean; initialError?: string | null;
 }) {
-  const { isAdmin } = useAuth();
+  const { canViewAllLibrary } = useAuth();
   const [rows, setRows] = useState<DataAsset[]>([]);
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
@@ -130,9 +130,9 @@ export default function LibraryAssetPicker({ target, selected, onChange, disable
           className="min-w-48 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm" />
         <select value={scope} disabled={disabled} aria-label="Phạm vi Kho dữ liệu"
           onChange={event => { setScope(event.target.value); setPage(1); }} className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
-          <option value="all">{isAdmin ? 'Tất cả hệ thống' : 'Tất cả được truy cập'}</option>
+          <option value="all">{canViewAllLibrary ? 'Tất cả hệ thống' : 'Tất cả được truy cập'}</option>
           <option value="mine">Của tôi</option><option value="shared">Được chia sẻ</option>
-          {isAdmin && <option value="others">Của người khác</option>}
+          {canViewAllLibrary && <option value="others">Của người khác</option>}
         </select>
       </div>
       {selected.length > 0 && (

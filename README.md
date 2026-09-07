@@ -159,8 +159,9 @@ web/
   file phân công `.xlsx`/`.xls` tối đa 10 MB; mỗi lần tải được giữ thành một phiên bản.
 - Sinh viên chỉ xem dữ liệu của mình hoặc được chia sẻ, được sửa kết quả viêm lợi
   nhưng không được nộp phân vùng CBCT.
-- Kho dữ liệu dùng được với mọi vai trò. Người dùng thường chỉ thấy dữ liệu của mình
-  hoặc được chia sẻ; admin có quyền xem toàn hệ thống.
+- Kho dữ liệu: admin và bác sĩ/giảng viên xem, tải xuống và thêm dữ liệu trong kho toàn
+  hệ thống. Bác sĩ sửa tư liệu của mình hoặc được chia sẻ quyền `edit`; chỉ được xóa
+  tư liệu mình tải lên. Bệnh nhân/sinh viên chỉ thấy dữ liệu của mình hoặc được chia sẻ.
 - Admin, bác sĩ, sinh viên và bệnh nhân được dùng các luồng AI theo phạm vi dữ liệu.
   Bệnh nhân luôn chỉ xem kết quả; sinh viên sửa nhãn viêm lợi trên ca mình sở hữu
   hoặc được chia sẻ quyền sửa.
@@ -182,7 +183,8 @@ web/
 2. Tải file lên, đợi trạng thái `ready`, sau đó xem trước/tải xuống trong phạm vi quyền truy cập.
    Hỗ trợ DICOM đơn, chuỗi DICOM ZIP, ảnh trong miệng, pano, cephalo, phim quanh chóp, ảnh mặt, tài liệu và loại khác.
 3. Tab **Của tôi** là dữ liệu tự tải lên; **Được chia sẻ** chỉ gồm chia sẻ trực tiếp cho tài khoản.
-   Admin có thêm **Của người khác**; quyền xem toàn hệ thống không đồng nghĩa được chia sẻ.
+   Admin và bác sĩ/giảng viên có thêm **Của người khác**; quyền xem toàn hệ thống
+   không đồng nghĩa được chia sẻ quyền sửa. Quyền trên ca/phim gốc không thay đổi.
    Bộ lọc nằm trong một thanh gọn và có thể bấm để hiện/ẩn; trang Quản lý người dùng
    dùng cùng cách bố trí để tránh chiếm nhiều chiều cao màn hình.
 4. Nút chẩn đoán trong kho hoặc bộ chọn ảnh ở trang AI chỉ nhận dữ liệu đã sẵn sàng,
@@ -210,7 +212,8 @@ Thông tin bệnh nhân trên tư liệu được chia sẻ được ẩn với 
   Phim chỉ chia sẻ tới doctor/admin; patient có thể chia sẻ phim mình sở hữu cho tài
   khoản chuyên môn nhưng không nhận phim 3D của người khác.
 - **Lưu vào kho không công khai dữ liệu.** Bản sao trong kho có quyền độc lập,
-  không tự kế thừa danh sách người nhận của ca/phim.
+  không tự kế thừa danh sách người nhận của ca/phim. Admin và bác sĩ/giảng viên
+  được xem bản sao theo quyền kho toàn hệ thống.
   Chia sẻ tư liệu trong kho hiện được quản lý bằng `DataAssetShare` trong Django Admin.
 - Lần đầu mở phim, giao diện kiểm tra điều kiện thiết lập và dẫn đến
   `/downloads/3d-slicer`: cài Slicer, cài Bridge, thử mở rồi xác nhận.
@@ -469,7 +472,7 @@ docker compose down
 | CUDA hết bộ nhớ / không có GPU | Worker host dùng `INFERENCE_DEVICE=cpu`, `T5_DEVICE=cpu`, concurrency 1; xem lưu ý GPU Docker ở mục 3.3 |
 | API 500/502, migration lỗi | Xem log backend; kiểm tra DB và migration, dựng lại service khi cần; không xoá volume |
 | Kết quả độ tin cậy thấp | Kiểm tra ảnh, mask và phép ghép; không coi cảnh báo là kết luận bệnh; giới hạn ngưỡng hiện tại ở mục 1.4 |
-| Có dữ liệu ở “Tất cả” nhưng không ở “Được chia sẻ” | Admin nhìn thấy dữ liệu toàn hệ thống; tab chia sẻ chỉ lọc `DataAssetShare` cấp trực tiếp |
+| Có dữ liệu ở “Tất cả” nhưng không ở “Được chia sẻ” | Admin và bác sĩ/giảng viên nhìn thấy dữ liệu toàn hệ thống; tab chia sẻ chỉ lọc `DataAssetShare` cấp trực tiếp |
 | Không có nút chẩn đoán trong kho | Kiểm tra quyền, trạng thái `ready`, phân loại và loại dữ liệu theo bảng ở mục 2.3 |
 
 ---

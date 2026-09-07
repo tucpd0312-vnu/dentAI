@@ -25,7 +25,7 @@ import { apiErrorMessage } from '@/lib/users';
 
 const PAGE_SIZE = 20;
 
-/** Tab lọc — `all` với người không phải admin nghĩa là "mọi thứ tôi truy cập được". */
+/** Tab lọc — `all` theo phạm vi kho dữ liệu được backend cấp cho mỗi vai trò. */
 type Tab = 'all' | 'mine' | 'shared' | 'others';
 
 const TABS: { value: Tab; label: string }[] = [
@@ -47,7 +47,7 @@ const inputCls =
 export default function LibraryPage() {
   // Không dùng useRequireRole: kho dữ liệu mở cho MỌI vai trò (§B.4) — phạm vi dữ liệu
   // đã bị backend giới hạn theo `scoped_assets`, không cần chặn ở route.
-  const { isAdmin, canEditLabels, loading: authLoading } = useAuth();
+  const { canViewAllLibrary, canEditLabels, loading: authLoading } = useAuth();
 
   const [rows, setRows] = useState<DataAsset[]>([]);
   const [categories, setCategories] = useState<DataCategory[]>([]);
@@ -154,7 +154,7 @@ export default function LibraryPage() {
   }
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
-  const columns = 6 + (canEditLabels ? 1 : 0) + (isAdmin ? 1 : 0);
+  const columns = 7 + (canEditLabels ? 1 : 0) + (canViewAllLibrary ? 1 : 0);
   const activeFilterCount =
     Number(Boolean(search.trim())) +
     Number(category !== '') +
@@ -168,8 +168,8 @@ export default function LibraryPage() {
           <h1 className="font-serif text-xl font-semibold text-gray-900">Kho dữ liệu</h1>
           <p className="mt-0.5 text-sm text-gray-500">
             {loading ? 'Đang tải…' : `${count} mục dữ liệu`}
-            {isAdmin
-              ? ' · quyền quản trị cho phép xem toàn hệ thống'
+            {canViewAllLibrary
+              ? ' · dữ liệu toàn hệ thống'
               : ' · dữ liệu của bạn và dữ liệu được chia sẻ cho bạn'}
           </p>
         </div>
@@ -220,7 +220,7 @@ export default function LibraryPage() {
         <div id="library-filters" className="space-y-2 rounded-xl border border-gray-200 bg-white p-3">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
             <div className="flex shrink-0 gap-1 overflow-x-auto">
-              {(isAdmin ? [...TABS, { value: 'others' as Tab, label: 'Của người khác' }] : TABS).map(t => (
+              {(canViewAllLibrary ? [...TABS, { value: 'others' as Tab, label: 'Của người khác' }] : TABS).map(t => (
                 <button
                   key={t.value}
                   type="button"
@@ -235,7 +235,7 @@ export default function LibraryPage() {
                       : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
                   }`}
                 >
-                  {t.value === 'all' && isAdmin ? 'Tất cả hệ thống' : t.label}
+                  {t.value === 'all' && canViewAllLibrary ? 'Tất cả hệ thống' : t.label}
                 </button>
               ))}
             </div>
@@ -290,10 +290,10 @@ export default function LibraryPage() {
             </select>
           </div>
 
-          {isAdmin && tab === 'shared' && (
+          {canViewAllLibrary && tab === 'shared' && (
             <p className="text-xs text-gray-500">
               Chỉ gồm tư liệu được chia sẻ trực tiếp cho tài khoản của bạn.
-              Tư liệu xem bằng quyền quản trị nằm ở “Của người khác”.
+              Các tư liệu khác trong toàn hệ thống nằm ở “Của người khác”.
             </p>
           )}
         </div>
@@ -311,7 +311,7 @@ export default function LibraryPage() {
                 <th className="px-4 py-3 font-medium">Loại dữ liệu</th>
                 <th className="px-4 py-3 font-medium">Trạng thái</th>
                 <th className="px-4 py-3 font-medium">Dung lượng</th>
-                {isAdmin && <th className="px-4 py-3 font-medium">Người tải lên</th>}
+                {canViewAllLibrary && <th className="px-4 py-3 font-medium">Người tải lên</th>}
                 <th className="px-4 py-3 font-medium">Ngày tải lên</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -407,7 +407,7 @@ export default function LibraryPage() {
                     <td className="px-4 py-3 tabular-nums text-gray-500">
                       {a.file_size ? formatFileSize(a.file_size) : '—'}
                     </td>
-                    {isAdmin && (
+                    {canViewAllLibrary && (
                       <td className="px-4 py-3 text-gray-600">
                         {a.uploaded_by?.full_name || a.uploaded_by?.username || (
                           <span className="text-gray-300">—</span>
