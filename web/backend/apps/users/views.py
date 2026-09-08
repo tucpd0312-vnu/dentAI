@@ -27,6 +27,16 @@ from .serializers import (
     NotificationSerializer,
 )
 from .permissions import IsActiveUser
+from .throttles import (
+    LoginAccountThrottle,
+    LoginIPThrottle,
+    RegisterIPThrottle,
+    ResendBurstThrottle,
+    ResendDailyThrottle,
+    ResendIPThrottle,
+    VerifyAccountThrottle,
+    VerifyIPThrottle,
+)
 
 
 def _make_tokens(user) -> dict:
@@ -48,6 +58,7 @@ class ResetPasswordThrottle(AnonRateThrottle):
 class RegisterView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
+    throttle_classes = [RegisterIPThrottle]
 
     def post(self, request):
         ser = RegisterSerializer(data=request.data)
@@ -72,6 +83,8 @@ class RegisterView(APIView):
 class VerifyOTPView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
+    throttle_classes = [VerifyIPThrottle, VerifyAccountThrottle]
+    INVALID_DETAIL = "Mã OTP không hợp lệ hoặc đã hết hạn."
 
     def post(self, request):
         ser = VerifyOTPSerializer(data=request.data)
@@ -79,20 +92,21 @@ class VerifyOTPView(APIView):
         email = ser.validated_data["email"]
         code = ser.validated_data["code"]
 
-        try:
-            user = User.objects.get(email=email)
-        except User.DoesNotExist:
-            return Response({"detail": "Email không tồn tại."}, status=status.HTTP_404_NOT_FOUND)
+        user = User.objects.filter(email__iexact=email).first()
+        if user is None:
+            return Response(
+                {"detail": self.INVALID_DETAIL}, status=status.HTTP_400_BAD_REQUEST
+            )
 
         otp = EmailOTP.objects.filter(
             user=user, purpose="verify", used=False
         ).order_by("-created_at").first()
 
         if not otp or not otp.is_valid():
-            return Response({"detail": "Mã OTP không hợp lệ hoặc đã hết hạn."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": self.INVALID_DETAIL}, status=status.HTTP_400_BAD_REQUEST)
 
         if otp.code != code:
-            return Response({"detail": "Mã OTP không đúng."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": self.INVALID_DETAIL}, status=status.HTTP_400_BAD_REQUEST)
 
         otp.used = True
         otp.save(update_fields=["used"])
@@ -128,23 +142,23 @@ class VerifyOTPView(APIView):
 class ResendOTPView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
+    throttle_classes = [ResendIPThrottle, ResendBurstThrottle, ResendDailyThrottle]
+    GENERIC_DETAIL = (
+        "Nếu email thuộc một tài khoản chưa xác thực, mã OTP mới đã được gửi."
+    )
 
     def post(self, request):
         ser = ResendOTPSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         email = ser.validated_data["email"]
 
-        try:
-            user = User.objects.get(email=email)
-        except User.DoesNotExist:
-            return Response({"detail": "Email không tồn tại."}, status=status.HTTP_404_NOT_FOUND)
-
-        if user.is_active:
-            return Response({"detail": "Tài khoản đã được xác thực."}, status=status.HTTP_400_BAD_REQUEST)
-
-        otp = EmailOTP.generate(user, purpose="verify")
-        send_otp_email(user, otp.code, "verify")
-        return Response({"detail": "Mã OTP mới đã được gửi đến email của bạn."})
+        user = User.objects.filter(
+            email__iexact=email, is_active=False, is_deleted=False
+        ).first()
+        if user:
+            otp = EmailOTP.generate(user, purpose="verify")
+            send_otp_email(user, otp.code, "verify")
+        return Response({"detail": self.GENERIC_DETAIL})
 
 
 class ForgotPasswordView(APIView):
@@ -220,6 +234,7 @@ class ResetPasswordView(APIView):
 class LoginView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
+    throttle_classes = [LoginIPThrottle, LoginAccountThrottle]
 
     def post(self, request):
         ser = LoginSerializer(data=request.data)

@@ -1,8 +1,9 @@
 import os
 
+from django.conf import settings
 from rest_framework import serializers
 
-from apps.cases.serializers import PatientSerializer
+from apps.cases.serializers import patient_for_resource
 
 from .access import can_manage_scan, scan_permission_for
 from .models import Scan, Segmentation
@@ -19,6 +20,13 @@ class ScanUploadInitSerializer(serializers.Serializer):
     note = serializers.CharField(required=False, allow_blank=True, default="")
     filename = serializers.CharField(max_length=255)
     total_size = serializers.IntegerField(min_value=1)
+
+    def validate_total_size(self, value):
+        if value > settings.SCANS_MAX_UPLOAD_SIZE:
+            raise serializers.ValidationError(
+                f"Phim CBCT không được vượt quá {settings.SCANS_MAX_UPLOAD_SIZE // (1024 ** 3)} GB."
+            )
+        return value
 
     def validate_filename(self, value):
         if not value.lower().endswith(".zip"):
@@ -56,10 +64,19 @@ class _UploaderMixin:
 
 
 class ScanListSerializer(_UploaderMixin, serializers.ModelSerializer):
-    patient = PatientSerializer(read_only=True)
+    patient = serializers.SerializerMethodField()
     uploaded_by = serializers.SerializerMethodField()
     access_level = serializers.SerializerMethodField()
     can_manage_shares = serializers.SerializerMethodField()
+
+    def get_patient(self, obj):
+        return patient_for_resource(
+            obj.patient,
+            self.context.get("request"),
+            obj.uploaded_by_id,
+            "SCAN",
+            obj.pk,
+        )
 
     class Meta:
         model = Scan
@@ -71,13 +88,22 @@ class ScanListSerializer(_UploaderMixin, serializers.ModelSerializer):
 
 
 class ScanDetailSerializer(_UploaderMixin, serializers.ModelSerializer):
-    patient = PatientSerializer(read_only=True)
+    patient = serializers.SerializerMethodField()
     uploaded_by = serializers.SerializerMethodField()
     access_level = serializers.SerializerMethodField()
     can_manage_shares = serializers.SerializerMethodField()
     # Số PNG preview thực tế đã sinh (<= 60, xem apps.scans.tasks.MAX_PREVIEW_SLICES) —
     # frontend dùng để biết phạm vi index hợp lệ cho GET .../preview/{n}/, không tự đoán.
     preview_count = serializers.SerializerMethodField()
+
+    def get_patient(self, obj):
+        return patient_for_resource(
+            obj.patient,
+            self.context.get("request"),
+            obj.uploaded_by_id,
+            "SCAN",
+            obj.pk,
+        )
 
     def get_preview_count(self, obj):
         if not obj.preview_dir or not os.path.isdir(obj.preview_dir):

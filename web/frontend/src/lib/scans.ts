@@ -8,12 +8,15 @@ import type { Paginated } from './users';
 export type ScanStatus = 'uploading' | 'processing' | 'ready' | 'failed';
 
 export interface ScanPatient {
-  id: number;
+  id: number | null;
   name: string;
   patient_code: string;
   notes: string | null;
-  created_at: string;
+  created_at: string | null;
+  is_redacted: boolean;
 }
+
+export const MAX_SCAN_SIZE = 2 * 1024 * 1024 * 1024;
 
 export interface ScanUploader {
   id: number;
@@ -147,6 +150,9 @@ export async function uploadScan(
   resumeScanId?: number,
 ): Promise<{ id: number; status: ScanStatus }> {
   const file = payload.file;
+  if (file.size > MAX_SCAN_SIZE) {
+    throw new Error('Phim CBCT không được vượt quá 2 GB.');
+  }
   let scanId: number;
   let chunkSize: number;
   let totalChunks: number;

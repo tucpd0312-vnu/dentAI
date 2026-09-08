@@ -13,7 +13,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.users.activity import log_activity
-from apps.users.models import LogAction, LogCategory
+from apps.users.models import LogAction, LogCategory, Role
 from apps.users.permissions import IsActiveUser
 from apps.settings_app.models import AppSettings
 
@@ -60,7 +60,13 @@ class CaseListCreateView(APIView):
         d = ser.validated_data
 
         patient_code = d.get("patient_code", "").strip()
-        if patient_code:
+        if request.user.role in (Role.PATIENT, Role.STUDENT):
+            patient = Patient.objects.create(
+                name=d["patient_name"],
+                patient_code=f"BN-{uuid4().hex[:8].upper()}",
+                notes=d.get("notes", ""),
+            )
+        elif patient_code:
             patient, _ = Patient.objects.get_or_create(
                 patient_code=patient_code,
                 defaults={"name": d["patient_name"], "notes": d.get("notes", "")},

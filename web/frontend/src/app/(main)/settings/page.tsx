@@ -1,9 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+
+import { useAuth } from '@/components/providers/AuthProvider';
 import api from '@/lib/api';
 
 export default function SettingsPage() {
+  const router = useRouter();
+  const { isAdmin, isDoctor, loading: authLoading } = useAuth();
   const [threshold, setThreshold]   = useState<number>(0.5);
   const [draft, setDraft]           = useState<number>(0.5);
   const [loading, setLoading]       = useState(true);
@@ -12,6 +17,11 @@ export default function SettingsPage() {
   const [error, setError]           = useState<string | null>(null);
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!isAdmin && !isDoctor) {
+      router.replace('/dashboard/');
+      return;
+    }
     api.get<{ confidence_threshold: number }>('/settings/')
       .then(r => {
         setThreshold(r.data.confidence_threshold);
@@ -22,11 +32,12 @@ export default function SettingsPage() {
         setError('Không thể tải cài đặt.');
         setLoading(false);
       });
-  }, []);
+  }, [authLoading, isAdmin, isDoctor, router]);
 
   const dirty = draft !== threshold;
 
   function handleSave() {
+    if (!isAdmin) return;
     setSaving(true);
     setError(null);
     api.patch<{ confidence_threshold: number }>('/settings/', {
@@ -40,6 +51,16 @@ export default function SettingsPage() {
       })
       .catch(() => setError('Lưu thất bại. Vui lòng thử lại.'))
       .finally(() => setSaving(false));
+  }
+
+  if (authLoading || (!isAdmin && !isDoctor)) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <span className="material-symbols-outlined animate-spin text-4xl text-gray-300">
+          autorenew
+        </span>
+      </div>
+    );
   }
 
   return (
@@ -82,7 +103,8 @@ export default function SettingsPage() {
                 step="0.01"
                 value={draft}
                 onChange={e => setDraft(parseFloat(e.target.value))}
-                className="w-full accent-primary h-1.5 rounded-full cursor-pointer"
+                disabled={!isAdmin || saving}
+                className="w-full accent-primary h-1.5 rounded-full cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
               />
 
               {/* Preset quick buttons */}
@@ -91,6 +113,7 @@ export default function SettingsPage() {
                   <button
                     key={v}
                     onClick={() => setDraft(v)}
+                    disabled={!isAdmin || saving}
                     className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors
                       ${draft === v
                         ? 'bg-primary text-white border-primary'
@@ -114,6 +137,13 @@ export default function SettingsPage() {
                 </div>
               </div>
 
+              {!isAdmin && (
+                <div className="flex gap-2 rounded-lg border border-amber-100 bg-amber-50 p-3 text-xs text-amber-700">
+                  <span className="material-symbols-outlined text-[16px]">lock</span>
+                  Bác sĩ được xem ngưỡng đang áp dụng. Chỉ quản trị viên được thay đổi cài đặt này.
+                </div>
+              )}
+
               {/* Error */}
               {error && (
                 <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
@@ -126,16 +156,16 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between pt-1">
                 <button
                   onClick={() => setDraft(threshold)}
-                  disabled={!dirty || saving}
+                  disabled={!isAdmin || !dirty || saving}
                   className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-0 transition-all"
                 >
                   Đặt lại
                 </button>
                 <button
                   onClick={handleSave}
-                  disabled={!dirty || saving}
+                  disabled={!isAdmin || !dirty || saving}
                   className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-sm
-                    ${dirty && !saving
+                    ${isAdmin && dirty && !saving
                       ? 'bg-primary text-white hover:bg-primary/90'
                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
                 >

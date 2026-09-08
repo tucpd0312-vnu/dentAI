@@ -9,10 +9,13 @@ Chạy: `python manage.py test apps.scans`
 import io
 import shutil
 import tempfile
+import threading
 import zipfile
 from unittest import mock
 
-from django.test import TestCase, override_settings
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import connection, connections
+from django.test import TestCase, TransactionTestCase, override_settings
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
@@ -139,6 +142,25 @@ class ChunkedUploadTests(TestCase):
         scan = Scan.objects.select_related("patient").get(pk=res.data["scan_id"])
         self.assertTrue(scan.patient.patient_code.startswith("CBCT-"))
         self.assertNotEqual(scan.patient.patient_code, "GLOBAL-CODE")
+
+    @override_settings(SCANS_MAX_UPLOAD_SIZE=100)
+    def test_oversized_scan_is_rejected_before_upload_session_is_created(self):
+        res = self.client.post(
+            "/api/scans/uploads/",
+            {"patient_name": "Quá lớn", "filename": "large.zip", "total_size": 101},
+            format="json",
+        )
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Scan.objects.filter(patient__name="Quá lớn").exists())
+
+    def test_chunk_size_must_match_the_server_upload_plan(self):
+        init = self._init(b"x" * 1500)
+        response = self.client.put(
+            f"/api/scans/uploads/{init['scan_id']}/0/",
+            b"short",
+            content_type="application/octet-stream",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 class ScanSharingTests(APITestCase):
@@ -303,4 +325,76 @@ class ScanSharingTests(APITestCase):
         self.assertEqual(
             self.client.get(f"/api/scans/{self.scan.pk}/").status_code,
             status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_student_shared_cbct_is_view_only_and_patient_phi_is_redacted(self):
+        self.assertEqual(self.share(self.student_user, "view").status_code, 201)
+        self.auth(self.student_user)
+
+        detail = self.client.get(f"/api/scans/{self.scan.pk}/")
+        search_by_phi = self.client.get("/api/scans/?q=Nguyễn")
+        search_by_alias = self.client.get(
+            f"/api/scans/?q=SCAN-{self.scan.pk:06d}"
+        )
+
+        self.assertEqual(detail.status_code, status.HTTP_200_OK)
+        self.assertEqual(detail.data["access_level"], "view")
+        self.assertTrue(detail.data["patient"]["is_redacted"])
+        self.assertIsNone(detail.data["patient"]["id"])
+        self.assertNotEqual(detail.data["patient"]["patient_code"], "CBCT-TEST")
+        self.assertEqual(search_by_phi.data["count"], 0)
+        self.assertEqual(search_by_alias.data["count"], 1)
+
+
+@override_settings(SCANS_ROOT=TEMP_ROOT)
+class SegmentationConcurrencyTests(TransactionTestCase):
+    """PostgreSQL phải cấp hai version khác nhau khi Slicer gửi đồng thời."""
+
+    def test_concurrent_uploads_create_two_versions_without_server_error(self):
+        if connection.vendor != "postgresql":
+            self.skipTest("SELECT FOR UPDATE cần PostgreSQL để kiểm tra cạnh tranh thật.")
+
+        user = User.objects.create_user(
+            "segmentation-doctor",
+            "segmentation-doctor@example.test",
+            "TestPass123",
+            role=Role.DOCTOR,
+        )
+        patient = Patient.objects.create(name="Ca đồng thời", patient_code="SEG-CONCURRENT")
+        scan = Scan.objects.create(patient=patient, uploaded_by=user)
+        barrier = threading.Barrier(2)
+        statuses = []
+        failures = []
+
+        def upload(index):
+            try:
+                connections.close_all()
+                client = APIClient()
+                client.force_authenticate(user=User.objects.get(pk=user.pk))
+                barrier.wait(timeout=10)
+                response = client.post(
+                    f"/api/scans/{scan.pk}/segmentations/",
+                    {
+                        "file": SimpleUploadedFile(
+                            f"result-{index}.seg.nrrd", f"content-{index}".encode()
+                        )
+                    },
+                    format="multipart",
+                )
+                statuses.append(response.status_code)
+            except Exception as exc:  # pragma: no cover - surfaced below with context
+                failures.append(exc)
+            finally:
+                connections.close_all()
+
+        threads = [threading.Thread(target=upload, args=(index,)) for index in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=20)
+
+        self.assertFalse(failures, failures)
+        self.assertEqual(statuses, [status.HTTP_201_CREATED] * 2)
+        self.assertEqual(
+            set(scan.segmentations.values_list("version", flat=True)), {1, 2}
         )

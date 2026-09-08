@@ -1,4 +1,6 @@
-from django.core.cache import cache
+from unittest import mock
+
+from django.core.cache import cache, caches
 from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -14,6 +16,7 @@ from .notifications import notify_user
 
 class LoginTests(APITestCase):
     def setUp(self):
+        caches["auth_throttle"].clear()
         self.password = "DoctorPass123"
         self.user = User.objects.create_user(
             username="TestDoctor",
@@ -75,6 +78,84 @@ class LoginTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("chưa được kích hoạt", response.data["non_field_errors"][0])
+
+
+class AuthAbuseProtectionTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        caches["auth_throttle"].clear()
+        self.inactive = User.objects.create_user(
+            username="otp-pending",
+            email="otp-pending@example.test",
+            password="PendingPass123",
+            role=Role.PATIENT,
+            is_active=False,
+        )
+        self.active = User.objects.create_user(
+            username="otp-active",
+            email="otp-active@example.test",
+            password="ActivePass123",
+            role=Role.PATIENT,
+            is_active=True,
+        )
+
+    def test_verify_otp_does_not_reveal_whether_email_exists(self):
+        otp = EmailOTP.generate(self.inactive, purpose="verify")
+        wrong_code = "000000" if otp.code != "000000" else "111111"
+        known = self.client.post(
+            "/api/auth/verify-otp/",
+            {"email": self.inactive.email, "code": wrong_code},
+        )
+        unknown = self.client.post(
+            "/api/auth/verify-otp/",
+            {"email": "missing@example.test", "code": wrong_code},
+        )
+
+        self.assertEqual(known.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(unknown.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(known.data["detail"], unknown.data["detail"])
+
+    @mock.patch("apps.users.views.send_otp_email")
+    def test_resend_otp_is_generic_for_pending_active_and_unknown_email(self, send):
+        responses = [
+            self.client.post("/api/auth/resend-otp/", {"email": email})
+            for email in (
+                self.inactive.email,
+                self.active.email,
+                "missing@example.test",
+            )
+        ]
+
+        self.assertTrue(all(r.status_code == status.HTTP_200_OK for r in responses))
+        self.assertEqual(len({r.data["detail"] for r in responses}), 1)
+        send.assert_called_once()
+
+    def test_public_auth_endpoints_are_throttled(self):
+        login = [self.client.post("/api/auth/login/", {}) for _ in range(11)]
+        self.assertEqual(login[-1].status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+        caches["auth_throttle"].clear()
+        register = [self.client.post("/api/auth/register/", {}) for _ in range(6)]
+        self.assertEqual(register[-1].status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+        caches["auth_throttle"].clear()
+        verify = [
+            self.client.post(
+                "/api/auth/verify-otp/",
+                {"email": "target@example.test", "code": "000000"},
+            )
+            for _ in range(11)
+        ]
+        self.assertEqual(verify[-1].status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+        caches["auth_throttle"].clear()
+        resend = [
+            self.client.post(
+                "/api/auth/resend-otp/", {"email": "target@example.test"}
+            )
+            for _ in range(4)
+        ]
+        self.assertEqual(resend[-1].status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
 
 class RoleCapabilityTests(APITestCase):
@@ -587,7 +668,7 @@ class StudentRoleAdminTests(APITestCase):
         self.assertEqual(search.data[0]["role"], Role.STUDENT)
         self.assertTrue(search.data[0]["can_receive_edit"])
 
-    def test_changing_doctor_to_student_keeps_case_edit_but_revokes_scan_share(self):
+    def test_changing_doctor_to_student_keeps_cbct_as_view_only(self):
         owner = User.objects.create_user(
             "student-owner", "student-owner@example.test", "OwnerPass123",
             role=Role.DOCTOR,
@@ -625,5 +706,8 @@ class StudentRoleAdminTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertTrue(CaseShare.objects.filter(shared_with=recipient).exists())
-        self.assertFalse(ScanShare.objects.filter(shared_with=recipient).exists())
+        self.assertEqual(
+            ScanShare.objects.get(shared_with=recipient).permission,
+            ScanShare.Permission.VIEW,
+        )
         self.assertTrue(DataAssetShare.objects.filter(shared_with=recipient).exists())
