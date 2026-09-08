@@ -62,8 +62,8 @@ const NAV: NavEntry[] = [
   // Kho dữ liệu mở cho MỌI vai trò (không khai `roles`) — phạm vi dữ liệu do backend
   // giới hạn qua `apps.library.access.scoped_assets`, không phải bằng việc ẩn mục này.
   { href: '/library', icon: 'inventory_2', label: 'Kho dữ liệu', prefix: '/library' },
-  // Trò chuyện hiện là trang giữ chỗ và mở cho mọi vai trò.
-  { href: '/chat', icon: 'forum', label: 'Trò chuyện', prefix: '/chat' },
+  // Hỏi đáp và trao đổi giữa sinh viên và giảng viên
+  { href: '/chat', icon: 'forum', label: 'Hỏi đáp & Trao đổi', prefix: '/chat' },
   { href: '/users',      icon: 'group',        label: 'Quản lý người dùng', prefix: '/users',      roles: ['admin'] },
   { href: '/history',    icon: 'history',      label: 'Lịch sử',            prefix: '/history'   },
   { href: '/system-log', icon: 'receipt_long', label: 'Lịch sử hệ thống',   prefix: '/system-log', roles: ['admin'] },

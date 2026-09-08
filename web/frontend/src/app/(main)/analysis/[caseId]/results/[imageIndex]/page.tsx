@@ -242,8 +242,19 @@ export default function ResultsPage() {
               Lưu vào Kho dữ liệu
             </button>
           )}
-          {/* can_edit do backend tính (vai trò + quyền trên ca) — bệnh nhân và
-              người được chia sẻ 'view' không thấy nút này. */}
+          {/* Hỏi giảng viên về kết quả chẩn đoán */}
+          <Link
+            href={`/chat?caseId=${caseId}&imageIndex=${idx}&imageUrl=${encodeURIComponent(
+              toMediaUrl(imgData.annotated_path || imgData.original_path)
+            )}`}
+            className="
+              flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
+              border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 transition-colors
+            "
+          >
+            <span className="material-symbols-outlined text-[16px]">school</span>
+            Hỏi giảng viên
+          </Link>
           {imgData.can_edit && (
             <Link
               href={`/analysis/${caseId}/results/${idx}/edit`}

@@ -1,5 +1,11 @@
 # Tổng quan dự án
+tk admin:
+admin
+Admin@123
 
+tk patient:
+patient01
+Patient@123
 ---
 
 ## 1. Thư mục

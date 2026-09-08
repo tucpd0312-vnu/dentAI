@@ -12,5 +12,6 @@ urlpatterns = [
     path("api/", include("apps.scans.urls")),
     path("api/", include("apps.library.urls")),
     path("api/", include("apps.reception.urls")),
+    path("api/", include("apps.qa.urls")),
     path("api/settings", include("apps.settings_app.urls")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
