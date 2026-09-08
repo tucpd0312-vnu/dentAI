@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     "apps.scans",
     "apps.library",
     "apps.reception",
+    "apps.qa",
 ]
 
 AUTH_USER_MODEL = "users.User"
