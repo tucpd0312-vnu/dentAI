@@ -35,6 +35,12 @@ class AssignmentWorkbookApiTests(APITestCase):
             password="TestPass123",
             role=Role.DOCTOR,
         )
+        self.admin = User.objects.create_user(
+            username="admin-upload",
+            email="admin-upload@example.test",
+            password="TestPass123",
+            role=Role.ADMIN,
+        )
 
     def upload(self, user, name="lich-phan-cong.xlsx", content=b"PK\x03\x04test"):
         self.client.force_authenticate(user=user)
@@ -61,7 +67,7 @@ class AssignmentWorkbookApiTests(APITestCase):
         self.assertEqual(latest.data["latest"]["id"], workbook.id)
         self.assertNotIn("storage_name", latest.data["latest"])
 
-    def test_each_receptionist_only_sees_their_own_latest_workbook(self):
+    def test_every_receptionist_sees_latest_system_workbook(self):
         first = self.upload(self.receptionist, "ca-sang.xlsx")
         second = self.upload(self.receptionist, "ca-chieu.xlsx")
         self.assertEqual(AssignmentWorkbook.objects.count(), 2)
@@ -77,9 +83,20 @@ class AssignmentWorkbookApiTests(APITestCase):
             role=Role.RECEPTIONIST,
         )
         self.client.force_authenticate(user=other)
-        self.assertIsNone(
-            self.client.get("/api/reception/assignments/latest/").data["latest"]
-        )
+        shared_latest = self.client.get(
+            "/api/reception/assignments/latest/"
+        ).data["latest"]
+        self.assertEqual(shared_latest["id"], second.data["id"])
+
+    def test_admin_upload_is_shared_with_receptionist_as_latest_workbook(self):
+        uploaded = self.upload(self.admin, "admin-schedule.xlsx")
+        self.assertEqual(uploaded.status_code, status.HTTP_201_CREATED)
+
+        self.client.force_authenticate(user=self.receptionist)
+        latest = self.client.get("/api/reception/assignments/latest/")
+        self.assertEqual(latest.status_code, status.HTTP_200_OK)
+        self.assertEqual(latest.data["latest"]["id"], uploaded.data["id"])
+        self.assertEqual(latest.data["latest"]["uploaded_by"]["id"], self.admin.pk)
 
     def test_xls_workbook_is_accepted(self):
         response = self.upload(
@@ -103,7 +120,7 @@ class AssignmentWorkbookApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(AssignmentWorkbook.objects.count(), 0)
 
-    def test_non_receptionist_cannot_upload_or_read_metadata(self):
+    def test_doctor_cannot_upload_or_read_metadata(self):
         upload = self.upload(self.doctor)
         latest = self.client.get("/api/reception/assignments/latest/")
 

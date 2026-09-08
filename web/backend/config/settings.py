@@ -98,6 +98,15 @@ SCANS_PUBLIC_BASE_URL = os.environ.get("SCANS_PUBLIC_BASE_URL", "http://localhos
 # Chunked upload (§4.2) — dưới xa ngưỡng 100MB/request cứng của Cloudflare Tunnel
 # (dentai.datasphere.id.vn), còn nhiều dư địa nếu hạ tầng đổi.
 SCANS_UPLOAD_CHUNK_SIZE = int(os.environ.get("SCANS_UPLOAD_CHUNK_SIZE", 20 * 1024 * 1024))
+SCANS_MAX_UPLOAD_SIZE = int(
+    os.environ.get("SCANS_MAX_UPLOAD_SIZE", 2 * 1024 * 1024 * 1024)
+)
+
+# Upload ảnh 2D đi qua một request multipart nên cần giới hạn cả số lượng, từng
+# ảnh và tổng request. Các giá trị mặc định giữ request dưới ngưỡng 100MB của proxy.
+CASE_MAX_IMAGES = int(os.environ.get("CASE_MAX_IMAGES", 20))
+CASE_MAX_IMAGE_SIZE = int(os.environ.get("CASE_MAX_IMAGE_SIZE", 10 * 1024 * 1024))
+CASE_MAX_TOTAL_SIZE = int(os.environ.get("CASE_MAX_TOTAL_SIZE", 90 * 1024 * 1024))
 # ── Library (kho dữ liệu) ─────────────────────────────────────────────────────
 # CÙNG LÝ DO với SCANS_ROOT ở trên: nằm NGOÀI MEDIA_ROOT vì config/urls.py serve
 # MEDIA_ROOT qua static() KHÔNG kiểm quyền gì cả. Kho dữ liệu chứa PHI (ảnh mặt bệnh
@@ -131,6 +140,7 @@ RECEPTION_ASSIGNMENT_MAX_SIZE = int(
 DATA_UPLOAD_MAX_MEMORY_SIZE = max(
     2621440,
     max(SCANS_UPLOAD_CHUNK_SIZE, LIBRARY_UPLOAD_CHUNK_SIZE) + 1024 * 1024,
+    CASE_MAX_TOTAL_SIZE + 1024 * 1024,
 )
 
 STATIC_URL = "/static/"
@@ -143,6 +153,27 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
+
+# Rate limit auth dùng Redis khi triển khai nhiều process. Môi trường phát triển/test
+# không khai URL vẫn dùng cache bộ nhớ cục bộ, không buộc máy lập trình chạy Redis.
+AUTH_THROTTLE_CACHE_URL = os.environ.get("AUTH_THROTTLE_CACHE_URL", "")
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "dentai-default",
+    },
+    "auth_throttle": (
+        {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": AUTH_THROTTLE_CACHE_URL,
+        }
+        if AUTH_THROTTLE_CACHE_URL
+        else {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "dentai-auth-throttle",
+        }
+    ),
+}
 
 # ── DRF ───────────────────────────────────────────────────────────────────────
 REST_FRAMEWORK = {

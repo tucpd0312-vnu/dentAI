@@ -108,9 +108,22 @@ class ScanListView(APIView):
         q = (request.query_params.get("q") or "").strip()
         if q:
             from django.db.models import Q
-            qs = qs.filter(
-                Q(patient__name__icontains=q) | Q(patient__patient_code__icontains=q)
+            patient_match = Q(patient__name__icontains=q) | Q(
+                patient__patient_code__icontains=q
             )
+            if request.user.role in (Role.ADMIN, Role.DOCTOR):
+                qs = qs.filter(patient_match)
+            else:
+                # Không cho truy vấn PHI trở thành kênh suy đoán trên phim được chia sẻ.
+                # Bí danh SCAN-000123 vẫn tìm được vì queryset đã được scope trước.
+                alias_id = (
+                    int(q[5:])
+                    if q.upper().startswith("SCAN-") and q[5:].isdigit()
+                    else None
+                )
+                own_phi = Q(uploaded_by=request.user) & patient_match
+                alias_match = Q(pk=alias_id) if alias_id else Q(pk__isnull=True)
+                qs = qs.filter(own_phi | alias_match)
 
         uploaded_by = request.query_params.get("uploaded_by")
         if uploaded_by:
@@ -250,6 +263,16 @@ class ScanUploadChunkView(APIView):
                 {"detail": "Chỉ số chunk không hợp lệ."}, status=status.HTTP_400_BAD_REQUEST
             )
 
+        expected_size = min(
+            scan.upload_chunk_size,
+            scan.upload_total_size - index * scan.upload_chunk_size,
+        )
+        if len(request.body) != expected_size:
+            return Response(
+                {"detail": f"Kích thước chunk không hợp lệ; cần đúng {expected_size} byte."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         chunked_upload.write_chunk(settings.SCANS_ROOT, scan.pk, index, request.body)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -293,9 +316,17 @@ class ScanUploadCompleteView(APIView):
         zip_path = os.path.join(
             chunked_upload.object_dir(settings.SCANS_ROOT, scan.pk), "original.zip"
         )
-        scan.file_size = chunked_upload.assemble(
+        assembled_size = chunked_upload.assemble(
             settings.SCANS_ROOT, scan.pk, total, zip_path
         )
+        if assembled_size != scan.upload_total_size:
+            if os.path.exists(zip_path):
+                os.remove(zip_path)
+            return Response(
+                {"detail": "Dung lượng file ghép không khớp phiên tải lên."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        scan.file_size = assembled_size
         scan.zip_path = zip_path
         scan.status = Scan.Status.PROCESSING
         scan.save(update_fields=["zip_path", "status", "file_size"])
@@ -488,30 +519,58 @@ class ScanSegmentationListCreateView(APIView):
 
         upload = d["file"]
         ext = os.path.splitext(upload.name)[1] or ".bin"
-        next_version = (
-            scan.segmentations.aggregate(Max("version"))["version__max"] or 0
-        ) + 1
+        file_path = None
+        try:
+            with transaction.atomic():
+                # Khoá Scan để phép cấp version trở thành tuần tự trên PostgreSQL.
+                # scoped_scans() có DISTINCT cho bác sĩ/sinh viên nên PostgreSQL
+                # không cho FOR UPDATE trực tiếp. Kiểm tra scope trước, rồi khóa
+                # đúng hàng ở bảng Scan gốc như các luồng import của Kho dữ liệu.
+                visible_scan = scoped_scans(request.user).filter(pk=pk).values_list(
+                    "pk", flat=True
+                ).first()
+                if visible_scan is None:
+                    raise Http404
+                scan = get_object_or_404(
+                    Scan.objects.select_related("patient", "uploaded_by")
+                    .select_for_update(of=("self",)),
+                    pk=visible_scan,
+                    is_deleted=False,
+                )
+                if not can_contribute_scan(request.user, scan):
+                    return Response(
+                        {"detail": "Bạn chỉ có quyền xem phim này."},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+                next_version = (
+                    scan.segmentations.aggregate(Max("version"))["version__max"] or 0
+                ) + 1
+                seg_dir = os.path.join(
+                    settings.SCANS_ROOT, str(scan.pk), "segmentations"
+                )
+                os.makedirs(seg_dir, exist_ok=True)
+                file_path = os.path.join(seg_dir, f"v{next_version}{ext}")
 
-        seg_dir = os.path.join(settings.SCANS_ROOT, str(scan.pk), "segmentations")
-        os.makedirs(seg_dir, exist_ok=True)
-        file_path = os.path.join(seg_dir, f"v{next_version}{ext}")
+                sha = hashlib.sha256()
+                with open(file_path, "wb") as file_handle:
+                    for chunk in upload.chunks():
+                        sha.update(chunk)
+                        file_handle.write(chunk)
 
-        sha = hashlib.sha256()
-        with open(file_path, "wb") as f:
-            for chunk in upload.chunks():
-                sha.update(chunk)
-                f.write(chunk)
-
-        seg = Segmentation.objects.create(
-            scan=scan, author=request.user, version=next_version,
-            file_path=file_path, file_hash=sha.hexdigest(),
-            note=d.get("note", ""),
-        )
-        log_activity(
-            LogCategory.BUSINESS, LogAction.SEGMENTATION_UPLOAD,
-            actor=request.user, request=request, target_scan=scan,
-            detail={"version": next_version, "file_hash": seg.file_hash[:16]},
-        )
+                seg = Segmentation.objects.create(
+                    scan=scan, author=request.user, version=next_version,
+                    file_path=file_path, file_hash=sha.hexdigest(),
+                    note=d.get("note", ""),
+                )
+                log_activity(
+                    LogCategory.BUSINESS, LogAction.SEGMENTATION_UPLOAD,
+                    actor=request.user, request=request, target_scan=scan,
+                    detail={"version": next_version, "file_hash": seg.file_hash[:16]},
+                )
+        except Exception:
+            if file_path and os.path.exists(file_path):
+                os.remove(file_path)
+            raise
         return Response(SegmentationSerializer(seg).data, status=status.HTTP_201_CREATED)
 
 

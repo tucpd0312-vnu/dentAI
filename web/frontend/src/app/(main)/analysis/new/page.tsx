@@ -6,9 +6,14 @@ import api from '@/lib/api';
 import { createCaseFromLibrary, type DataAsset } from '@/lib/library';
 import LibraryAssetPicker, { InputSourceTabs, useLibraryInput } from '@/components/library/LibraryAssetPicker';
 import { apiErrorMessage } from '@/lib/users';
+import { formatFileSize } from '@/lib/scans';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const ACCEPTED_ATTR = 'image/jpeg,image/png,image/webp';
+const MAX_IMAGES = 20;
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+const MAX_TOTAL_SIZE = 90 * 1024 * 1024;
 
 interface UploadedFile {
   file: File;
@@ -17,6 +22,7 @@ interface UploadedFile {
 
 export default function NewAnalysisPage() {
   const router = useRouter();
+  const { hasPatientScope } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({ name: '', patient_code: '', notes: '' });
@@ -43,21 +49,37 @@ export default function NewAnalysisPage() {
 
   const addFiles = useCallback((incoming: File[]) => {
     if (submitting) return;
-    const valid = incoming.filter(f => ACCEPTED_TYPES.includes(f.type));
-    const skipped = incoming.length - valid.length;
-    if (skipped > 0) {
-      setError(`${skipped} file bị bỏ qua (chỉ chấp nhận JPG, PNG, WebP).`);
+    const existing = new Set(files.map(item => item.file.name));
+    const candidates = incoming.filter(file => !existing.has(file.name));
+    const invalidType = candidates.filter(file => !ACCEPTED_TYPES.includes(file.type));
+    const oversized = candidates.filter(file => file.size > MAX_IMAGE_SIZE);
+    const accepted: File[] = [];
+    let totalSize = files.reduce((total, item) => total + item.file.size, 0);
+
+    for (const file of candidates) {
+      if (!ACCEPTED_TYPES.includes(file.type) || file.size > MAX_IMAGE_SIZE) continue;
+      if (files.length + accepted.length >= MAX_IMAGES) break;
+      if (totalSize + file.size > MAX_TOTAL_SIZE) break;
+      accepted.push(file);
+      totalSize += file.size;
+    }
+
+    setFiles(prev => [
+      ...prev,
+      ...accepted.map(file => ({ file, preview: URL.createObjectURL(file) })),
+    ]);
+    if (invalidType.length) {
+      setError(`${invalidType.length} file bị bỏ qua (chỉ chấp nhận JPG, PNG, WebP).`);
+    } else if (oversized.length) {
+      setError(`Mỗi ảnh không được vượt quá ${formatFileSize(MAX_IMAGE_SIZE)}.`);
+    } else if (accepted.length < candidates.length) {
+      setError(
+        `Mỗi ca nhận tối đa ${MAX_IMAGES} ảnh và ${formatFileSize(MAX_TOTAL_SIZE)} tổng dung lượng.`,
+      );
     } else {
       setError(null);
     }
-    setFiles(prev => {
-      const existing = new Set(prev.map(f => f.file.name));
-      const toAdd = valid
-        .filter(f => !existing.has(f.name))
-        .map(f => ({ file: f, preview: URL.createObjectURL(f) }));
-      return [...prev, ...toAdd];
-    });
-  }, [submitting]);
+  }, [files, submitting]);
 
   const removeFile = (idx: number) => {
     setFiles(prev => {
@@ -96,14 +118,16 @@ export default function NewAnalysisPage() {
       if (inputSource === 'library') {
         data = await createCaseFromLibrary({
           patientName: form.name.trim(),
-          patientCode: form.patient_code.trim() || undefined,
+          patientCode: hasPatientScope ? undefined : form.patient_code.trim() || undefined,
           notes: form.notes.trim() || undefined,
           assetIds: selectedAssets.map(asset => asset.id),
         });
       } else {
         const fd = new FormData();
         fd.append('patient_name', form.name.trim());
-        if (form.patient_code.trim()) fd.append('patient_code', form.patient_code.trim());
+        if (!hasPatientScope && form.patient_code.trim()) {
+          fd.append('patient_code', form.patient_code.trim());
+        }
         if (form.notes.trim()) fd.append('notes', form.notes.trim());
         files.forEach(f => fd.append('images', f.file));
         const response = await api.post('/cases/', fd, {
@@ -152,7 +176,7 @@ export default function NewAnalysisPage() {
               "
             />
           </div>
-          <div>
+          {!hasPatientScope && <div>
             <label className="block text-xs font-medium text-gray-600 mb-1.5">
               Mã bệnh nhân
             </label>
@@ -170,7 +194,7 @@ export default function NewAnalysisPage() {
                 transition-colors
               "
             />
-          </div>
+          </div>}
           <div className="sm:col-span-2">
             <label className="block text-xs font-medium text-gray-600 mb-1.5">
               Ghi chú lâm sàng
@@ -242,7 +266,9 @@ export default function NewAnalysisPage() {
                     chọn từ máy tính
                   </span>
                 </p>
-                <p className="text-xs text-gray-400">JPG · PNG · WebP — nhiều ảnh</p>
+                <p className="text-xs text-gray-400">
+                  JPG · PNG · WebP — tối đa {MAX_IMAGES} ảnh, {formatFileSize(MAX_IMAGE_SIZE)}/ảnh
+                </p>
               </div>
 
               <input

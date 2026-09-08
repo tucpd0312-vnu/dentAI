@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { useAuth } from '@/components/providers/AuthProvider';
-import { formatFileSize, uploadScan } from '@/lib/scans';
+import { formatFileSize, MAX_SCAN_SIZE, uploadScan } from '@/lib/scans';
 import { createScanFromLibrary, type DataAsset } from '@/lib/library';
 import { apiErrorMessage } from '@/lib/users';
 import LibraryAssetPicker, { InputSourceTabs, useLibraryInput } from '@/components/library/LibraryAssetPicker';
@@ -40,6 +40,10 @@ export default function NewScanPage() {
     if (!picked) return;
     if (!picked.name.toLowerCase().endsWith('.zip')) {
       setError('Chỉ chấp nhận file .zip chứa DICOM.');
+      return;
+    }
+    if (picked.size > MAX_SCAN_SIZE) {
+      setError(`Phim CBCT không được vượt quá ${formatFileSize(MAX_SCAN_SIZE)}.`);
       return;
     }
     setError(null);
@@ -209,7 +213,7 @@ export default function NewScanPage() {
                 </span>
               </p>
               <p className="text-xs text-gray-400">
-                Một file .zip chứa toàn bộ lát cắt DICOM của một lần chụp
+                Một file .zip chứa toàn bộ lát cắt DICOM · tối đa {formatFileSize(MAX_SCAN_SIZE)}
               </p>
             </div>
           ) : (

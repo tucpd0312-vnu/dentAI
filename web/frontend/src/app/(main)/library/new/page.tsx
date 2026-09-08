@@ -45,7 +45,7 @@ function normalize(value: string): string {
 
 export default function NewAssetPage() {
   const router = useRouter();
-  const { hasPatientScope, loading: authLoading } = useAuth();
+  const { canViewAllLibrary, hasPatientScope, loading: authLoading } = useAuth();
 
   const inputRef = useRef<HTMLInputElement>(null);
   // Phiên upload dở từ lần submit lỗi trước — bấm lại chỉ gửi nốt chunk còn thiếu,
@@ -144,6 +144,9 @@ export default function NewAssetPage() {
       // ĐÃ CÓ nếu trùng tên (không phân biệt hoa thường), nên không sinh bản ghi rác.
       let categoryId: number;
       if (categoryChoice === NEW_CATEGORY) {
+        if (!canViewAllLibrary) {
+          throw new Error('Chỉ quản trị viên hoặc bác sĩ được tạo phân loại mới.');
+        }
         const created = await createCategory(newCategoryName.trim());
         categoryId = created.id;
       } else {
@@ -338,7 +341,9 @@ export default function NewAssetPage() {
                   {c.name}
                 </option>
               ))}
-              <option value={NEW_CATEGORY}>➕ Khác — nhập tên mới…</option>
+              {canViewAllLibrary && (
+                <option value={NEW_CATEGORY}>➕ Khác — nhập tên mới…</option>
+              )}
             </select>
 
             {categoryChoice === NEW_CATEGORY && (

@@ -1,4 +1,7 @@
+from django.conf import settings
 from rest_framework import serializers
+
+from apps.users.models import Role
 from .models import Patient, Case, Image, Detection, Mask, Caption
 
 
@@ -86,16 +89,43 @@ class PatientSerializer(serializers.ModelSerializer):
     gender_display = serializers.CharField(source="get_gender_display", read_only=True)
     # Suy từ `birth_year` lúc đọc, KHÔNG lưu trong DB — xem comment ở Patient.birth_year.
     age = serializers.SerializerMethodField()
+    is_redacted = serializers.SerializerMethodField()
 
     def get_age(self, obj):
         return obj.age()
+
+    def get_is_redacted(self, obj):
+        return False
 
     class Meta:
         model = Patient
         fields = [
             "id", "name", "patient_code", "notes",
             "gender", "gender_display", "birth_year", "age", "created_at",
+            "is_redacted",
         ]
+
+
+def patient_for_resource(patient, request, owner_id, prefix, resource_id):
+    """Ẩn PHI với người nhận chia sẻ không thuộc nhóm lâm sàng."""
+
+    user = getattr(request, "user", None)
+    if user and (
+        user.role in (Role.ADMIN, Role.DOCTOR) or user.pk == owner_id
+    ):
+        return PatientSerializer(patient).data
+    return {
+        "id": None,
+        "name": "Bệnh nhân ẩn danh",
+        "patient_code": f"{prefix}-{resource_id:06d}",
+        "notes": None,
+        "gender": "",
+        "gender_display": "",
+        "birth_year": None,
+        "age": None,
+        "created_at": None,
+        "is_redacted": True,
+    }
 
 
 class CaseCreateSerializer(serializers.Serializer):
@@ -105,8 +135,20 @@ class CaseCreateSerializer(serializers.Serializer):
     )
     notes = serializers.CharField(required=False, allow_blank=True, default="")
     images = serializers.ListField(
-        child=serializers.ImageField(), allow_empty=False
+        child=serializers.ImageField(), allow_empty=False,
+        max_length=settings.CASE_MAX_IMAGES,
     )
+
+    def validate_images(self, value):
+        if any(image.size > settings.CASE_MAX_IMAGE_SIZE for image in value):
+            raise serializers.ValidationError(
+                f"Mỗi ảnh không được vượt quá {settings.CASE_MAX_IMAGE_SIZE // (1024 * 1024)} MB."
+            )
+        if sum(image.size for image in value) > settings.CASE_MAX_TOTAL_SIZE:
+            raise serializers.ValidationError(
+                f"Tổng dung lượng ảnh không được vượt quá {settings.CASE_MAX_TOTAL_SIZE // (1024 * 1024)} MB."
+            )
+        return value
 
 
 class CaseFromLibrarySerializer(serializers.Serializer):
@@ -133,11 +175,20 @@ class CaseFromLibrarySerializer(serializers.Serializer):
 
 
 class CaseListSerializer(_CasePermissionMixin, serializers.ModelSerializer):
-    patient = PatientSerializer(read_only=True)
+    patient = serializers.SerializerMethodField()
     image_count = serializers.IntegerField(source="images.count", read_only=True)
     owner = serializers.SerializerMethodField()
     permission = serializers.SerializerMethodField()
     is_shared_with_me = serializers.SerializerMethodField()
+
+    def get_patient(self, obj):
+        return patient_for_resource(
+            obj.patient,
+            self.context.get("request"),
+            obj.created_by_id,
+            "CASE",
+            obj.pk,
+        )
 
     def get_owner(self, obj):
         if not obj.created_by:

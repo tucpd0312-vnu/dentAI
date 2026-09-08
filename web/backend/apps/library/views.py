@@ -32,7 +32,7 @@ from apps.scans.access import scoped_scans
 from apps.scans.models import Scan
 from apps.users.activity import log_activity
 from apps.users.models import LogAction, LogCategory, Role
-from apps.users.permissions import IsActiveUser
+from apps.users.permissions import IsActiveUser, IsAdminOrDoctor
 
 from .access import (
     can_edit_asset,
@@ -94,13 +94,15 @@ def _import_response(request, asset, created):
 # ── Phân loại ────────────────────────────────────────────────────────────────
 
 class CategoryListCreateView(APIView):
-    """Liệt kê và tạo phân loại — mở cho mọi tài khoản đang hoạt động.
+    """Mọi tài khoản được xem; chỉ admin/bác sĩ được tạo phân loại.
 
     Tên được chuẩn hoá và chống trùng không phân biệt hoa/thường để lựa chọn
     "Khác — nhập tên mới" không làm sinh các danh mục tương đương.
     """
 
     def get_permissions(self):
+        if self.request.method == "POST":
+            return [IsAdminOrDoctor()]
         return [IsActiveUser()]
 
     def get(self, request):

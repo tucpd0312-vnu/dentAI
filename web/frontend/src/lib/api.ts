@@ -88,11 +88,12 @@ export interface CaseOwner {
 export interface CaseListItem {
   id: number;
   patient: {
-    id: number;
+    id: number | null;
     name: string;
     patient_code: string;
     notes: string | null;
-    created_at: string;
+    created_at: string | null;
+    is_redacted: boolean;
   };
   status: "processing" | "done" | "failed";
   image_count: number;

@@ -16,6 +16,7 @@ import tempfile
 from unittest import mock
 
 from django.test import TestCase, override_settings
+from rest_framework import status
 from rest_framework.test import APIClient
 
 from apps.users.models import Role, User
@@ -133,12 +134,13 @@ class CategoryApiTests(LibraryTestCase):
         self.assertEqual(res.data["id"], self.category.pk)
         self.assertEqual(DataCategory.objects.count(), before)
 
-    def test_patient_can_create_other_category(self):
-        res = self.client_for(self.patient).post(
-            "/api/library/categories/", {"name": "Tự chế"}, format="json"
-        )
-        self.assertEqual(res.status_code, 201, res.data)
-        self.assertEqual(res.data["name"], "Tự chế")
+    def test_patient_and_student_cannot_create_system_category(self):
+        for user in (self.patient, self.student):
+            with self.subTest(role=user.role):
+                res = self.client_for(user).post(
+                    "/api/library/categories/", {"name": f"Tự chế {user.role}"}, format="json"
+                )
+                self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class UploadTests(LibraryTestCase):
@@ -268,17 +270,22 @@ class AccessScopeTests(LibraryTestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.data["permission"], "admin")
 
-    def test_unrelated_user_gets_404_not_403(self):
-        """404 chứ không 403: 403 vô tình xác nhận tư liệu đó tồn tại."""
-        for user in (self.other_doctor, self.patient):
-            res = self.client_for(user).get(f"/api/library/assets/{self.asset.pk}/")
-            self.assertEqual(res.status_code, 404)
+    def test_doctor_reads_global_asset_while_unrelated_patient_gets_404(self):
+        doctor = self.client_for(self.other_doctor).get(
+            f"/api/library/assets/{self.asset.pk}/"
+        )
+        patient = self.client_for(self.patient).get(
+            f"/api/library/assets/{self.asset.pk}/"
+        )
+        self.assertEqual(doctor.status_code, status.HTTP_200_OK)
+        self.assertEqual(doctor.data["permission"], "view")
+        self.assertEqual(patient.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_list_is_scoped_per_role(self):
         mine = self.client_for(self.doctor).get("/api/library/assets/")
         self.assertEqual(mine.data["count"], 1)
         theirs = self.client_for(self.other_doctor).get("/api/library/assets/")
-        self.assertEqual(theirs.data["count"], 0)
+        self.assertEqual(theirs.data["count"], 1)
         every = self.client_for(self.admin).get("/api/library/assets/")
         self.assertEqual(every.data["count"], 1)
 
@@ -313,11 +320,11 @@ class DownloadAndEditTests(LibraryTestCase):
         self.assertEqual(res.status_code, 200)
         self.assertIn("anh.png", res["Content-Disposition"])
 
-    def test_unrelated_user_download_is_404(self):
+    def test_doctor_can_download_global_asset(self):
         res = self.client_for(self.other_doctor).get(
             f"/api/library/assets/{self.asset.pk}/download/"
         )
-        self.assertEqual(res.status_code, 404)
+        self.assertEqual(res.status_code, 200)
 
     def test_download_blocked_while_not_ready(self):
         self.asset.status = DataAsset.Status.PROCESSING
@@ -327,16 +334,16 @@ class DownloadAndEditTests(LibraryTestCase):
         )
         self.assertEqual(res.status_code, 409)
 
-    def test_preview_served_to_owner_only(self):
+    def test_preview_served_to_owner_and_other_doctor(self):
         ok = self.client_for(self.doctor).get(
             f"/api/library/assets/{self.asset.pk}/preview/0/"
         )
         self.assertEqual(ok.status_code, 200)
         self.assertEqual(ok["Content-Type"], "image/png")
-        denied = self.client_for(self.other_doctor).get(
+        global_view = self.client_for(self.other_doctor).get(
             f"/api/library/assets/{self.asset.pk}/preview/0/"
         )
-        self.assertEqual(denied.status_code, 404)
+        self.assertEqual(global_view.status_code, 200)
 
     def test_owner_edits_metadata(self):
         res = self.client_for(self.doctor).patch(
@@ -470,7 +477,7 @@ class SourceImportTests(LibraryTestCase):
         self.assertEqual(DataAsset.objects.filter(source_image=self.image).count(), 1)
         enqueue.assert_not_called()
 
-    def test_doctor_with_edit_share_copies_case_to_own_library(self):
+    def test_doctor_with_edit_share_saves_linked_snapshot_owned_by_source(self):
         from apps.cases.models import CaseShare
 
         CaseShare.objects.create(
@@ -488,12 +495,14 @@ class SourceImportTests(LibraryTestCase):
 
         self.assertEqual(res.status_code, 201, res.data)
         asset = DataAsset.objects.get(pk=res.data["asset"]["id"])
-        self.assertEqual(asset.uploaded_by, self.other_doctor)
+        self.assertEqual(asset.uploaded_by, self.doctor)
+        self.assertEqual(asset.saved_by, self.other_doctor)
+        self.assertEqual(asset.save_mode, "linked")
         self.assertEqual(asset.source_image, self.image)
-        self.assertEqual(res.data["asset"]["permission"], "owner")
+        self.assertEqual(res.data["asset"]["permission"], "view")
         self.assertNotEqual(asset.file_path, self.original_path)
 
-    def test_patient_with_view_share_copies_case_to_own_library(self):
+    def test_patient_with_view_share_saves_linked_snapshot_in_shared_section(self):
         from apps.cases.models import CaseShare
 
         CaseShare.objects.create(
@@ -511,8 +520,10 @@ class SourceImportTests(LibraryTestCase):
 
         self.assertEqual(res.status_code, 201, res.data)
         asset = DataAsset.objects.get(pk=res.data["asset"]["id"])
-        self.assertEqual(asset.uploaded_by, self.patient)
-        self.assertEqual(res.data["asset"]["permission"], "owner")
+        self.assertEqual(asset.uploaded_by, self.doctor)
+        self.assertEqual(asset.saved_by, self.patient)
+        self.assertEqual(asset.save_mode, "linked")
+        self.assertEqual(res.data["asset"]["permission"], "view")
 
     def test_unshared_user_cannot_copy_case_to_library(self):
         res = self.client_for(self.other_doctor).post(
@@ -522,7 +533,7 @@ class SourceImportTests(LibraryTestCase):
         )
         self.assertEqual(res.status_code, 404)
 
-    def test_admin_copies_visible_case_to_own_library(self):
+    def test_admin_saves_visible_case_as_linked_source_snapshot(self):
         with mock.patch("apps.library.views.process_asset_task.apply_async"):
             res = self.client_for(self.admin).post(
                 f"/api/library/imports/cases/{self.case.pk}/images/0/",
@@ -532,19 +543,23 @@ class SourceImportTests(LibraryTestCase):
 
         self.assertEqual(res.status_code, 201, res.data)
         asset = DataAsset.objects.get(pk=res.data["asset"]["id"])
-        self.assertEqual(asset.uploaded_by, self.admin)
+        self.assertEqual(asset.uploaded_by, self.doctor)
+        self.assertEqual(asset.saved_by, self.admin)
         self.assertEqual(res.data["asset"]["permission"], "admin")
 
-    def test_annotated_variant_requires_annotated_file(self):
+    def test_annotated_variant_is_rendered_from_current_annotations(self):
         self.image.annotated_path = ""
         self.image.save(update_fields=["annotated_path"])
-        res = self.client_for(self.doctor).post(
-            f"/api/library/imports/cases/{self.case.pk}/images/0/",
-            {"variant": "annotated"},
-            format="json",
-        )
-        self.assertEqual(res.status_code, 409)
-        self.assertEqual(DataAsset.objects.filter(source_image=self.image).count(), 0)
+        with mock.patch("apps.library.views.process_asset_task.apply_async"):
+            res = self.client_for(self.doctor).post(
+                f"/api/library/imports/cases/{self.case.pk}/images/0/",
+                {"variant": "annotated"},
+                format="json",
+            )
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED, res.data)
+        asset = DataAsset.objects.get(source_image=self.image)
+        self.assertEqual(asset.source_variant, DataAsset.SourceVariant.ANNOTATED)
+        self.assertTrue(os.path.isfile(asset.file_path))
 
     def test_patient_can_import_a_case_they_own(self):
         from apps.cases.models import Case, Image
@@ -588,7 +603,7 @@ class SourceImportTests(LibraryTestCase):
         self.assertNotEqual(asset.file_path, self.scan_path)
         enqueue.assert_called_once_with(args=[asset.pk], queue="scans")
 
-    def test_shared_scan_recipient_imports_to_own_library(self):
+    def test_shared_scan_recipient_saves_linked_snapshot_owned_by_source(self):
         from apps.scans.models import ScanShare
 
         ScanShare.objects.create(
@@ -606,9 +621,10 @@ class SourceImportTests(LibraryTestCase):
 
         self.assertEqual(res.status_code, 201, res.data)
         asset = DataAsset.objects.get(pk=res.data["asset"]["id"])
-        self.assertEqual(asset.uploaded_by, self.other_doctor)
+        self.assertEqual(asset.uploaded_by, self.doctor)
+        self.assertEqual(asset.saved_by, self.other_doctor)
         self.assertEqual(asset.source_scan, self.scan)
-        self.assertEqual(res.data["asset"]["permission"], "owner")
+        self.assertEqual(res.data["asset"]["permission"], "view")
 
     def test_unshared_user_cannot_import_scan_to_library(self):
         res = self.client_for(self.other_doctor).post(
@@ -618,7 +634,7 @@ class SourceImportTests(LibraryTestCase):
         )
         self.assertEqual(res.status_code, 404)
 
-    def test_admin_imports_visible_scan_to_own_library(self):
+    def test_admin_imports_visible_scan_as_linked_source_snapshot(self):
         with mock.patch("apps.library.views.process_asset_task.apply_async"):
             res = self.client_for(self.admin).post(
                 f"/api/library/imports/scans/{self.scan.pk}/",
@@ -628,7 +644,8 @@ class SourceImportTests(LibraryTestCase):
 
         self.assertEqual(res.status_code, 201, res.data)
         asset = DataAsset.objects.get(pk=res.data["asset"]["id"])
-        self.assertEqual(asset.uploaded_by, self.admin)
+        self.assertEqual(asset.uploaded_by, self.doctor)
+        self.assertEqual(asset.saved_by, self.admin)
         self.assertEqual(res.data["asset"]["permission"], "admin")
 
     def test_case_from_library_uses_unique_dir_when_canonical_dir_is_stale(self):
