@@ -68,7 +68,6 @@ const NAV: NavEntry[] = [
   { href: '/history',    icon: 'history',      label: 'Lịch sử',            prefix: '/history'   },
   { href: '/system-log', icon: 'receipt_long', label: 'Lịch sử hệ thống',   prefix: '/system-log', roles: ['admin'] },
   { href: '/settings',   icon: 'settings',     label: 'Cài đặt',            prefix: '/settings',   roles: ['admin', 'doctor'] },
-  { href: '/help',       icon: 'help',         label: 'Hướng dẫn',          prefix: '/help'      },
 ];
 
 export default function Sidebar() {
@@ -109,9 +108,11 @@ export default function Sidebar() {
   }
 
   function renderLeaf(item: NavLeaf, nested: boolean) {
-    const { href, icon } = item;
+    const { href } = item;
+    const icon = role === 'student' && href === '/dashboard' ? 'badge' : item.icon;
     const label = role === 'student'
       ? ({
+          '/dashboard': 'Hồ sơ sinh viên',
           '/library': 'Kho dữ liệu của tôi',
           '/chat': 'Hỏi đáp giảng viên',
           '/history': 'Lịch sử chẩn đoán AI',
@@ -159,12 +160,17 @@ export default function Sidebar() {
 
   function renderGroup(group: NavGroup) {
     const isActive = group.children.some(active);
-    const open = openGroups[group.label] ?? isActive;
+    // Trên Hồ sơ Sinh viên, luôn để lộ các chức năng chẩn đoán thay vì khiến
+    // người dùng hiểu nhầm rằng vai trò này chỉ còn xem hồ sơ.
+    const defaultOpen = isActive || (
+      role === 'student' && group.label === 'AI hỗ trợ chẩn đoán lâm sàng'
+    );
+    const open = openGroups[group.label] ?? defaultOpen;
     return (
       <div key={group.label}>
         <button
           type="button"
-          onClick={() => toggleGroup(group.label, isActive)}
+          onClick={() => toggleGroup(group.label, defaultOpen)}
           title={collapsed ? group.label : undefined}
           aria-expanded={collapsed ? false : open}
           className={`

@@ -13,6 +13,11 @@ export interface AuthUser {
   full_name: string;
   role: Role;
   phone: string;
+  student_code: string;
+  academic_year: string;
+  class_name: string;
+  major: string;
+  institution: string;
   email_verified: boolean;
   is_active: boolean;
   date_joined: string;

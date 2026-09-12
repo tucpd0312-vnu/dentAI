@@ -3,14 +3,13 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { ROLE_LABEL, type AuthUser, type Role } from '@/lib/auth';
+import { ROLE_LABEL, updateCurrentUser, type AuthUser, type Role } from '@/lib/auth';
 import {
   CASE_STATUS_LABEL,
   MGI_COLOR,
   MGI_LABEL,
   fetchDashboard,
   type DashboardData,
-  type OperationalDashboardData,
 } from '@/lib/dashboard';
 import { useAuth } from '@/components/providers/AuthProvider';
 import {
@@ -510,13 +509,43 @@ function AssignmentWorkbookPanel() {
   );
 }
 
-function StudentDashboard({
-  user,
-  data,
-}: {
-  user: AuthUser;
-  data: OperationalDashboardData;
-}) {
+function ReceptionistDashboard({ user }: { user: AuthUser | null }) {
+  return (
+    <div className="mx-auto max-w-5xl space-y-5">
+      <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-teal-600 via-primary to-primary-700 px-6 py-7 text-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-5">
+          <div>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white/90">
+              <span className="material-symbols-outlined text-[16px]">support_agent</span>
+              Không gian làm việc Lễ tân
+            </span>
+            <h1 className="mt-3 font-serif text-2xl font-semibold">
+              Xin chào, {user?.full_name || user?.username}
+            </h1>
+            <p className="mt-1 max-w-xl text-sm leading-relaxed text-white/80">
+              Tài khoản của bạn đã sẵn sàng. Trong giai đoạn hiện tại, vai trò Lễ tân
+              chỉ sử dụng trang Tổng quan.
+            </p>
+          </div>
+          <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15">
+            <span className="material-symbols-outlined text-[34px]">space_dashboard</span>
+          </span>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard icon="badge" label="Vai trò hiện tại" value="Lễ tân" tone="green" />
+        <StatCard icon="dashboard" label="Khu vực khả dụng" value="Tổng quan" />
+        <StatCard icon="notifications" label="Trung tâm thông báo" value="Đang hoạt động" />
+      </div>
+
+      <AssignmentWorkbookPanel />
+    </div>
+  );
+}
+
+function StudentDashboard({ user }: { user: AuthUser }) {
+  const { refreshUser } = useAuth();
   const displayName = user.full_name || user.username;
   const initials = displayName
     .trim()
@@ -525,25 +554,80 @@ function StudentDashboard({
     .map(part => part[0])
     .join('')
     .toUpperCase();
-  const completed = data.cases.by_status.done ?? 0;
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    first_name: user.first_name,
+    last_name: user.last_name,
+    phone: user.phone,
+    student_code: user.student_code || '',
+    academic_year: user.academic_year || '',
+    class_name: user.class_name || '',
+    major: user.major || '',
+    institution: user.institution || '',
+  });
 
-  const profileRows = [
-    ['Tên đăng nhập', `@${user.username}`],
+  function updateField(field: keyof typeof form, value: string) {
+    setForm(current => ({ ...current, [field]: value }));
+  }
+
+  function cancelEditing() {
+    setForm({
+      first_name: user.first_name,
+      last_name: user.last_name,
+      phone: user.phone,
+      student_code: user.student_code || '',
+      academic_year: user.academic_year || '',
+      class_name: user.class_name || '',
+      major: user.major || '',
+      institution: user.institution || '',
+    });
+    setEditing(false);
+    setProfileError(null);
+  }
+
+  async function saveProfile(event: React.FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setNotice(null);
+    setProfileError(null);
+    try {
+      await updateCurrentUser(Object.fromEntries(
+        Object.entries(form).map(([key, value]) => [key, value.trim()])
+      ));
+      await refreshUser();
+      setEditing(false);
+      setNotice('Đã cập nhật hồ sơ sinh viên.');
+    } catch (error) {
+      const data = (error as { response?: { data?: Record<string, string | string[]> } })?.response?.data;
+      const first = data ? Object.values(data)[0] : null;
+      setProfileError(
+        (Array.isArray(first) ? first[0] : first) || 'Không thể cập nhật hồ sơ. Vui lòng thử lại.'
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const personalRows = [
+    ['Họ và tên', displayName],
     ['Email', user.email],
     ['Số điện thoại', user.phone || 'Chưa cập nhật'],
-    ['Ngày tham gia', new Date(user.date_joined).toLocaleDateString('vi-VN')],
-    ['Lần đăng nhập gần nhất', user.last_login ? new Date(user.last_login).toLocaleString('vi-VN') : 'Lần đầu đăng nhập'],
+    ['Tên đăng nhập', `@${user.username}`],
   ];
-
-  const shortcuts = [
-    ['/analysis/new/', 'add_photo_alternate', 'Chẩn đoán mới', 'Phân tích ảnh viêm lợi bằng AI'],
-    ['/history/', 'history', 'Lịch sử chẩn đoán AI', 'Xem lại kết quả đã thực hiện'],
-    ['/library/', 'inventory_2', 'Kho dữ liệu của tôi', 'Quản lý dữ liệu học tập cá nhân'],
-    ['/chat/', 'forum', 'Hỏi đáp giảng viên', 'Theo dõi câu hỏi và phản hồi'],
-  ] as const;
+  const academicRows = [
+    ['Mã sinh viên', user.student_code || 'Chưa cập nhật'],
+    ['Niên khóa', user.academic_year || 'Chưa cập nhật'],
+    ['Lớp', user.class_name || 'Chưa cập nhật'],
+    ['Chuyên ngành', user.major || 'Chưa cập nhật'],
+    ['Cơ sở đào tạo', user.institution || 'Chưa cập nhật'],
+  ];
+  const inputClass = 'w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20';
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
+    <div className="mx-auto max-w-4xl space-y-5">
       <section className="overflow-hidden rounded-2xl border border-primary/15 bg-white shadow-sm">
         <div className="h-24 bg-gradient-to-r from-primary via-primary-600 to-teal-600" />
         <div className="px-5 pb-6 sm:px-7">
@@ -561,68 +645,150 @@ function StudentDashboard({
                 <p className="text-sm text-gray-500">Hồ sơ học tập trên DentAI</p>
               </div>
             </div>
-            <Link
-              href="/analysis/new/"
-              className="mb-1 inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-600"
-            >
-              <span className="material-symbols-outlined text-[18px]">add</span>
-              Chẩn đoán mới
-            </Link>
+            {!editing && (
+              <div className="mb-1 flex flex-wrap gap-2">
+                <Link
+                  href="/gingivitis/"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-600"
+                >
+                  <span className="material-symbols-outlined text-[18px]">oral_disease</span>
+                  Chẩn đoán AI
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => { setEditing(true); setNotice(null); }}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
+                >
+                  <span className="material-symbols-outlined text-[18px]">edit</span>
+                  Cập nhật hồ sơ
+                </button>
+              </div>
+            )}
           </div>
 
-          <div className="mt-6 grid gap-x-8 gap-y-4 border-t border-gray-100 pt-5 sm:grid-cols-2">
-            {profileRows.map(([label, value]) => (
-              <div key={label} className="min-w-0">
-                <p className="text-xs font-medium text-gray-400">{label}</p>
-                <p className="mt-0.5 truncate text-sm font-medium text-gray-800" title={value}>{value}</p>
+          {notice && (
+            <div className="mt-5 flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+              <span className="material-symbols-outlined text-[18px]">check_circle</span>
+              {notice}
+            </div>
+          )}
+
+          {editing ? (
+            <form onSubmit={saveProfile} className="mt-6 border-t border-gray-100 pt-5">
+              <div className="grid gap-5 sm:grid-cols-2">
+                <ProfileInput label="Họ" value={form.last_name} onChange={value => updateField('last_name', value)} className={inputClass} />
+                <ProfileInput label="Tên" value={form.first_name} onChange={value => updateField('first_name', value)} className={inputClass} />
+                <ProfileInput label="Số điện thoại" value={form.phone} onChange={value => updateField('phone', value)} className={inputClass} />
+                <ProfileInput label="Mã sinh viên" value={form.student_code} onChange={value => updateField('student_code', value)} className={inputClass} />
+                <ProfileInput label="Niên khóa" value={form.academic_year} placeholder="Ví dụ: 2023–2027" onChange={value => updateField('academic_year', value)} className={inputClass} />
+                <ProfileInput label="Lớp" value={form.class_name} onChange={value => updateField('class_name', value)} className={inputClass} />
+                <ProfileInput label="Chuyên ngành" value={form.major} onChange={value => updateField('major', value)} className={inputClass} />
+                <ProfileInput label="Cơ sở đào tạo" value={form.institution} onChange={value => updateField('institution', value)} className={inputClass} />
               </div>
-            ))}
-          </div>
+              {profileError && (
+                <p className="mt-4 flex items-center gap-1.5 text-sm text-red-600">
+                  <span className="material-symbols-outlined text-[17px]">error</span>
+                  {profileError}
+                </p>
+              )}
+              <div className="mt-5 flex justify-end gap-2">
+                <button type="button" onClick={cancelEditing} disabled={saving} className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+                  Hủy
+                </button>
+                <button type="submit" disabled={saving} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-600 disabled:opacity-50">
+                  <span className={`material-symbols-outlined text-[17px] ${saving ? 'animate-spin' : ''}`}>{saving ? 'autorenew' : 'save'}</span>
+                  {saving ? 'Đang lưu…' : 'Lưu hồ sơ'}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="mt-6 grid gap-6 border-t border-gray-100 pt-5 lg:grid-cols-2">
+              <ProfileSection title="Thông tin cá nhân" icon="person" rows={personalRows} />
+              <ProfileSection title="Thông tin học vụ" icon="school" rows={academicRows} />
+            </div>
+          )}
         </div>
       </section>
-
-      <div className="grid grid-cols-3 gap-3">
-        <StatCard icon="task_alt" label="Chẩn đoán hoàn thành" value={completed} tone="green" />
-        <StatCard icon="image" label="Ảnh đã phân tích" value={data.cases.images_total} />
-        <StatCard icon="inventory_2" label="Dữ liệu của tôi" value={data.library.total} />
-      </div>
-
-      <Section title="Không gian học tập">
-        <div className="grid gap-3 sm:grid-cols-2">
-          {shortcuts.map(([href, icon, title, description]) => (
-            <Link
-              key={href}
-              href={href}
-              className="group flex items-center gap-3 rounded-xl border border-gray-200 p-3.5 transition hover:border-primary/30 hover:bg-primary-50/30"
-            >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary">
-                <span className="material-symbols-outlined text-[21px]">{icon}</span>
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-gray-900">{title}</span>
-                <span className="block text-xs text-gray-500">{description}</span>
-              </span>
-              <span className="material-symbols-outlined text-[18px] text-gray-300 group-hover:text-primary">arrow_forward</span>
-            </Link>
-          ))}
-        </div>
-      </Section>
     </div>
+  );
+}
+
+function ProfileSection({
+  title,
+  icon,
+  rows,
+}: {
+  title: string;
+  icon: string;
+  rows: string[][];
+}) {
+  return (
+    <section>
+      <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+        <span className="material-symbols-outlined text-[19px] text-primary">{icon}</span>
+        {title}
+      </h2>
+      <dl className="mt-3 divide-y divide-gray-100 rounded-xl border border-gray-200 px-4">
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex items-start justify-between gap-4 py-3">
+            <dt className="text-xs text-gray-500">{label}</dt>
+            <dd className={`text-right text-sm font-medium ${value === 'Chưa cập nhật' ? 'italic text-gray-400' : 'text-gray-800'}`}>
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+function ProfileInput({
+  label,
+  value,
+  onChange,
+  className,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  className: string;
+  placeholder?: string;
+}) {
+  return (
+    <label>
+      <span className="mb-1.5 block text-xs font-medium text-gray-600">{label}</span>
+      <input value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} className={className} />
+    </label>
   );
 }
 
 // ── Trang ────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { user, isAdmin, canViewAllLibrary } = useAuth();
+  const { user, isAdmin, canViewAllLibrary, loading: authLoading } = useAuth();
+  const role = user?.role ?? null;
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (authLoading || role === null || role === 'student') return;
     fetchDashboard()
       .then(setData)
       .catch(() => setError('Không tải được dữ liệu tổng quan. Vui lòng thử lại.'));
-  }, []);
+  }, [authLoading, role]);
+
+  if (authLoading || !user) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <span className="material-symbols-outlined animate-spin text-4xl text-gray-300">autorenew</span>
+      </div>
+    );
+  }
+
+  if (user.role === 'student') {
+    return <StudentDashboard user={user} />;
+  }
 
   if (error) {
     return (
@@ -645,10 +811,6 @@ export default function DashboardPage() {
 
   if (data.scope === 'receptionist') {
     return <ReceptionistDashboard user={user} />;
-  }
-
-  if (user?.role === 'student') {
-    return <StudentDashboard user={user} data={data} />;
   }
 
   const { cases, scans, library, mgi, users, activity } = data;

@@ -43,7 +43,15 @@ const inputCls =
 export default function LibraryPage() {
   // Không dùng useRequireRole: kho dữ liệu mở cho MỌI vai trò (§B.4) — phạm vi dữ liệu
   // đã bị backend giới hạn theo `scoped_assets`, không cần chặn ở route.
-  const { isAdmin, isStudent, canEditLabels, loading: authLoading } = useAuth();
+  const {
+    isAdmin,
+    isDoctor,
+    isStudent,
+    canEditLabels,
+    canViewAllLibrary,
+    loading: authLoading,
+  } = useAuth();
+  const [editableOnly, setEditableOnly] = useState(false);
 
   const [rows, setRows] = useState<DataAsset[]>([]);
   const [categories, setCategories] = useState<DataCategory[]>([]);

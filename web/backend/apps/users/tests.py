@@ -464,7 +464,6 @@ class ReceptionistAccessTests(APITestCase):
                     self.client.get(path).status_code,
                     status.HTTP_403_FORBIDDEN,
                 )
-
     def test_public_registration_cannot_request_receptionist_role(self):
         response = self.client.post(
             "/api/auth/register/",
@@ -582,6 +581,38 @@ class ReceptionistAccessTests(APITestCase):
         self.assertFalse(CaseShare.objects.filter(shared_with=recipient).exists())
         self.assertFalse(ScanShare.objects.filter(shared_with=recipient).exists())
         self.assertFalse(DataAssetShare.objects.filter(shared_with=recipient).exists())
+
+
+class StudentProfileTests(APITestCase):
+    def test_student_can_update_and_read_academic_profile(self):
+        student = User.objects.create_user(
+            username="profile-student",
+            email="profile-student@example.test",
+            password="StudentPass123",
+            role=Role.STUDENT,
+            is_active=True,
+            email_verified=True,
+        )
+        self.client.force_authenticate(user=student)
+
+        response = self.client.patch(
+            "/api/auth/me/",
+            {
+                "student_code": "SV2026001",
+                "academic_year": "2026–2030",
+                "class_name": "RHM-K26A",
+                "major": "Răng Hàm Mặt",
+                "institution": "Trường Đại học Y",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data["student_code"], "SV2026001")
+        self.assertEqual(response.data["academic_year"], "2026–2030")
+        student.refresh_from_db()
+        self.assertEqual(student.class_name, "RHM-K26A")
+        self.assertEqual(student.major, "Răng Hàm Mặt")
 
 
 class StudentRoleAdminTests(APITestCase):

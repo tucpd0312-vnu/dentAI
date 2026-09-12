@@ -202,7 +202,8 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "id", "username", "email", "first_name", "last_name", "full_name",
-            "role", "phone", "email_verified", "is_active",
+            "role", "phone", "student_code", "academic_year", "class_name",
+            "major", "institution", "email_verified", "is_active",
             "date_joined", "last_login",
             "pending_role_requests", "my_role_request",
         ]
