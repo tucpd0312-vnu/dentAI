@@ -3,7 +3,7 @@
 import Link from 'next/link';
 
 import type { AuthUser } from '@/lib/auth';
-import { CASE_STATUS_LABEL, type OperationalDashboardData } from '@/lib/dashboard';
+import { CASE_STATUS_LABEL, type DashboardCases } from '@/lib/dashboard';
 
 function formatDate(value: string | null) {
   if (!value) return 'Chưa có';
@@ -15,7 +15,7 @@ export default function PatientDashboard({
   data,
 }: {
   user: AuthUser;
-  data: OperationalDashboardData;
+  data: { cases: DashboardCases };
 }) {
   const { cases } = data;
 

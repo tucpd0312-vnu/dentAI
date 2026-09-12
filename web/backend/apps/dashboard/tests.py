@@ -93,25 +93,16 @@ class DashboardScopeTests(TestCase):
         self.assertEqual(response.data["library"]["by_status"]["processing"], 1)
         self.assertEqual(response.data["library"]["shared_with_me"], 1)
 
-    def test_patient_receives_only_own_scan_statistics(self):
-        DataAsset.objects.create(
-            title="Asset bệnh nhân",
-            category=self.own_asset.category,
-            data_type=DataAsset.DataType.INTRAORAL,
-            uploaded_by=self.patient_user,
-            status=DataAsset.Status.READY,
-        )
-        Scan.objects.create(
-            patient=self.patient,
-            uploaded_by=self.patient_user,
-            status=Scan.Status.READY,
-        )
+    def test_patient_dashboard_only_returns_diagnosis_data(self):
+        Case.objects.create(patient=self.patient, created_by=self.patient_user)
         response = self.get_dashboard(self.patient_user)
+
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["scans"]["total"], 1)
-        self.assertEqual(response.data["scans"]["by_status"]["ready"], 1)
-        self.assertEqual(response.data["scans"]["shared_with_me"], 0)
-        self.assertEqual(response.data["library"]["total"], 1)
+        self.assertEqual(response.data["scope"], "patient")
+        self.assertEqual(response.data["cases"]["total"], 1)
+        self.assertIn("mgi", response.data)
+        self.assertNotIn("scans", response.data)
+        self.assertNotIn("library", response.data)
 
     def test_student_dashboard_uses_patient_data_scope(self):
         Scan.objects.create(

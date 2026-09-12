@@ -49,6 +49,30 @@ class DashboardView(APIView):
                 "available_modules": ["dashboard"],
             })
 
+        if user.role == Role.PATIENT:
+            # Hồ sơ bệnh nhân chỉ cần lịch sử chẩn đoán gần đây. Không truy vấn
+            # Kho dữ liệu/CBCT ở đây vì hai module này không nằm trong dashboard
+            # patient và có thể chưa được đồng bộ schema ở môi trường triển khai.
+            cases = scoped_cases(user)
+            images = Image.objects.filter(case__in=cases)
+            recent = cases.order_by("-created_at")[:RECENT_CASES]
+            return Response({
+                "scope": "patient",
+                "cases": {
+                    "total": cases.count(),
+                    "by_status": _counts(cases, "status", Case.Status.values),
+                    "images_total": images.count(),
+                    "low_confidence": images.filter(is_low_confidence=True).count(),
+                    "shared_with_me": Case.objects.filter(
+                        shares__shared_with=user
+                    ).distinct().count(),
+                    "recent": CaseListSerializer(
+                        recent, many=True, context={"request": request}
+                    ).data,
+                },
+                "mgi": self._mgi_distribution(cases),
+            })
+
         is_admin = user.role == Role.ADMIN
         cases = scoped_cases(user)
         scans = scoped_scans(user)

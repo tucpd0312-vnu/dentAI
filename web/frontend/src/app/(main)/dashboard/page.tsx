@@ -24,6 +24,17 @@ import PatientDashboard from '@/components/patient/PatientDashboard';
 
 const MGI_LEVELS = ['0', '1', '2', '3', '4'];
 
+const EMPTY_PATIENT_DASHBOARD = {
+  cases: {
+    total: 0,
+    by_status: { processing: 0, done: 0, failed: 0 },
+    images_total: 0,
+    low_confidence: 0,
+    shared_with_me: 0,
+    recent: [],
+  },
+};
+
 const LOG_CATEGORY_LABEL: Record<string, string> = {
   admin: 'Quản trị',
   auth: 'Xác thực',
@@ -559,6 +570,11 @@ export default function DashboardPage() {
   }, []);
 
   if (error) {
+    // Hồ sơ cá nhân lấy từ /auth/me/ đã tải độc lập. Nếu dashboard API đang
+    // khởi động lại hoặc chưa migrate xong, patient vẫn không bị chặn khỏi hồ sơ.
+    if (user?.role === 'patient') {
+      return <PatientDashboard user={user} data={EMPTY_PATIENT_DASHBOARD} />;
+    }
     return (
       <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
         <span className="material-symbols-outlined text-[18px]">error</span>
@@ -581,8 +597,8 @@ export default function DashboardPage() {
     return <ReceptionistDashboard user={user} />;
   }
 
-  if (user?.role === 'patient') {
-    return <PatientDashboard user={user} data={data} />;
+  if (data.scope === 'patient') {
+    return user ? <PatientDashboard user={user} data={data} /> : null;
   }
 
   const { cases, scans, library, mgi, users, activity } = data;

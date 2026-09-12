@@ -47,7 +47,17 @@ export interface ReceptionistDashboardData {
   available_modules: ['dashboard'];
 }
 
-export type DashboardData = OperationalDashboardData | ReceptionistDashboardData;
+/** Response gọn dành cho Hồ sơ bệnh nhân; không phụ thuộc Kho dữ liệu/CBCT. */
+export interface PatientDashboardData {
+  scope: 'patient';
+  cases: DashboardCases;
+  mgi: Record<string, number>;
+}
+
+export type DashboardData =
+  | OperationalDashboardData
+  | PatientDashboardData
+  | ReceptionistDashboardData;
 
 export async function fetchDashboard(): Promise<DashboardData> {
   const res = await api.get<DashboardData>('/dashboard/');
