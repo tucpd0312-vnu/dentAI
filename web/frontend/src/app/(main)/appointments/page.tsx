@@ -65,10 +65,10 @@ export default function AppointmentsPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <section className="rounded-2xl border border-green-200 bg-gradient-to-r from-green-50 to-teal-50 p-5">
+      <section className="rounded-2xl border border-blue-200 bg-gradient-to-r from-primary-50 to-blue-50 p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-green-600 text-white">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-white">
               <span className="material-symbols-outlined">calendar_add_on</span>
             </span>
             <div>
@@ -78,17 +78,12 @@ export default function AppointmentsPage() {
               </p>
             </div>
           </div>
-          <Link href="/telemedicine/" className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-green-700">
+          <Link href="/telemedicine/" className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-600">
             <span className="material-symbols-outlined text-[19px]">open_in_new</span>
-            Đặt lịch không kèm AI
+            Đặt lịch
           </Link>
         </div>
       </section>
-
-      <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-        <span className="material-symbols-outlined mt-0.5 text-[19px]">construction</span>
-        <p>Cổng Telemedicine chưa được kết nối. Các nút đặt hẹn hiện chuyển tới trang 404 dùng để mô phỏng điểm tích hợp.</p>
-      </div>
 
       <section className="rounded-xl border border-gray-200 bg-white">
         <div className="border-b border-gray-100 px-5 py-4">
@@ -131,7 +126,7 @@ export default function AppointmentsPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Link href={`/analysis/${caseItem.id}/results/0/`} className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50">Xem lại</Link>
+                    <Link href={`/analysis/${caseItem.id}/results/0/`} className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50">Xem</Link>
                     <Link href="/telemedicine/" className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-white hover:bg-primary-600">
                       <span className="material-symbols-outlined text-[16px]">calendar_month</span>
                       Đặt hẹn

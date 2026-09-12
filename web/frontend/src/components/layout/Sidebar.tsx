@@ -60,8 +60,6 @@ const NAV: NavEntry[] = [
     ],
   },
   { href: '/appointments', icon: 'calendar_month', label: 'Đặt hẹn', prefix: '/appointments', roles: ['patient'] },
-  { href: '/consultations', icon: 'video_chat', label: 'Lịch sử tư vấn', prefix: '/consultations', roles: ['patient'] },
-  { href: '/medical-records', icon: 'clinical_notes', label: 'Hồ sơ bệnh án', prefix: '/medical-records', roles: ['patient'] },
   // Bệnh nhân không dùng Kho dữ liệu trong giao diện tích hợp.
   { href: '/library', icon: 'inventory_2', label: 'Kho dữ liệu', prefix: '/library', roles: ['admin', 'doctor', 'student'] },
   // Hỏi đáp và trao đổi giữa sinh viên và giảng viên
@@ -112,6 +110,12 @@ export default function Sidebar() {
 
   function renderLeaf(item: NavLeaf, nested: boolean) {
     const { href, icon, label } = item;
+    const displayLabel =
+      href === '/dashboard' && role === 'patient'
+        ? 'Hồ sơ bệnh nhân'
+        : href === '/history' && role === 'patient'
+          ? 'Lịch sử'
+          : label;
     const isActive = active(item);
     const badge = href === '/users' ? pendingRequests : 0;
     return (
@@ -121,8 +125,8 @@ export default function Sidebar() {
         title={
           collapsed
             ? badge > 0
-              ? `${label} — ${badge} yêu cầu chờ duyệt`
-              : label
+              ? `${displayLabel} — ${badge} yêu cầu chờ duyệt`
+              : displayLabel
             : undefined
         }
         className={`
@@ -137,7 +141,7 @@ export default function Sidebar() {
         <span className={`material-symbols-outlined shrink-0 ${nested ? 'text-[18px]' : 'text-[20px]'}`}>
           {icon}
         </span>
-        {!collapsed && <span className="truncate">{label}</span>}
+        {!collapsed && <span className="truncate">{displayLabel}</span>}
         {badge > 0 && (
           collapsed ? (
             // Sidebar thu gọn: chấm đỏ ở góc icon, không đủ chỗ cho con số.

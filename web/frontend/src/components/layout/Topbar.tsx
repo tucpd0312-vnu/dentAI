@@ -3,20 +3,18 @@
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
-import { ROLE_LABEL } from '@/lib/auth';
+import { ROLE_LABEL, type Role } from '@/lib/auth';
 import { useAuth } from '@/components/providers/AuthProvider';
 import NotificationBell from '@/components/layout/NotificationBell';
 
-function getTitle(pathname: string): string {
-  if (pathname.startsWith('/dashboard')) return 'Tổng quan';
+function getTitle(pathname: string, role?: Role): string {
+  if (pathname.startsWith('/dashboard')) return role === 'patient' ? 'Hồ sơ bệnh nhân' : 'Tổng quan';
   if (pathname === '/analysis/new') return 'Chẩn đoán viêm lợi';
   if (/^\/analysis\/[^/]+\/processing/.test(pathname)) return 'Đang xử lý…';
   if (/^\/analysis\/[^/]+\/results\/[^/]+\/edit/.test(pathname)) return 'Chỉnh sửa kết quả';
   if (/^\/analysis\/[^/]+\/results/.test(pathname)) return 'Kết quả chẩn đoán';
-  if (pathname.startsWith('/history')) return 'Lịch sử chẩn đoán';
+  if (pathname.startsWith('/history')) return role === 'patient' ? 'Lịch sử' : 'Lịch sử chẩn đoán';
   if (pathname.startsWith('/appointments')) return 'Đặt hẹn tư vấn';
-  if (pathname.startsWith('/consultations')) return 'Lịch sử tư vấn';
-  if (pathname.startsWith('/medical-records')) return 'Hồ sơ bệnh án';
   if (pathname.startsWith('/profile')) return 'Hồ sơ cá nhân';
   if (pathname === '/scans/new') return 'Tải phim CBCT';
   if (/^\/scans\/[^/]+/.test(pathname)) return 'Chi tiết phim CBCT';
@@ -71,12 +69,29 @@ export default function Topbar() {
   }
 
   const displayName = user?.full_name || user?.username || '';
+  const showConsultationSummary = user?.role === 'patient' && pathname.startsWith('/history');
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6">
-      <h1 className="font-serif text-[18px] font-semibold text-gray-900">
-        {getTitle(pathname)}
-      </h1>
+      <div className="flex min-w-0 items-center gap-4">
+        <h1 className="shrink-0 font-serif text-[18px] font-semibold text-gray-900">
+          {getTitle(pathname, user?.role)}
+        </h1>
+        {showConsultationSummary && (
+          <nav className="hidden items-center gap-1.5 lg:flex" aria-label="Tổng quan trạng thái lịch tư vấn">
+            {[
+              ['Chờ xác nhận', '0'],
+              ['Đã xác nhận', '0'],
+              ['Đã hoàn tất', '0'],
+            ].map(([label, value]) => (
+              <span key={label} className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-primary-50 px-2 py-1 text-[11px] font-medium text-primary">
+                {label}
+                <span className="rounded-full bg-white px-1.5 py-0.5 font-semibold tabular-nums">{value}</span>
+              </span>
+            ))}
+          </nav>
+        )}
+      </div>
 
       {user && (
         <div className="flex items-center gap-1">

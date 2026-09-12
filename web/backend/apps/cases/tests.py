@@ -13,8 +13,6 @@ from apps.users.models import Role, User
 
 from .models import Case, CaseShare, Patient
 
-
-<<<<<<< HEAD
 TEMP_ROOT = tempfile.mkdtemp(prefix="cases-security-tests-")
 
 

@@ -21,7 +21,7 @@ export default function PatientDashboard({
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <section className="overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary-600 to-teal-700 p-6 text-white shadow-sm">
+      <section className="overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary-600 to-blue-700 p-6 text-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-5">
           <div>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white/90">
@@ -46,24 +46,7 @@ export default function PatientDashboard({
         </div>
       </section>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          ['neurology', 'Kết quả AI', cases.total, 'text-primary bg-primary-50'],
-          ['check_circle', 'Đã hoàn thành', cases.by_status.done, 'text-green-600 bg-green-50'],
-          ['video_chat', 'Lịch tư vấn', 0, 'text-teal-600 bg-teal-50'],
-          ['clinical_notes', 'Hồ sơ bệnh án', 0, 'text-violet-600 bg-violet-50'],
-        ].map(([icon, label, value, tone]) => (
-          <div key={String(label)} className="rounded-xl border border-gray-200 bg-white p-4">
-            <div className={`mb-3 flex h-9 w-9 items-center justify-center rounded-xl ${tone}`}>
-              <span className="material-symbols-outlined text-[20px]">{icon}</span>
-            </div>
-            <p className="text-2xl font-semibold tabular-nums text-gray-900">{value}</p>
-            <p className="mt-0.5 text-xs text-gray-500">{label}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+      <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-xl border border-gray-200 bg-white">
           <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
             <h2 className="font-serif text-[15px] font-semibold text-gray-900">Thông tin cá nhân</h2>
@@ -86,30 +69,20 @@ export default function PatientDashboard({
         </section>
 
         <section className="rounded-xl border border-gray-200 bg-white">
-          <div className="border-b border-gray-100 px-5 py-4">
-            <h2 className="font-serif text-[15px] font-semibold text-gray-900">Truy cập nhanh</h2>
+          <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+            <h2 className="font-serif text-[15px] font-semibold text-gray-900">Hồ sơ bệnh án</h2>
+            <span className="rounded-full bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary">
+              0 phiếu A4
+            </span>
           </div>
-          <div className="grid gap-3 p-4 sm:grid-cols-2">
-            {[
-              ['/analysis/new/', 'add_photo_alternate', 'Chẩn đoán viêm lợi', 'Tải ảnh mới để AI phân tích'],
-              ['/scans/new/', 'radiology', 'Phân tích phim CBCT', 'Tải phim răng nanh ngầm 3D'],
-              ['/history/', 'history', 'Lịch sử AI', 'Xem lại các lần chẩn đoán'],
-              ['/appointments/', 'calendar_month', 'Đặt hẹn', 'Chọn kết quả AI để tư vấn'],
-            ].map(([href, icon, title, description]) => (
-              <Link
-                key={href}
-                href={href}
-                className="group flex gap-3 rounded-xl border border-gray-200 p-3 transition hover:border-primary/30 hover:bg-primary-50/30"
-              >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary">
-                  <span className="material-symbols-outlined text-[20px]">{icon}</span>
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-medium text-gray-900 group-hover:text-primary">{title}</span>
-                  <span className="mt-0.5 block text-xs leading-relaxed text-gray-500">{description}</span>
-                </span>
-              </Link>
-            ))}
+          <div className="flex min-h-[205px] flex-col items-center justify-center p-5 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-50 text-primary">
+              <span className="material-symbols-outlined text-[26px]">picture_as_pdf</span>
+            </span>
+            <p className="mt-3 text-sm font-medium text-gray-800">Chưa có kết quả tư vấn A4</p>
+            <p className="mt-1 max-w-sm text-xs leading-relaxed text-gray-500">
+              Kết luận, chỉ định, đơn thuốc và phiếu A4 sẽ hiển thị tại đây sau khi buổi tư vấn hoàn tất.
+            </p>
           </div>
         </section>
       </div>

@@ -95,7 +95,7 @@ export default function ProfilePage() {
               <input value={user.username} readOnly className={`${inputClass} mt-1.5 bg-gray-50 text-gray-500`} />
             </label>
             {profileError && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{profileError}</p>}
-            {profileMessage && <p className="rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700">{profileMessage}</p>}
+            {profileMessage && <p className="rounded-lg bg-primary-50 px-3 py-2 text-xs text-primary">{profileMessage}</p>}
             <div className="flex justify-end"><button disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-600 disabled:opacity-50">
               <span className={`material-symbols-outlined text-[18px] ${saving ? 'animate-spin' : ''}`}>{saving ? 'autorenew' : 'save'}</span>{saving ? 'Đang lưu…' : 'Lưu thay đổi'}
             </button></div>
@@ -108,7 +108,7 @@ export default function ProfilePage() {
               <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">{(user.full_name || user.username).slice(0, 2).toUpperCase()}</span>
               <div><p className="font-medium text-gray-900">{user.full_name || user.username}</p><p className="text-xs text-gray-500">Bệnh nhân · @{user.username}</p></div>
             </div>
-            <div className="mt-4 flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700">
+            <div className="mt-4 flex items-center gap-2 rounded-lg bg-primary-50 px-3 py-2 text-xs text-primary">
               <span className="material-symbols-outlined text-[17px]">verified</span>{user.email_verified ? 'Email đã xác thực' : 'Email chưa xác thực'}
             </div>
           </section>
@@ -120,7 +120,7 @@ export default function ProfilePage() {
               <input type="password" required minLength={8} value={passwords.next} onChange={e => setPasswords(value => ({ ...value, next: e.target.value }))} className={inputClass} placeholder="Mật khẩu mới" />
               <input type="password" required minLength={8} value={passwords.confirm} onChange={e => setPasswords(value => ({ ...value, confirm: e.target.value }))} className={inputClass} placeholder="Xác nhận mật khẩu mới" />
               {passwordError && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{passwordError}</p>}
-              {passwordMessage && <p className="rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700">{passwordMessage}</p>}
+              {passwordMessage && <p className="rounded-lg bg-primary-50 px-3 py-2 text-xs text-primary">{passwordMessage}</p>}
               <button disabled={changing} className="w-full rounded-xl border border-primary/20 bg-primary-50 px-4 py-2.5 text-sm font-semibold text-primary hover:bg-primary/10 disabled:opacity-50">{changing ? 'Đang cập nhật…' : 'Đổi mật khẩu'}</button>
             </div>
           </form>

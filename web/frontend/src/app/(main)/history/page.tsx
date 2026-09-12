@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import api, { CaseListItem } from '@/lib/api';
+import api, { CaseListItem, type ImageResult } from '@/lib/api';
 import { useAuth } from '@/components/providers/AuthProvider';
 import {
   fetchScans,
   fetchScansSharedWithMe,
+  fetchScan,
+  fetchScanPreviewBlob,
   SCAN_STATUS_CLASS,
   SCAN_STATUS_LABEL,
   type ScanListItem,
@@ -40,6 +42,11 @@ function fmt(iso: string) {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function toMediaUrl(path: string): string {
+  const match = path.match(/[/\\]media[/\\](.+)/);
+  return match ? `/media/${match[1].replace(/\\/g, '/')}` : path;
 }
 
 type StatusFilter = 'all' | 'processing' | 'done' | 'failed';
@@ -101,9 +108,12 @@ export default function HistoryPage() {
   const [type, setType]             = useState<TypeFilter>('all');
   const [tab, setTab]               = useState<Tab>('mine');
   const [page, setPage]             = useState(1);
+  const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (authLoading) return;
+    let active = true;
+    const objectUrls: string[] = [];
     setLoading(true);
     // GET /cases/ đã trả cả ca của mình lẫn ca được chia sẻ; gọi thêm
     // /cases/shared-with-me/ để tách riêng cho tab thứ hai. pageSize:100 để lấy
@@ -114,14 +124,55 @@ export default function HistoryPage() {
       fetchScans({ pageSize: 100 }),
       fetchScansSharedWithMe(),
     ])
-      .then(([all, sh, sc, shared3d]) => {
+      .then(async ([all, sh, sc, shared3d]) => {
+        if (!active) return;
         setCases(all.data);
         setShared(sh.data);
         setScans(sc.results);
         setSharedScans(shared3d);
         setLoading(false);
+
+        const caseMap = new Map([...all.data, ...sh.data].map(item => [item.id, item]));
+        const scanMap = new Map([...sc.results, ...shared3d].map(item => [item.id, item]));
+        const loaded: Record<string, string> = {};
+
+        await Promise.all([
+          ...Array.from(caseMap.values()).map(async item => {
+            if (item.image_count < 1) return;
+            try {
+              const response = await api.get<ImageResult>(`/cases/${item.id}/images/0/`);
+              const path = response.data.annotated_path || response.data.original_path;
+              if (path) loaded[`gingivitis-${item.id}`] = toMediaUrl(path);
+            } catch {
+              /* Giữ ảnh thay thế nếu preview không còn trên storage. */
+            }
+          }),
+          ...Array.from(scanMap.values()).map(async item => {
+            if (item.status !== 'ready') return;
+            try {
+              const detail = await fetchScan(item.id);
+              if (detail.preview_count < 1) return;
+              const blob = await fetchScanPreviewBlob(item.id, Math.floor(detail.preview_count / 2));
+              const url = URL.createObjectURL(blob);
+              objectUrls.push(url);
+              loaded[`canine3d-${item.id}`] = url;
+            } catch {
+              /* Giữ ảnh thay thế nếu phim chưa có preview. */
+            }
+          }),
+        ]);
+        if (active) setThumbnails(loaded);
       })
-      .catch(() => { setError(true); setLoading(false); });
+      .catch(() => {
+        if (active) {
+          setError(true);
+          setLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+      objectUrls.forEach(url => URL.revokeObjectURL(url));
+    };
   }, [authLoading]);
 
   /* Reset page on filter change */
@@ -285,11 +336,11 @@ export default function HistoryPage() {
               <table className="w-full text-sm min-w-[700px]">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/60">
-                    {['#','Bệnh nhân','Loại chẩn đoán','Ngày tạo','Trạng thái','Số lượng','Thao tác'].map((h, i) => (
+                    {['Ảnh','Bệnh nhân','Loại chẩn đoán','Ngày tạo','Trạng thái','Số lượng','Thao tác'].map((h, i) => (
                       <th
                         key={h}
                         className={`px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide
-                          ${i === 0 ? 'text-left w-12' : i === 5 ? 'text-center' : i === 6 ? 'text-right' : 'text-left'}`}
+                          ${i === 0 ? 'text-left w-24' : i === 5 ? 'text-center' : i === 6 ? 'text-right' : 'text-left'}`}
                       >
                         {h}
                       </th>
@@ -301,9 +352,21 @@ export default function HistoryPage() {
                     const id = rowId(row);
                     const patient = rowPatient(row);
                     const count = rowCount(row);
+                    const thumbnail = thumbnails[`${row.kind}-${id}`];
                     return (
                       <tr key={`${row.kind}-${id}`} className="hover:bg-gray-50/60 transition-colors">
-                        <td className="px-4 py-3 text-xs text-gray-400 tabular-nums">{id}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex h-14 w-20 items-center justify-center overflow-hidden rounded-lg border border-blue-100 bg-primary-50">
+                            {thumbnail ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={thumbnail} alt={`Kết quả #${id}`} className="h-full w-full object-cover" />
+                            ) : (
+                              <span className="material-symbols-outlined text-2xl text-primary/40">
+                                {row.kind === 'canine3d' ? 'radiology' : 'image_search'}
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-4 py-3">
                           <p className="font-medium text-gray-900 text-sm leading-tight">{patient.name}</p>
                           <span className="text-[11px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded font-mono mt-0.5 inline-block">
@@ -346,10 +409,27 @@ export default function HistoryPage() {
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            {row.kind === 'canine3d' ? (
+                            {role === 'patient' && rowNormStatus(row) === 'done' ? (
+                              <>
+                                <Link
+                                  href="/telemedicine/"
+                                  className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-primary-50 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">calendar_month</span>
+                                  Đặt hẹn tư vấn
+                                </Link>
+                                <Link
+                                  href={row.kind === 'canine3d' ? `/scans/${row.scan.id}/` : `/analysis/${row.case.id}/results/0/`}
+                                  className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-600"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">visibility</span>
+                                  Xem kết quả
+                                </Link>
+                              </>
+                            ) : row.kind === 'canine3d' ? (
                               <Link
                                 href={`/scans/${row.scan.id}/`}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-indigo-600 border border-indigo-200 hover:bg-indigo-50 transition-colors"
+                                className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary-50"
                               >
                                 <span className="material-symbols-outlined text-[14px]">visibility</span>
                                 Xem kết quả
@@ -359,13 +439,13 @@ export default function HistoryPage() {
                                 <button
                                   onClick={() => window.open(`/api/cases/${row.case.id}/export/`, '_blank')}
                                   title="Tải về toàn bộ case (ZIP)"
-                                  className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:bg-gray-50 transition-colors"
+                                  className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-50"
                                 >
                                   <span className="material-symbols-outlined text-[14px]">download</span>
                                 </button>
                                 <Link
-                                  href={`/analysis/${row.case.id}/results/0`}
-                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-primary border border-primary/20 hover:bg-primary/5 transition-colors"
+                                  href={`/analysis/${row.case.id}/results/0/`}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-primary/20 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary-50"
                                 >
                                   <span className="material-symbols-outlined text-[14px]">visibility</span>
                                   Xem kết quả
@@ -416,6 +496,24 @@ export default function HistoryPage() {
           </>
         )}
       </div>
+
+      {role === 'patient' && (
+        <section className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+          <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+            <h2 className="font-serif text-[15px] font-semibold text-gray-900">Lịch sử tư vấn online</h2>
+            <span className="rounded-full bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary">0 buổi tư vấn</span>
+          </div>
+          <div className="flex flex-col items-center px-5 py-12 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-50 text-primary">
+              <span className="material-symbols-outlined text-[26px]">video_chat</span>
+            </span>
+            <p className="mt-3 text-sm font-medium text-gray-800">Chưa có lịch sử tư vấn</p>
+            <p className="mt-1 max-w-lg text-xs leading-relaxed text-gray-500">
+              Lịch hẹn và kết quả tư vấn sẽ hiển thị tại đây sau khi được xác nhận.
+            </p>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
