@@ -3,17 +3,17 @@
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
-import { ROLE_LABEL } from '@/lib/auth';
+import { ROLE_LABEL, type Role } from '@/lib/auth';
 import { useAuth } from '@/components/providers/AuthProvider';
 import NotificationBell from '@/components/layout/NotificationBell';
 
-function getTitle(pathname: string): string {
+function getTitle(pathname: string, role: Role | null): string {
   if (pathname.startsWith('/dashboard')) return 'Tổng quan';
   if (pathname === '/analysis/new') return 'Chẩn đoán viêm lợi';
   if (/^\/analysis\/[^/]+\/processing/.test(pathname)) return 'Đang xử lý…';
   if (/^\/analysis\/[^/]+\/results\/[^/]+\/edit/.test(pathname)) return 'Chỉnh sửa kết quả';
   if (/^\/analysis\/[^/]+\/results/.test(pathname)) return 'Kết quả chẩn đoán';
-  if (pathname.startsWith('/history')) return 'Lịch sử chẩn đoán';
+  if (pathname.startsWith('/history')) return role === 'student' ? 'Lịch sử chẩn đoán AI' : 'Lịch sử chẩn đoán';
   if (pathname === '/scans/new') return 'Tải phim CBCT';
   if (/^\/scans\/[^/]+/.test(pathname)) return 'Chi tiết phim CBCT';
   if (pathname.startsWith('/scans')) return 'Phim răng nanh ngầm 3D';
@@ -21,7 +21,8 @@ function getTitle(pathname: string): string {
   if (pathname.startsWith('/gingivitis')) return 'Chẩn đoán viêm lợi';
   if (pathname === '/library/new') return 'Tải dữ liệu lên';
   if (/^\/library\/[^/]+/.test(pathname)) return 'Chi tiết dữ liệu';
-  if (pathname.startsWith('/library')) return 'Kho dữ liệu';
+  if (pathname.startsWith('/library')) return role === 'student' ? 'Kho dữ liệu của tôi' : 'Kho dữ liệu';
+  if (pathname.startsWith('/chat')) return role === 'student' ? 'Hỏi đáp giảng viên' : 'Hỏi đáp & Trao đổi';
   if (pathname.startsWith('/users')) return 'Quản lý người dùng';
   if (pathname.startsWith('/system-log')) return 'Lịch sử hệ thống';
   if (pathname.startsWith('/settings')) return 'Cài đặt';
@@ -38,7 +39,7 @@ function initials(name: string): string {
 
 export default function Topbar() {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, role, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -71,7 +72,7 @@ export default function Topbar() {
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6">
       <h1 className="font-serif text-[18px] font-semibold text-gray-900">
-        {getTitle(pathname)}
+        {getTitle(pathname, role)}
       </h1>
 
       {user && (
@@ -115,12 +116,12 @@ export default function Topbar() {
 
                 {user.role !== 'receptionist' && (
                   <a
-                    href="/settings/"
+                    href={user.role === 'student' ? '/dashboard/' : '/settings/'}
                     role="menuitem"
                     className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-50"
                   >
                     <span className="material-symbols-outlined text-[18px] text-gray-400">person</span>
-                    Hồ sơ &amp; đổi mật khẩu
+                    {user.role === 'student' ? 'Hồ sơ sinh viên' : 'Hồ sơ & đổi mật khẩu'}
                   </a>
                 )}
 

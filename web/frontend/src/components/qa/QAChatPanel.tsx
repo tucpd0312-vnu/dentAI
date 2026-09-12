@@ -13,6 +13,7 @@ interface Props {
   currentUser: { id: number; username: string; full_name: string; role: Role } | null;
   onSessionUpdated: (updated: QASessionDetail) => void;
   onDeleteSession?: (id: number) => void;
+  embedded?: boolean;
 }
 
 export default function QAChatPanel({
@@ -20,6 +21,7 @@ export default function QAChatPanel({
   currentUser,
   onSessionUpdated,
   onDeleteSession,
+  embedded = false,
 }: Props) {
   const [content, setContent] = useState('');
   const [isDrawing, setIsDrawing] = useState(false);
@@ -27,7 +29,7 @@ export default function QAChatPanel({
   const [boxComment, setBoxComment] = useState('');
   const [activeHighlightBox, setActiveHighlightBox] = useState<BoundingBox | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [showImagePanel, setShowImagePanel] = useState(Boolean(session.image_url));
+  const [showImagePanel, setShowImagePanel] = useState(Boolean(session.image_url) && !embedded);
   const [sending, setSending] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [newTitle, setNewTitle] = useState(session.title);
@@ -44,12 +46,12 @@ export default function QAChatPanel({
   // Cập nhật title khi session đổi
   useEffect(() => {
     setNewTitle(session.title);
-    setShowImagePanel(Boolean(session.image_url));
+    setShowImagePanel(Boolean(session.image_url) && !embedded);
     setCurrentBox(null);
     setBoxComment('');
     setIsDrawing(false);
     setActiveHighlightBox(null);
-  }, [session.id, session.title, session.image_url]);
+  }, [embedded, session.id, session.title, session.image_url]);
 
   // Danh sách các bounding boxes từ tất cả tin nhắn
   const existingBoxes = session.messages

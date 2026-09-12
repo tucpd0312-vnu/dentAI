@@ -109,7 +109,14 @@ export default function Sidebar() {
   }
 
   function renderLeaf(item: NavLeaf, nested: boolean) {
-    const { href, icon, label } = item;
+    const { href, icon } = item;
+    const label = role === 'student'
+      ? ({
+          '/library': 'Kho dữ liệu của tôi',
+          '/chat': 'Hỏi đáp giảng viên',
+          '/history': 'Lịch sử chẩn đoán AI',
+        }[href] ?? item.label)
+      : item.label;
     const isActive = active(item);
     const badge = href === '/users' ? pendingRequests : 0;
     return (

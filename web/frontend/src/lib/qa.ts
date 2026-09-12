@@ -45,6 +45,14 @@ export interface QAShareItem {
   created_at: string;
 }
 
+export interface QATeacher {
+  id: number;
+  username: string;
+  email: string;
+  full_name: string;
+  role: 'doctor';
+}
+
 export interface QASessionListItem {
   id: number;
   title: string;
@@ -112,6 +120,11 @@ export interface SendMessagePayload {
 }
 
 export const qaApi = {
+  getTeachers: async () => {
+    const res = await api.get<QATeacher[]>('/qa/sessions/teachers/');
+    return res.data;
+  },
+
   getSessions: async (params?: { scope?: string; q?: string; status?: string }) => {
     const res = await api.get<QASessionListItem[]>('/qa/sessions/', { params });
     return res.data;

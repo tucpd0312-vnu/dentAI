@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { qaApi, type QASessionDetail } from '@/lib/qa';
+import { useEffect, useState } from 'react';
+import { useAuth } from '@/components/providers/AuthProvider';
+import { qaApi, type QASessionDetail, type QATeacher } from '@/lib/qa';
 
 interface Props {
   initialImageUrl?: string;
@@ -18,6 +19,7 @@ export default function NewSessionModal({
   onClose,
   onCreated,
 }: Props) {
+  const { isStudent } = useAuth();
   const [title, setTitle] = useState(
     initialCaseId ? `Trao đổi về ca #${initialCaseId}` : 'Phiên trao đổi chẩn đoán mới'
   );
@@ -25,11 +27,27 @@ export default function NewSessionModal({
   const [initialContent, setInitialContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [teachers, setTeachers] = useState<QATeacher[]>([]);
+  const [selectedTeacherIds, setSelectedTeacherIds] = useState<number[]>([]);
+  const [loadingTeachers, setLoadingTeachers] = useState(false);
+
+  useEffect(() => {
+    if (!isStudent) return;
+    setLoadingTeachers(true);
+    qaApi.getTeachers()
+      .then(setTeachers)
+      .catch(() => setError('Không tải được danh sách giảng viên.'))
+      .finally(() => setLoadingTeachers(false));
+  }, [isStudent]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
       setError('Vui lòng nhập tiêu đề phiên hỏi đáp.');
+      return;
+    }
+    if (isStudent && selectedTeacherIds.length === 0) {
+      setError('Vui lòng chọn ít nhất một giảng viên trước khi đặt câu hỏi.');
       return;
     }
 
@@ -42,6 +60,7 @@ export default function NewSessionModal({
         case: initialCaseId || null,
         image_url: imageUrl.trim(),
         initial_content: initialContent.trim() || undefined,
+        share_with_user_ids: selectedTeacherIds,
       });
       onCreated(session);
     } catch (err: any) {
@@ -90,6 +109,44 @@ export default function NewSessionModal({
               required
             />
           </div>
+
+          {isStudent && (
+            <fieldset>
+              <legend className="mb-1.5 block text-xs font-semibold text-gray-700">
+                Chọn giảng viên <span className="text-red-500">*</span>
+              </legend>
+              {loadingTeachers ? (
+                <p className="py-3 text-sm text-gray-400">Đang tải danh sách giảng viên…</p>
+              ) : teachers.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-gray-300 p-3 text-sm text-gray-500">
+                  Chưa có tài khoản giảng viên đang hoạt động.
+                </p>
+              ) : (
+                <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-xl border border-gray-200 p-2">
+                  {teachers.map(teacher => (
+                    <label key={teacher.id} className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-2 hover:bg-gray-50">
+                      <input
+                        type="checkbox"
+                        checked={selectedTeacherIds.includes(teacher.id)}
+                        onChange={() => setSelectedTeacherIds(current =>
+                          current.includes(teacher.id)
+                            ? current.filter(id => id !== teacher.id)
+                            : [...current, teacher.id]
+                        )}
+                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium text-gray-800">
+                          {teacher.full_name || teacher.username}
+                        </span>
+                        <span className="block truncate text-xs text-gray-400">@{teacher.username}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </fieldset>
+          )}
 
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">

@@ -7,6 +7,8 @@ import dynamic from 'next/dynamic';
 import api, { CaseStatus, ImageResult } from '@/lib/api';
 import SaveToLibraryModal from '@/components/library/SaveToLibraryModal';
 import ShareModal from '@/components/results/ShareModal';
+import ResultTeacherQA from '@/components/qa/ResultTeacherQA';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 /* Konva must not SSR */
 const ResultsCanvas = dynamic(
@@ -46,6 +48,7 @@ export default function ResultsPage() {
   const imageIndex = params.imageIndex as string;
   const idx = parseInt(imageIndex, 10) || 0;
   const router = useRouter();
+  const { isStudent } = useAuth();
 
   const [imgData, setImgData] = useState<ImageResult | null>(null);
   const [total, setTotal] = useState<number | null>(null);
@@ -54,6 +57,7 @@ export default function ResultsPage() {
   const [showMasks, setShowMasks] = useState(true);
   const [sharing, setSharing] = useState(false);
   const [savingToLibrary, setSavingToLibrary] = useState(false);
+  const [showTeacherChat, setShowTeacherChat] = useState(false);
 
   // Chỉ chủ sở hữu và admin được chia sẻ — người ĐƯỢC chia sẻ không share tiếp.
   const canShare =
@@ -245,19 +249,24 @@ export default function ResultsPage() {
               Lưu vào Kho dữ liệu
             </button>
           )}
-          {/* Hỏi giảng viên về kết quả chẩn đoán */}
-          <Link
-            href={`/chat?caseId=${caseId}&imageIndex=${idx}&imageUrl=${encodeURIComponent(
-              toMediaUrl(imgData.annotated_path || imgData.original_path)
-            )}`}
-            className="
-              flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
-              border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 transition-colors
-            "
-          >
-            <span className="material-symbols-outlined text-[16px]">school</span>
-            Hỏi giảng viên
-          </Link>
+          {/* Sinh viên hỏi ngay trên màn kết quả; nút này chỉ đóng/mở panel bên dưới. */}
+          {isStudent && (
+            <button
+              type="button"
+              onClick={() => setShowTeacherChat(value => !value)}
+              aria-expanded={showTeacherChat}
+              aria-controls="result-teacher-qa"
+              className="
+                flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
+                border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 transition-colors
+              "
+            >
+              <span className="material-symbols-outlined text-[16px]">
+                {showTeacherChat ? 'forum' : 'school'}
+              </span>
+              {showTeacherChat ? 'Ẩn hỏi đáp giảng viên' : 'Hỏi giảng viên'}
+            </button>
+          )}
           {imgData.can_edit && (
             <Link
               href={`/analysis/${caseId}/results/${idx}/edit`}
@@ -284,6 +293,17 @@ export default function ResultsPage() {
           </button>
         </div>
       </div>
+
+      {isStudent && showTeacherChat && (
+        <div id="result-teacher-qa">
+          <ResultTeacherQA
+            caseId={Number(caseId)}
+            imageId={imgData.id}
+            imageIndex={idx}
+            imageUrl={toMediaUrl(imgData.annotated_path || imgData.original_path)}
+          />
+        </div>
+      )}
 
       {/* ── Low-confidence warning ── */}
       {imgData.is_low_confidence && (

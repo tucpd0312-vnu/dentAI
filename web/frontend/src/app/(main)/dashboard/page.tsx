@@ -10,6 +10,7 @@ import {
   MGI_LABEL,
   fetchDashboard,
   type DashboardData,
+  type OperationalDashboardData,
 } from '@/lib/dashboard';
 import { useAuth } from '@/components/providers/AuthProvider';
 import {
@@ -509,37 +510,103 @@ function AssignmentWorkbookPanel() {
   );
 }
 
-function ReceptionistDashboard({ user }: { user: AuthUser | null }) {
+function StudentDashboard({
+  user,
+  data,
+}: {
+  user: AuthUser;
+  data: OperationalDashboardData;
+}) {
+  const displayName = user.full_name || user.username;
+  const initials = displayName
+    .trim()
+    .split(/\s+/)
+    .slice(-2)
+    .map(part => part[0])
+    .join('')
+    .toUpperCase();
+  const completed = data.cases.by_status.done ?? 0;
+
+  const profileRows = [
+    ['Tên đăng nhập', `@${user.username}`],
+    ['Email', user.email],
+    ['Số điện thoại', user.phone || 'Chưa cập nhật'],
+    ['Ngày tham gia', new Date(user.date_joined).toLocaleDateString('vi-VN')],
+    ['Lần đăng nhập gần nhất', user.last_login ? new Date(user.last_login).toLocaleString('vi-VN') : 'Lần đầu đăng nhập'],
+  ];
+
+  const shortcuts = [
+    ['/analysis/new/', 'add_photo_alternate', 'Chẩn đoán mới', 'Phân tích ảnh viêm lợi bằng AI'],
+    ['/history/', 'history', 'Lịch sử chẩn đoán AI', 'Xem lại kết quả đã thực hiện'],
+    ['/library/', 'inventory_2', 'Kho dữ liệu của tôi', 'Quản lý dữ liệu học tập cá nhân'],
+    ['/chat/', 'forum', 'Hỏi đáp giảng viên', 'Theo dõi câu hỏi và phản hồi'],
+  ] as const;
+
   return (
     <div className="mx-auto max-w-5xl space-y-5">
-      <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-teal-600 via-primary to-primary-700 px-6 py-7 text-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-5">
-          <div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white/90">
-              <span className="material-symbols-outlined text-[16px]">support_agent</span>
-              Không gian làm việc Lễ tân
-            </span>
-            <h1 className="mt-3 font-serif text-2xl font-semibold">
-              Xin chào, {user?.full_name || user?.username}
-            </h1>
-            <p className="mt-1 max-w-xl text-sm leading-relaxed text-white/80">
-              Tài khoản của bạn đã sẵn sàng. Trong giai đoạn hiện tại, vai trò Lễ tân
-              chỉ sử dụng trang Tổng quan.
-            </p>
+      <section className="overflow-hidden rounded-2xl border border-primary/15 bg-white shadow-sm">
+        <div className="h-24 bg-gradient-to-r from-primary via-primary-600 to-teal-600" />
+        <div className="px-5 pb-6 sm:px-7">
+          <div className="-mt-10 flex flex-wrap items-end justify-between gap-4">
+            <div className="flex items-end gap-4">
+              <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border-4 border-white bg-primary-50 text-2xl font-bold text-primary shadow-sm">
+                {initials || 'SV'}
+              </span>
+              <div className="pb-1">
+                <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                  <span className="material-symbols-outlined text-[15px]">school</span>
+                  Sinh viên
+                </span>
+                <h1 className="mt-1 font-serif text-2xl font-semibold text-gray-900">{displayName}</h1>
+                <p className="text-sm text-gray-500">Hồ sơ học tập trên DentAI</p>
+              </div>
+            </div>
+            <Link
+              href="/analysis/new/"
+              className="mb-1 inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-600"
+            >
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              Chẩn đoán mới
+            </Link>
           </div>
-          <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15">
-            <span className="material-symbols-outlined text-[34px]">space_dashboard</span>
-          </span>
+
+          <div className="mt-6 grid gap-x-8 gap-y-4 border-t border-gray-100 pt-5 sm:grid-cols-2">
+            {profileRows.map(([label, value]) => (
+              <div key={label} className="min-w-0">
+                <p className="text-xs font-medium text-gray-400">{label}</p>
+                <p className="mt-0.5 truncate text-sm font-medium text-gray-800" title={value}>{value}</p>
+              </div>
+            ))}
+          </div>
         </div>
+      </section>
+
+      <div className="grid grid-cols-3 gap-3">
+        <StatCard icon="task_alt" label="Chẩn đoán hoàn thành" value={completed} tone="green" />
+        <StatCard icon="image" label="Ảnh đã phân tích" value={data.cases.images_total} />
+        <StatCard icon="inventory_2" label="Dữ liệu của tôi" value={data.library.total} />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <StatCard icon="badge" label="Vai trò hiện tại" value="Lễ tân" tone="green" />
-        <StatCard icon="dashboard" label="Khu vực khả dụng" value="Tổng quan" />
-        <StatCard icon="notifications" label="Trung tâm thông báo" value="Đang hoạt động" />
-      </div>
-
-      <AssignmentWorkbookPanel />
+      <Section title="Không gian học tập">
+        <div className="grid gap-3 sm:grid-cols-2">
+          {shortcuts.map(([href, icon, title, description]) => (
+            <Link
+              key={href}
+              href={href}
+              className="group flex items-center gap-3 rounded-xl border border-gray-200 p-3.5 transition hover:border-primary/30 hover:bg-primary-50/30"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary">
+                <span className="material-symbols-outlined text-[21px]">{icon}</span>
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-gray-900">{title}</span>
+                <span className="block text-xs text-gray-500">{description}</span>
+              </span>
+              <span className="material-symbols-outlined text-[18px] text-gray-300 group-hover:text-primary">arrow_forward</span>
+            </Link>
+          ))}
+        </div>
+      </Section>
     </div>
   );
 }
@@ -578,6 +645,10 @@ export default function DashboardPage() {
 
   if (data.scope === 'receptionist') {
     return <ReceptionistDashboard user={user} />;
+  }
+
+  if (user?.role === 'student') {
+    return <StudentDashboard user={user} data={data} />;
   }
 
   const { cases, scans, library, mgi, users, activity } = data;
@@ -649,7 +720,7 @@ export default function DashboardPage() {
             icon="view_in_ar"
             title="Răng nanh ngầm 3D"
             description={
-              user?.role === 'patient' || user?.role === 'student'
+              user?.role === 'patient'
                 ? 'Tải phim CBCT và xem kết quả phân vùng của bạn'
                 : 'Phim CBCT, phân vùng và chia sẻ 3D Slicer'
             }
