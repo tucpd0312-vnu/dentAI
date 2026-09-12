@@ -88,7 +88,7 @@ function rowCount(r: Row): { n: number; unit: string } {
 }
 
 export default function HistoryPage() {
-  const { loading: authLoading } = useAuth();
+  const { loading: authLoading, role } = useAuth();
 
   const [cases, setCases]           = useState<CaseListItem[]>([]);
   const [shared, setShared]         = useState<CaseListItem[]>([]);
@@ -180,7 +180,7 @@ export default function HistoryPage() {
       <div className="flex gap-1.5 border-b border-gray-200">
         {([
           { key: 'mine' as Tab, label: 'Ca của tôi', icon: 'folder', n: mineRows.length },
-          { key: 'shared' as Tab, label: 'Được chia sẻ với tôi', icon: 'share', n: sharedRows.length },
+          { key: 'shared' as Tab, label: role === 'patient' ? 'Lịch sử được chia sẻ' : 'Được chia sẻ với tôi', icon: 'share', n: sharedRows.length },
         ]).map(t => (
           <button
             key={t.key}

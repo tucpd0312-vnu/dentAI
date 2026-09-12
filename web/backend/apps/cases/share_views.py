@@ -43,8 +43,15 @@ def _bad(msg):
 
 
 def _can_manage_shares(user, case) -> bool:
-    """Chỉ chủ sở hữu hoặc admin. Người ĐƯỢC chia sẻ không được chia sẻ tiếp."""
-    return user.role == Role.ADMIN or case.created_by_id == user.pk
+    """Chỉ admin hoặc chủ sở hữu không phải bệnh nhân.
+
+    Luồng patient chỉ được xem kết quả của mình / được chia sẻ và
+    đính kèm kết quả khi đặt hẹn. Việc chặn ở đây là nguồn chân lý;
+    ẩn nút ở frontend chỉ phục vụ trải nghiệm.
+    """
+    return user.role == Role.ADMIN or (
+        user.role != Role.PATIENT and case.created_by_id == user.pk
+    )
 
 
 def _validate_permission_for(recipient, permission) -> str | None:

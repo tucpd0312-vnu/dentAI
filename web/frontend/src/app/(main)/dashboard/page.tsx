@@ -20,6 +20,7 @@ import {
   uploadAssignmentWorkbook,
   type AssignmentWorkbook,
 } from '@/lib/reception';
+import PatientDashboard from '@/components/patient/PatientDashboard';
 
 const MGI_LEVELS = ['0', '1', '2', '3', '4'];
 
@@ -580,6 +581,10 @@ export default function DashboardPage() {
     return <ReceptionistDashboard user={user} />;
   }
 
+  if (user?.role === 'patient') {
+    return <PatientDashboard user={user} data={data} />;
+  }
+
   const { cases, scans, library, mgi, users, activity } = data;
   const canUseScans = Boolean(user);
 
@@ -649,7 +654,7 @@ export default function DashboardPage() {
             icon="view_in_ar"
             title="Răng nanh ngầm 3D"
             description={
-              user?.role === 'patient' || user?.role === 'student'
+              user?.role === 'student'
                 ? 'Tải phim CBCT và xem kết quả phân vùng của bạn'
                 : 'Phim CBCT, phân vùng và chia sẻ 3D Slicer'
             }

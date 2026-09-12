@@ -14,6 +14,7 @@ from apps.users.models import Role, User
 from .models import Case, CaseShare, Patient
 
 
+<<<<<<< HEAD
 TEMP_ROOT = tempfile.mkdtemp(prefix="cases-security-tests-")
 
 
@@ -119,3 +120,37 @@ class CaseRoleSecurityTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(Case.objects.filter(patient__name="Ảnh lớn").exists())
+class PatientCaseSharingTests(APITestCase):
+    def setUp(self):
+        self.patient_user = User.objects.create_user(
+            "patient-owner",
+            "patient-owner@example.test",
+            "TestPass123",
+            role=Role.PATIENT,
+            is_active=True,
+            email_verified=True,
+        )
+        self.doctor = User.objects.create_user(
+            "doctor-recipient",
+            "doctor-recipient@example.test",
+            "TestPass123",
+            role=Role.DOCTOR,
+            is_active=True,
+            email_verified=True,
+        )
+        patient = Patient.objects.create(name="Bệnh nhân demo", patient_code="PAT-DEMO")
+        self.case = Case.objects.create(patient=patient, created_by=self.patient_user)
+
+    def test_patient_owner_cannot_list_or_create_case_shares(self):
+        self.client.force_authenticate(user=self.patient_user)
+
+        listing = self.client.get(f"/api/cases/{self.case.pk}/shares/")
+        created = self.client.post(
+            f"/api/cases/{self.case.pk}/shares/",
+            {"user_id": self.doctor.pk, "permission": CaseShare.Permission.VIEW},
+            format="json",
+        )
+
+        self.assertEqual(listing.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(created.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(CaseShare.objects.filter(case=self.case).exists())

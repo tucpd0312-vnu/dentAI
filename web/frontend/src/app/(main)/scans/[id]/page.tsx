@@ -38,7 +38,7 @@ function fmtDateTime(iso: string | null): string {
 }
 
 export default function ScanDetailPage() {
-  const { hasPatientScope, user } = useAuth();
+  const { hasPatientScope, role, user } = useAuth();
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
@@ -166,7 +166,7 @@ export default function ScanDetailPage() {
           <p className="font-mono text-xs text-gray-400">{scan.patient.patient_code}</p>
         </div>
         <div className="flex items-center gap-2">
-          {scan.can_manage_shares && (
+          {scan.can_manage_shares && role !== 'patient' && (
             <button
               type="button"
               onClick={() => setSharing(true)}
@@ -176,7 +176,7 @@ export default function ScanDetailPage() {
               Chia sẻ cá nhân
             </button>
           )}
-          {scan.access_level !== 'none' && (
+          {scan.access_level !== 'none' && role !== 'patient' && (
             <button
               type="button"
               onClick={() => setSavingToLibrary(true)}

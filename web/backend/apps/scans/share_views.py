@@ -57,7 +57,9 @@ class ScanShareListCreateView(APIView):
 
     def _get_scan(self, request, scan_id):
         scan = get_object_or_404(scoped_scans(request.user), pk=scan_id)
-        if not can_manage_scan(request.user, scan):
+        # Patient có thể quản lý / xoá phim do mình tải lên, nhưng luồng
+        # tích hợp không cho patient chủ động chia sẻ kết quả.
+        if request.user.role == Role.PATIENT or not can_manage_scan(request.user, scan):
             return None
         return scan
 

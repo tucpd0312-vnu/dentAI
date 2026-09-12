@@ -7,6 +7,7 @@ import dynamic from 'next/dynamic';
 import api, { CaseStatus, ImageResult } from '@/lib/api';
 import SaveToLibraryModal from '@/components/library/SaveToLibraryModal';
 import ShareModal from '@/components/results/ShareModal';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 /* Konva must not SSR */
 const ResultsCanvas = dynamic(
@@ -41,6 +42,7 @@ function toMediaUrl(fsPath: string): string {
 /* ── Page ──────────────────────────────────────────────────────── */
 
 export default function ResultsPage() {
+  const { role } = useAuth();
   const params = useParams();
   const caseId = params.caseId as string;
   const imageIndex = params.imageIndex as string;
@@ -57,12 +59,12 @@ export default function ResultsPage() {
 
   // Chỉ chủ sở hữu và admin được chia sẻ — người ĐƯỢC chia sẻ không share tiếp.
   const canShare =
-    imgData?.case_permission === 'owner' || imgData?.case_permission === 'admin';
-  // Lưu vào kho tạo một bản sao riêng, không cấp quyền trên ca nguồn và không
-  // chia sẻ tiếp. Vì vậy mọi người đang xem hợp lệ (owner/admin/edit/view) đều
-  // được lưu, kể cả người nhận ca được chia sẻ.
+    role !== 'patient' &&
+    (imgData?.case_permission === 'owner' || imgData?.case_permission === 'admin');
+  // Kho dữ liệu không thuộc giao diện patient. Các vai trò còn lại có thể
+  // tạo bản sao riêng nếu họ đang xem ca hợp lệ.
   const canSaveToLibrary =
-    imgData !== null && imgData.case_permission !== 'none';
+    role !== 'patient' && imgData !== null && imgData.case_permission !== 'none';
 
   useEffect(() => {
     let mounted = true;
@@ -219,6 +221,15 @@ export default function ResultsPage() {
 
         {/* Action buttons */}
         <div className="flex items-center gap-2">
+          {role === 'patient' && (
+            <Link
+              href="/telemedicine/"
+              className="flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-green-700"
+            >
+              <span className="material-symbols-outlined text-[16px]">calendar_month</span>
+              Đặt hẹn tư vấn online
+            </Link>
+          )}
           {/* Chỉ chủ sở hữu/admin được chia sẻ tiếp; mọi người đang xem hợp lệ có
               thể tạo một bản sao độc lập trong Kho dữ liệu của chính mình. */}
           {canShare && (
@@ -246,18 +257,20 @@ export default function ResultsPage() {
             </button>
           )}
           {/* Hỏi giảng viên về kết quả chẩn đoán */}
-          <Link
-            href={`/chat?caseId=${caseId}&imageIndex=${idx}&imageUrl=${encodeURIComponent(
-              toMediaUrl(imgData.annotated_path || imgData.original_path)
-            )}`}
-            className="
-              flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
-              border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 transition-colors
-            "
-          >
-            <span className="material-symbols-outlined text-[16px]">school</span>
-            Hỏi giảng viên
-          </Link>
+          {role === 'student' && (
+            <Link
+              href={`/chat?caseId=${caseId}&imageIndex=${idx}&imageUrl=${encodeURIComponent(
+                toMediaUrl(imgData.annotated_path || imgData.original_path)
+              )}`}
+              className="
+                flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
+                border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 transition-colors
+              "
+            >
+              <span className="material-symbols-outlined text-[16px]">school</span>
+              Hỏi giảng viên
+            </Link>
+          )}
           {imgData.can_edit && (
             <Link
               href={`/analysis/${caseId}/results/${idx}/edit`}

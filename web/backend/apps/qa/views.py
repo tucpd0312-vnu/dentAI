@@ -1,3 +1,5 @@
+import logging
+
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
@@ -17,6 +19,8 @@ from .serializers import (
     QASessionListSerializer,
     QASessionShareSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -104,13 +108,17 @@ class QASessionViewSet(viewsets.ModelViewSet):
         box_comment = self.request.data.get("box_comment", "")
 
         if initial_content:
-            QAMessage.objects.create(
-                session=session,
-                sender=user,
-                content=initial_content,
-                bounding_box=bounding_box,
-                box_comment=box_comment,
-            )
+            try:
+                QAMessage.objects.create(
+                    session=session,
+                    sender=user,
+                    content=initial_content,
+                    bounding_box=bounding_box,
+                    box_comment=box_comment,
+                )
+            except Exception as e:
+                # Log lỗi nhưng không làm hỏng phiên hỏi đáp
+                logger.exception("Lỗi khi tạo tin nhắn đầu tiên cho session %s", session.pk)
 
         # Xử lý chia sẻ ngay khi tạo nếu có
         shared_user_ids = self.request.data.get("share_with_user_ids", [])
@@ -137,15 +145,19 @@ class QASessionViewSet(viewsets.ModelViewSet):
 
         # Nếu sinh viên đặt câu hỏi, gửi thông báo cho các bác sĩ/giảng viên hệ thống
         if user.role == Role.STUDENT:
-            doctors = User.objects.filter(role=Role.DOCTOR, is_active=True, is_deleted=False)[:10]
-            notify_users(
-                doctors,
-                kind=Notification.Kind.SYSTEM,
-                level=Notification.Level.INFO,
-                title=f"Sinh viên {user.full_name} đặt câu hỏi mới",
-                message=f"Chủ đề: {session.title}",
-                link=f"/chat?session={session.pk}",
-            )
+            try:
+                doctors = User.objects.filter(role=Role.DOCTOR, is_active=True, is_deleted=False)[:10]
+                notify_users(
+                    doctors,
+                    kind=Notification.Kind.SYSTEM,
+                    level=Notification.Level.INFO,
+                    title=f"Sinh viên {user.full_name} đặt câu hỏi mới",
+                    message=f"Chủ đề: {session.title}",
+                    link=f"/chat?session={session.pk}",
+                )
+            except Exception as e:
+                # Log lỗi nhưng không làm hỏng phiên hỏi đáp
+                logger.exception("Lỗi khi gửi thông báo cho bác sĩ về phiên %s", session.pk)
 
     def update(self, request, *args, **kwargs):
         session = self.get_object()

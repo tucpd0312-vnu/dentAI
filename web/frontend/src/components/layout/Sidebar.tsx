@@ -59,16 +59,18 @@ const NAV: NavEntry[] = [
       },
     ],
   },
-  // Kho dữ liệu mở cho MỌI vai trò (không khai `roles`) — phạm vi dữ liệu do backend
-  // giới hạn qua `apps.library.access.scoped_assets`, không phải bằng việc ẩn mục này.
-  { href: '/library', icon: 'inventory_2', label: 'Kho dữ liệu', prefix: '/library' },
+  { href: '/appointments', icon: 'calendar_month', label: 'Đặt hẹn', prefix: '/appointments', roles: ['patient'] },
+  { href: '/consultations', icon: 'video_chat', label: 'Lịch sử tư vấn', prefix: '/consultations', roles: ['patient'] },
+  { href: '/medical-records', icon: 'clinical_notes', label: 'Hồ sơ bệnh án', prefix: '/medical-records', roles: ['patient'] },
+  // Bệnh nhân không dùng Kho dữ liệu trong giao diện tích hợp.
+  { href: '/library', icon: 'inventory_2', label: 'Kho dữ liệu', prefix: '/library', roles: ['admin', 'doctor', 'student'] },
   // Hỏi đáp và trao đổi giữa sinh viên và giảng viên
-  { href: '/chat', icon: 'forum', label: 'Hỏi đáp & Trao đổi', prefix: '/chat' },
+  { href: '/chat', icon: 'forum', label: 'Hỏi đáp & Trao đổi', prefix: '/chat', roles: ['admin', 'doctor', 'student'] },
   { href: '/users',      icon: 'group',        label: 'Quản lý người dùng', prefix: '/users',      roles: ['admin'] },
-  { href: '/history',    icon: 'history',      label: 'Lịch sử',            prefix: '/history'   },
+  { href: '/history',    icon: 'history',      label: 'Lịch sử chẩn đoán AI', prefix: '/history'   },
   { href: '/system-log', icon: 'receipt_long', label: 'Lịch sử hệ thống',   prefix: '/system-log', roles: ['admin'] },
   { href: '/settings',   icon: 'settings',     label: 'Cài đặt',            prefix: '/settings',   roles: ['admin', 'doctor'] },
-  { href: '/help',       icon: 'help',         label: 'Hướng dẫn',          prefix: '/help'      },
+  { href: '/help',       icon: 'help',         label: 'Hướng dẫn',          prefix: '/help', roles: ['admin', 'student'] },
 ];
 
 export default function Sidebar() {

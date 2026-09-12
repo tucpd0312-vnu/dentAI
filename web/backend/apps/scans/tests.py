@@ -279,12 +279,18 @@ class ScanSharingTests(APITestCase):
         segmentation = self.client.post(
             f"/api/scans/{own_scan.pk}/segmentations/", {}
         )
+        share = self.client.post(
+            f"/api/scans/{own_scan.pk}/shares/",
+            {"user_id": self.owner.pk, "permission": "view"},
+        )
 
         self.assertEqual(listing.status_code, status.HTTP_200_OK)
         self.assertEqual([row["id"] for row in listing.data["results"]], [own_scan.pk])
         self.assertEqual(detail.status_code, status.HTTP_200_OK)
         self.assertEqual(detail.data["access_level"], "owner")
         self.assertEqual(segmentation.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(share.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(ScanShare.objects.filter(scan=own_scan).exists())
 
     def test_student_only_sees_own_scan_and_cannot_submit_segmentation(self):
         own_patient = Patient.objects.create(

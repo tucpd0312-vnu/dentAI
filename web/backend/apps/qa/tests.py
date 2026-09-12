@@ -3,6 +3,7 @@ from rest_framework.test import APITestCase
 
 from apps.users.models import Role
 from apps.qa.models import QASession, QAMessage, QASessionShare
+from apps.cases.models import Case, Patient
 
 User = get_user_model()
 
@@ -126,3 +127,37 @@ class QASystemTests(APITestCase):
             format="json",
         )
         self.assertEqual(res_reply.status_code, 201)
+
+    def test_student_cannot_create_qa_session_with_case_without_permission(self):
+        """Test rằng sinh viên không thể tạo phiên với ca mà họ không có quyền truy cập."""
+        # Create a case owned by doctor
+        patient = Patient.objects.create(
+            name="Bệnh nhân test",
+            patient_code="BP001",
+        )
+        other_doctor = User.objects.create_user(
+            username="doctor_other",
+            email="doctor_other@example.com",
+            password="Password123!",
+            role=Role.DOCTOR,
+            first_name="Thầy",
+            last_name="Phạm",
+        )
+        case = Case.objects.create(
+            patient=patient,
+            diagnosis="Viêm nươu",
+            created_by=other_doctor,
+        )
+
+        # Student tries to create QA session referencing this case
+        self.client.force_authenticate(user=self.student)
+        payload = {
+            "title": "Hỏi về ca của bác sĩ khác",
+            "image_url": "/media/cases/1/annotated_0.jpg",
+            "case": case.id,  # Sinh viên cố tạo session với case không được phép truy cập
+            "initial_content": "Thưa thầy...",
+        }
+        res = self.client.post("/api/qa/sessions/", payload, format="json")
+        # Nên nhận lỗi 400 validation error
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("case", res.data)

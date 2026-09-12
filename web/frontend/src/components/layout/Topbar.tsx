@@ -14,6 +14,10 @@ function getTitle(pathname: string): string {
   if (/^\/analysis\/[^/]+\/results\/[^/]+\/edit/.test(pathname)) return 'Chỉnh sửa kết quả';
   if (/^\/analysis\/[^/]+\/results/.test(pathname)) return 'Kết quả chẩn đoán';
   if (pathname.startsWith('/history')) return 'Lịch sử chẩn đoán';
+  if (pathname.startsWith('/appointments')) return 'Đặt hẹn tư vấn';
+  if (pathname.startsWith('/consultations')) return 'Lịch sử tư vấn';
+  if (pathname.startsWith('/medical-records')) return 'Hồ sơ bệnh án';
+  if (pathname.startsWith('/profile')) return 'Hồ sơ cá nhân';
   if (pathname === '/scans/new') return 'Tải phim CBCT';
   if (/^\/scans\/[^/]+/.test(pathname)) return 'Chi tiết phim CBCT';
   if (pathname.startsWith('/scans')) return 'Phim răng nanh ngầm 3D';
@@ -115,7 +119,7 @@ export default function Topbar() {
 
                 {user.role !== 'receptionist' && (
                   <a
-                    href="/settings/"
+                    href={user.role === 'patient' ? '/profile/' : '/settings/'}
                     role="menuitem"
                     className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-50"
                   >

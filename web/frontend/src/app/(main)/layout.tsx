@@ -13,16 +13,21 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const pathname = usePathname();
   const receptionistOutsideDashboard =
     user?.role === 'receptionist' && pathname !== '/dashboard' && pathname !== '/dashboard/';
+  const patientBlockedPath =
+    user?.role === 'patient' &&
+    ['/library', '/chat', '/help', '/settings', '/users', '/system-log'].some(prefix =>
+      pathname.startsWith(prefix),
+    );
 
   useEffect(() => {
     if (!loading && !user) {
       router.push('/login/');
-    } else if (!loading && receptionistOutsideDashboard) {
+    } else if (!loading && (receptionistOutsideDashboard || patientBlockedPath)) {
       router.replace('/dashboard/');
     }
-  }, [loading, receptionistOutsideDashboard, router, user]);
+  }, [loading, patientBlockedPath, receptionistOutsideDashboard, router, user]);
 
-  if (loading || !user || receptionistOutsideDashboard) {
+  if (loading || !user || receptionistOutsideDashboard || patientBlockedPath) {
     return (
       <div className="flex h-screen items-center justify-center bg-surface">
         <span className="material-symbols-outlined text-5xl text-gray-300 animate-spin">autorenew</span>
