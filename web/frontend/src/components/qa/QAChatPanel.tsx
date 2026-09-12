@@ -14,6 +14,8 @@ interface Props {
   onSessionUpdated: (updated: QASessionDetail) => void;
   onDeleteSession?: (id: number) => void;
   embedded?: boolean;
+  /** Phiên minh hoạ chỉ cập nhật state tại trình duyệt, không gọi API. */
+  demoMode?: boolean;
 }
 
 export default function QAChatPanel({
@@ -22,6 +24,7 @@ export default function QAChatPanel({
   onSessionUpdated,
   onDeleteSession,
   embedded = false,
+  demoMode = false,
 }: Props) {
   const [content, setContent] = useState('');
   const [isDrawing, setIsDrawing] = useState(false);
@@ -70,6 +73,30 @@ export default function QAChatPanel({
 
     setSending(true);
     try {
+      if (demoMode) {
+        const now = new Date().toISOString();
+        const newMsg: QAMessage = {
+          id: Date.now(),
+          session: session.id,
+          sender: {
+            id: currentUser?.id || 9000,
+            username: currentUser?.username || 'sinhvien.demo',
+            email: '',
+            full_name: currentUser?.full_name || 'Sinh viên minh hoạ',
+            role: currentUser?.role || 'student',
+          },
+          content: content.trim(),
+          bounding_box: currentBox,
+          box_comment: boxComment.trim(),
+          created_at: now,
+        };
+        onSessionUpdated({ ...session, messages: [...session.messages, newMsg], updated_at: now });
+        setContent('');
+        setCurrentBox(null);
+        setBoxComment('');
+        setIsDrawing(false);
+        return;
+      }
       const newMsg = await qaApi.sendMessage(session.id, {
         content: content.trim(),
         bounding_box: currentBox,
@@ -103,18 +130,14 @@ export default function QAChatPanel({
     }
   };
 
-  const handleStatusChange = async (newStatus: 'open' | 'resolved' | 'closed') => {
-    try {
-      const updated = await qaApi.updateSession(session.id, { status: newStatus });
-      onSessionUpdated({ ...session, status: updated.status });
-    } catch (err: any) {
-      alert(err?.response?.data?.detail || 'Không thể cập nhật trạng thái.');
-    }
-  };
-
   const handleSaveTitle = async () => {
     if (!newTitle.trim()) return;
     try {
+      if (demoMode) {
+        onSessionUpdated({ ...session, title: newTitle.trim(), updated_at: new Date().toISOString() });
+        setIsEditingTitle(false);
+        return;
+      }
       const updated = await qaApi.updateSession(session.id, { title: newTitle.trim() });
       onSessionUpdated({ ...session, title: updated.title });
       setIsEditingTitle(false);
@@ -204,7 +227,7 @@ export default function QAChatPanel({
           </div>
         </div>
 
-        {/* Action buttons & Status */}
+        {/* Thao tác phiên */}
         <div className="flex items-center gap-2 shrink-0">
           {/* Toggle xem ảnh kết quả */}
           {session.image_url && (
@@ -224,42 +247,21 @@ export default function QAChatPanel({
           )}
 
           {/* Nút chia sẻ phiên */}
-          <button
-            onClick={() => setShowShareModal(true)}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[16px]">share</span>
-            Chia sẻ ({session.shares.length})
-          </button>
-
-          {/* Trạng thái phiên */}
-          {(isOwner || isTeacher) ? (
-            <select
-              value={session.status}
-              onChange={(e) => handleStatusChange(e.target.value as any)}
-              className="px-3 py-1.5 rounded-xl text-xs font-semibold border border-gray-300 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
-            >
-              <option value="open">🟢 Đang trao đổi</option>
-              <option value="resolved">✅ Đã giải đáp</option>
-              <option value="closed">⚪ Đã đóng</option>
-            </select>
-          ) : (
-            <span
-              className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                session.status === 'resolved'
-                  ? 'bg-emerald-100 text-emerald-800'
-                  : session.status === 'closed'
-                  ? 'bg-gray-200 text-gray-700'
-                  : 'bg-blue-100 text-blue-800'
-              }`}
-            >
-              {session.status === 'resolved'
-                ? 'Đã giải đáp'
-                : session.status === 'closed'
-                ? 'Đã đóng'
-                : 'Đang trao đổi'}
+          {demoMode ? (
+            <span className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium bg-amber-50 border border-amber-200 text-amber-900">
+              <span className="material-symbols-outlined text-[16px]">groups</span>
+              {session.shares.length} giảng viên đã chọn
             </span>
+          ) : (
+            <button
+              onClick={() => setShowShareModal(true)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <span className="material-symbols-outlined text-[16px]">share</span>
+              Chia sẻ ({session.shares.length})
+            </button>
           )}
+
         </div>
       </header>
 

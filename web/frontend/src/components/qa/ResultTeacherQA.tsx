@@ -15,6 +15,42 @@ interface Props {
   imageUrl: string;
 }
 
+const STUDENT_DEMO_STORAGE_KEY = 'dentai_student_demo';
+
+const DEMO_TEACHERS: QATeacher[] = [
+  { id: 901, username: 'dr.thuylinh', email: 'linh.nguyen@dentai.demo', full_name: 'TS. Nguyễn Thùy Linh', role: 'doctor' },
+  { id: 902, username: 'dr.quanghuy', email: 'huy.tran@dentai.demo', full_name: 'BS. Trần Quang Huy', role: 'doctor' },
+  { id: 903, username: 'dr.phuonganh', email: 'anh.le@dentai.demo', full_name: 'ThS. Lê Phương Anh', role: 'doctor' },
+];
+
+function demoSession(user: ReturnType<typeof useAuth>['user'], caseId: number, imageId: number, imageUrl: string): QASessionDetail {
+  const student = {
+    id: user?.id || 9000,
+    username: user?.username || 'sinhvien.demo',
+    email: user?.email || 'student@dentai.demo',
+    full_name: user?.full_name || 'Nguyễn Hoàng Minh',
+    role: 'student' as const,
+  };
+  const now = new Date().toISOString();
+  return {
+    id: 99001,
+    title: 'Hỏi về vùng viêm lợi răng 21 · Bản minh hoạ',
+    created_by: student,
+    case: caseId,
+    image: imageId,
+    image_url: imageUrl,
+    status: 'open',
+    created_at: now,
+    updated_at: now,
+    shares: DEMO_TEACHERS.slice(0, 2).map((teacher, index) => ({ id: 9800 + index, session: 99001, shared_with: teacher, shared_by: student, can_reply: true, created_at: now })),
+    is_owner: true,
+    messages: [
+      { id: 9701, session: 99001, sender: student, content: 'Thưa cô/chú, AI đánh dấu vùng này có cần đánh giá thêm trên lâm sàng không ạ?', bounding_box: { x: 0.31, y: 0.28, width: 0.18, height: 0.16, label: 'Vùng nghi ngờ' }, box_comment: 'Viền lợi mặt ngoài răng 21 có dấu hiệu đỏ và sưng.', created_at: now },
+      { id: 9702, session: 99001, sender: DEMO_TEACHERS[0], content: 'Em quan sát đúng hướng. AI là gợi ý ban đầu; hãy đối chiếu màu sắc, chảy máu khi thăm khám và chỉ số lợi trước khi kết luận.', bounding_box: null, box_comment: '', created_at: now },
+    ],
+  };
+}
+
 /**
  * Luồng hỏi giảng viên nằm ngay dưới kết quả AI.
  *
@@ -23,6 +59,9 @@ interface Props {
  */
 export default function ResultTeacherQA({ caseId, imageId, imageIndex, imageUrl }: Props) {
   const { user } = useAuth();
+  const [demoMode] = useState(() =>
+    typeof window !== 'undefined' && window.localStorage.getItem(STUDENT_DEMO_STORAGE_KEY) === 'on'
+  );
   const [teachers, setTeachers] = useState<QATeacher[]>([]);
   const [selectedTeacherIds, setSelectedTeacherIds] = useState<number[]>([]);
   const [session, setSession] = useState<QASessionDetail | null>(null);
@@ -32,6 +71,13 @@ export default function ResultTeacherQA({ caseId, imageId, imageIndex, imageUrl 
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (demoMode) {
+      setTeachers(DEMO_TEACHERS);
+      // Demo bắt đầu từ bước chọn giảng viên để người xem thấy rõ toàn bộ luồng.
+      setSession(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -50,7 +96,7 @@ export default function ResultTeacherQA({ caseId, imageId, imageIndex, imageUrl 
     } finally {
       setLoading(false);
     }
-  }, [caseId, imageId, imageUrl]);
+  }, [caseId, demoMode, imageId, imageUrl]);
 
   useEffect(() => {
     void load();
@@ -58,12 +104,13 @@ export default function ResultTeacherQA({ caseId, imageId, imageIndex, imageUrl 
 
   const sessionId = session?.id;
   useEffect(() => {
+    if (demoMode) return;
     if (!sessionId) return;
     const timer = window.setInterval(() => {
       qaApi.getSession(sessionId).then(setSession).catch(() => undefined);
     }, 5000);
     return () => window.clearInterval(timer);
-  }, [sessionId]);
+  }, [demoMode, sessionId]);
 
   function toggleTeacher(id: number) {
     setSelectedTeacherIds(current =>
@@ -85,6 +132,26 @@ export default function ResultTeacherQA({ caseId, imageId, imageIndex, imageUrl 
 
     setSubmitting(true);
     try {
+      if (demoMode) {
+        const student = demoSession(user, caseId, imageId, imageUrl).created_by;
+        const now = new Date().toISOString();
+        setSession({
+          id: Date.now(),
+          title: `Hỏi về kết quả chẩn đoán · Ca minh hoạ · Ảnh ${imageIndex + 1}`,
+          created_by: student,
+          case: caseId,
+          image: imageId,
+          image_url: imageUrl,
+          status: 'open',
+          created_at: now,
+          updated_at: now,
+          is_owner: true,
+          shares: DEMO_TEACHERS.filter(teacher => selectedTeacherIds.includes(teacher.id)).map((teacher, index) => ({ id: Date.now() + index, session: Date.now(), shared_with: teacher, shared_by: student, can_reply: true, created_at: now })),
+          messages: [{ id: Date.now(), session: Date.now(), sender: student, content: question.trim(), bounding_box: null, box_comment: '', created_at: now }],
+        });
+        setQuestion('');
+        return;
+      }
       const created = await qaApi.createSession({
         title: `Hỏi về kết quả chẩn đoán · Ca #${caseId} · Ảnh ${imageIndex + 1}`,
         case: caseId,
@@ -129,10 +196,12 @@ export default function ResultTeacherQA({ caseId, imageId, imageIndex, imageUrl 
               Giảng viên đã chọn:{' '}
               {selectedTeachers.map(item => item.shared_with.full_name || item.shared_with.username).join(', ') || '—'}
             </p>
+            {demoMode && <p className="mt-1 text-xs font-medium text-amber-800">Dữ liệu minh hoạ — tin nhắn được lưu tạm trên trình duyệt.</p>}
           </div>
-          <Link href={`/chat?session=${session.id}`} className="text-xs font-medium text-amber-900 hover:underline">
-            Mở trong trang Hỏi đáp giảng viên
-          </Link>
+          <div className="flex items-center gap-3">
+            {demoMode && <button type="button" onClick={() => setSession(null)} className="text-xs font-semibold text-amber-900 hover:underline">Tạo câu hỏi minh hoạ</button>}
+            {!demoMode && <Link href={`/chat?session=${session.id}`} className="text-xs font-medium text-amber-900 hover:underline">Mở trong trang Hỏi đáp giảng viên</Link>}
+          </div>
         </div>
         <div className="h-[620px] min-h-0">
           <QAChatPanel
@@ -140,6 +209,7 @@ export default function ResultTeacherQA({ caseId, imageId, imageIndex, imageUrl 
             currentUser={user}
             onSessionUpdated={setSession}
             embedded
+            demoMode={demoMode}
           />
         </div>
       </section>
@@ -156,6 +226,15 @@ export default function ResultTeacherQA({ caseId, imageId, imageIndex, imageUrl 
         <p className="mt-1 text-sm text-gray-500">
           Chọn một hoặc nhiều giảng viên. Câu hỏi và phản hồi sẽ được lưu ngay trên kết quả này.
         </p>
+        {demoMode && (
+          <div className="mt-4 flex flex-wrap items-center gap-2 text-xs font-medium text-amber-900">
+            <span className="rounded-full bg-amber-100 px-3 py-1.5">1. Chọn giảng viên</span>
+            <span className="material-symbols-outlined text-[16px] text-amber-500">arrow_forward</span>
+            <span className="rounded-full border border-amber-200 bg-white px-3 py-1.5">2. Đặt câu hỏi</span>
+            <span className="material-symbols-outlined text-[16px] text-amber-500">arrow_forward</span>
+            <span className="rounded-full border border-amber-200 bg-white px-3 py-1.5">3. Vào phòng hỏi đáp</span>
+          </div>
+        )}
       </div>
 
       <form onSubmit={createQuestion} className="grid gap-5 lg:grid-cols-[minmax(260px,0.8fr)_minmax(360px,1.2fr)]">
@@ -191,7 +270,9 @@ export default function ResultTeacherQA({ caseId, imageId, imageIndex, imageUrl 
                       <span className="block truncate text-sm font-medium text-gray-900">
                         {teacher.full_name || teacher.username}
                       </span>
-                      <span className="block truncate text-xs text-gray-400">@{teacher.username}</span>
+                      <span className="block truncate text-xs text-gray-400">
+                        {demoMode ? 'Giảng viên Răng Hàm Mặt · Sẵn sàng hỗ trợ' : `@${teacher.username}`}
+                      </span>
                     </span>
                   </label>
                 );

@@ -38,29 +38,6 @@ export default function QASidebar({
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'resolved':
-        return (
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium">
-            Đã giải đáp
-          </span>
-        );
-      case 'closed':
-        return (
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-700 font-medium">
-            Đã đóng
-          </span>
-        );
-      default:
-        return (
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-medium">
-            Đang mở
-          </span>
-        );
-    }
-  };
-
   return (
     <aside className="w-80 h-full border-r border-gray-200 bg-white flex flex-col shrink-0 select-none">
       {/* Top action: New Session button */}
@@ -171,7 +148,6 @@ export default function QASidebar({
                   >
                     {item.title}
                   </h4>
-                  {getStatusBadge(item.status)}
                 </div>
 
                 {/* Sender name & role & updated time */}

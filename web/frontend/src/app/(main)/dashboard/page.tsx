@@ -546,7 +546,24 @@ function ReceptionistDashboard({ user }: { user: AuthUser | null }) {
 
 function StudentDashboard({ user }: { user: AuthUser }) {
   const { refreshUser } = useAuth();
-  const displayName = user.full_name || user.username;
+  const demoStorageKey = 'dentai_student_demo';
+  const [demoMode, setDemoMode] = useState(() =>
+    typeof window !== 'undefined' && window.localStorage.getItem(demoStorageKey) === 'on'
+  );
+  const demoProfile: AuthUser = {
+    ...user,
+    first_name: 'Minh',
+    last_name: 'Nguyễn Hoàng',
+    full_name: 'Nguyễn Hoàng Minh',
+    phone: '0901 234 567',
+    student_code: '22110234',
+    academic_year: '2022 – 2027',
+    class_name: 'RHM K67A',
+    major: 'Răng Hàm Mặt',
+    institution: 'Trường Đại học Y Hà Nội',
+  };
+  const profile = demoMode ? demoProfile : user;
+  const displayName = profile.full_name || profile.username;
   const initials = displayName
     .trim()
     .split(/\s+/)
@@ -559,14 +576,14 @@ function StudentDashboard({ user }: { user: AuthUser }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [form, setForm] = useState({
-    first_name: user.first_name,
-    last_name: user.last_name,
-    phone: user.phone,
-    student_code: user.student_code || '',
-    academic_year: user.academic_year || '',
-    class_name: user.class_name || '',
-    major: user.major || '',
-    institution: user.institution || '',
+    first_name: profile.first_name,
+    last_name: profile.last_name,
+    phone: profile.phone,
+    student_code: profile.student_code || '',
+    academic_year: profile.academic_year || '',
+    class_name: profile.class_name || '',
+    major: profile.major || '',
+    institution: profile.institution || '',
   });
 
   function updateField(field: keyof typeof form, value: string) {
@@ -575,21 +592,47 @@ function StudentDashboard({ user }: { user: AuthUser }) {
 
   function cancelEditing() {
     setForm({
-      first_name: user.first_name,
-      last_name: user.last_name,
-      phone: user.phone,
-      student_code: user.student_code || '',
-      academic_year: user.academic_year || '',
-      class_name: user.class_name || '',
-      major: user.major || '',
-      institution: user.institution || '',
+      first_name: profile.first_name,
+      last_name: profile.last_name,
+      phone: profile.phone,
+      student_code: profile.student_code || '',
+      academic_year: profile.academic_year || '',
+      class_name: profile.class_name || '',
+      major: profile.major || '',
+      institution: profile.institution || '',
     });
     setEditing(false);
     setProfileError(null);
   }
 
+  function toggleDemoMode() {
+    const next = !demoMode;
+    const nextProfile = next ? demoProfile : user;
+    window.localStorage.setItem(demoStorageKey, next ? 'on' : 'off');
+    setDemoMode(next);
+    setForm({
+      first_name: nextProfile.first_name,
+      last_name: nextProfile.last_name,
+      phone: nextProfile.phone,
+      student_code: nextProfile.student_code || '',
+      academic_year: nextProfile.academic_year || '',
+      class_name: nextProfile.class_name || '',
+      major: nextProfile.major || '',
+      institution: nextProfile.institution || '',
+    });
+    setEditing(false);
+    setNotice(next
+      ? 'Đã bật dữ liệu minh hoạ. Bạn có thể mở một ca chẩn đoán và thử hỏi nhiều giảng viên.'
+      : 'Đã tắt dữ liệu minh hoạ.');
+  }
+
   async function saveProfile(event: React.FormEvent) {
     event.preventDefault();
+    if (demoMode) {
+      setEditing(false);
+      setNotice('Đây là dữ liệu minh hoạ, không có thay đổi nào được lưu vào hệ thống.');
+      return;
+    }
     setSaving(true);
     setNotice(null);
     setProfileError(null);
@@ -613,85 +656,88 @@ function StudentDashboard({ user }: { user: AuthUser }) {
 
   const personalRows = [
     ['Họ và tên', displayName],
-    ['Email', user.email],
-    ['Số điện thoại', user.phone || 'Chưa cập nhật'],
-    ['Tên đăng nhập', `@${user.username}`],
+    ['Email', profile.email],
+    ['Số điện thoại', profile.phone || 'Chưa cập nhật'],
+    ['Tên đăng nhập', `@${profile.username}`],
   ];
   const academicRows = [
-    ['Mã sinh viên', user.student_code || 'Chưa cập nhật'],
-    ['Niên khóa', user.academic_year || 'Chưa cập nhật'],
-    ['Lớp', user.class_name || 'Chưa cập nhật'],
-    ['Chuyên ngành', user.major || 'Chưa cập nhật'],
-    ['Cơ sở đào tạo', user.institution || 'Chưa cập nhật'],
+    ['Mã sinh viên', profile.student_code || 'Chưa cập nhật'],
+    ['Niên khóa', profile.academic_year || 'Chưa cập nhật'],
+    ['Lớp', profile.class_name || 'Chưa cập nhật'],
+    ['Chuyên ngành', profile.major || 'Chưa cập nhật'],
+    ['Cơ sở đào tạo', profile.institution || 'Chưa cập nhật'],
   ];
   const inputClass = 'w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20';
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
-      <section className="overflow-hidden rounded-2xl border border-primary/15 bg-white shadow-sm">
-        <div className="h-24 bg-gradient-to-r from-primary via-primary-600 to-teal-600" />
-        <div className="px-5 pb-6 sm:px-7">
-          <div className="-mt-10 flex flex-wrap items-end justify-between gap-4">
-            <div className="flex items-end gap-4">
-              <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border-4 border-white bg-primary-50 text-2xl font-bold text-primary shadow-sm">
-                {initials || 'SV'}
-              </span>
-              <div className="pb-1">
-                <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
-                  <span className="material-symbols-outlined text-[15px]">school</span>
-                  Sinh viên
-                </span>
-                <h1 className="mt-1 font-serif text-2xl font-semibold text-gray-900">{displayName}</h1>
-                <p className="text-sm text-gray-500">Hồ sơ học tập trên DentAI</p>
-              </div>
-            </div>
-            {!editing && (
-              <div className="mb-1 flex flex-wrap gap-2">
-                <Link
-                  href="/gingivitis/"
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-600"
-                >
-                  <span className="material-symbols-outlined text-[18px]">oral_disease</span>
-                  Chẩn đoán AI
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => { setEditing(true); setNotice(null); }}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
-                >
-                  <span className="material-symbols-outlined text-[18px]">edit</span>
-                  Cập nhật hồ sơ
-                </button>
-              </div>
-            )}
+    <div className="w-full space-y-6 pb-4">
+      <section className="overflow-hidden rounded-[28px] bg-gradient-to-br from-slate-950 via-primary-800 to-teal-700 text-white shadow-xl shadow-primary/10">
+        <div className="flex min-h-56 flex-col justify-between p-6 sm:p-8 lg:flex-row lg:items-start">
+          <div>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold tracking-wide">
+              <span className="material-symbols-outlined text-[16px]">school</span>
+              HỒ SƠ SINH VIÊN
+            </span>
+            <h1 className="mt-5 font-serif text-3xl font-semibold tracking-tight sm:text-4xl">{displayName}</h1>
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/75">
+              Không gian học tập và thực hành chẩn đoán AI của bạn trên DentAI.
+            </p>
           </div>
-
-          {notice && (
-            <div className="mt-5 flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-              <span className="material-symbols-outlined text-[18px]">check_circle</span>
-              {notice}
+          {!editing && (
+            <div className="mt-6 flex flex-wrap gap-2 lg:mt-0 lg:justify-end">
+              <Link href="/gingivitis/" className="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-primary shadow-sm hover:bg-primary-50">
+                <span className="material-symbols-outlined text-[18px]">oral_disease</span>
+                Chẩn đoán AI
+              </Link>
+              <button type="button" onClick={() => { setEditing(true); setNotice(null); }} className="inline-flex items-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/20">
+                <span className="material-symbols-outlined text-[18px]">edit</span>
+                Chỉnh sửa hồ sơ
+              </button>
             </div>
           )}
+        </div>
+      </section>
 
-          {editing ? (
-            <form onSubmit={saveProfile} className="mt-6 border-t border-gray-100 pt-5">
-              <div className="grid gap-5 sm:grid-cols-2">
+      {notice && (
+        <div className="flex items-center gap-2 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+              <span className="material-symbols-outlined text-[18px]">check_circle</span>
+              {notice}
+        </div>
+      )}
+
+      {editing ? (
+        <form onSubmit={saveProfile} className="grid gap-6 xl:grid-cols-[minmax(280px,0.7fr)_minmax(0,1.3fr)]">
+          <aside className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+            <span className="flex h-20 w-20 items-center justify-center rounded-2xl bg-primary-50 text-2xl font-bold text-primary">{initials || 'SV'}</span>
+            <h2 className="mt-5 font-serif text-xl font-semibold text-gray-900">Chỉnh sửa hồ sơ</h2>
+            <p className="mt-2 text-sm leading-relaxed text-gray-500">Cập nhật thông tin liên hệ và học vụ để giảng viên nhận diện bạn chính xác hơn.</p>
+          </aside>
+          <div className="space-y-6">
+            <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+              <h2 className="flex items-center gap-2 font-serif text-lg font-semibold text-gray-900"><span className="material-symbols-outlined text-primary">person</span>Thông tin cá nhân</h2>
+              <div className="mt-5 grid gap-5 sm:grid-cols-2">
                 <ProfileInput label="Họ" value={form.last_name} onChange={value => updateField('last_name', value)} className={inputClass} />
                 <ProfileInput label="Tên" value={form.first_name} onChange={value => updateField('first_name', value)} className={inputClass} />
                 <ProfileInput label="Số điện thoại" value={form.phone} onChange={value => updateField('phone', value)} className={inputClass} />
+              </div>
+            </section>
+            <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+              <h2 className="flex items-center gap-2 font-serif text-lg font-semibold text-gray-900"><span className="material-symbols-outlined text-primary">badge</span>Thông tin học vụ</h2>
+              <div className="mt-5 grid gap-5 sm:grid-cols-2">
                 <ProfileInput label="Mã sinh viên" value={form.student_code} onChange={value => updateField('student_code', value)} className={inputClass} />
                 <ProfileInput label="Niên khóa" value={form.academic_year} placeholder="Ví dụ: 2023–2027" onChange={value => updateField('academic_year', value)} className={inputClass} />
                 <ProfileInput label="Lớp" value={form.class_name} onChange={value => updateField('class_name', value)} className={inputClass} />
                 <ProfileInput label="Chuyên ngành" value={form.major} onChange={value => updateField('major', value)} className={inputClass} />
                 <ProfileInput label="Cơ sở đào tạo" value={form.institution} onChange={value => updateField('institution', value)} className={inputClass} />
               </div>
-              {profileError && (
+            </section>
+            {profileError && (
                 <p className="mt-4 flex items-center gap-1.5 text-sm text-red-600">
                   <span className="material-symbols-outlined text-[17px]">error</span>
                   {profileError}
                 </p>
-              )}
-              <div className="mt-5 flex justify-end gap-2">
+            )}
+            <div className="flex justify-end gap-2">
                 <button type="button" onClick={cancelEditing} disabled={saving} className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
                   Hủy
                 </button>
@@ -699,18 +745,48 @@ function StudentDashboard({ user }: { user: AuthUser }) {
                   <span className={`material-symbols-outlined text-[17px] ${saving ? 'animate-spin' : ''}`}>{saving ? 'autorenew' : 'save'}</span>
                   {saving ? 'Đang lưu…' : 'Lưu hồ sơ'}
                 </button>
-              </div>
-            </form>
-          ) : (
-            <div className="mt-6 grid gap-6 border-t border-gray-100 pt-5 lg:grid-cols-2">
+            </div>
+          </div>
+        </form>
+      ) : (
+        <div className="grid gap-6 xl:grid-cols-[minmax(280px,0.72fr)_minmax(0,1.28fr)]">
+          <aside className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+            <span className="flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-primary-50 to-teal-50 text-3xl font-bold text-primary">{initials || 'SV'}</span>
+            <h2 className="mt-5 font-serif text-xl font-semibold text-gray-900">Thẻ sinh viên</h2>
+            <p className="mt-1 text-sm text-gray-500">DentAI · Hồ sơ học tập</p>
+            <dl className="mt-6 space-y-4 border-t border-gray-100 pt-5">
+              <ProfileKey label="Mã sinh viên" value={profile.student_code || 'Chưa cập nhật'} />
+              <ProfileKey label="Lớp" value={profile.class_name || 'Chưa cập nhật'} />
+              <ProfileKey label="Niên khóa" value={profile.academic_year || 'Chưa cập nhật'} />
+            </dl>
+            <button type="button" onClick={toggleDemoMode} className={`mt-7 flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold transition-colors ${demoMode ? 'bg-amber-100 text-amber-900 hover:bg-amber-200' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
+              <span className="material-symbols-outlined text-[17px]">{demoMode ? 'toggle_on' : 'toggle_off'}</span>
+              {demoMode ? 'Tắt dữ liệu minh hoạ' : 'Bật dữ liệu minh hoạ'}
+            </button>
+          </aside>
+          <div className="space-y-6">
+            {demoMode && <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><span className="material-symbols-outlined text-[20px]">science</span><p><strong>Chế độ demo đang bật.</strong> Hồ sơ và luồng hỏi đáp sử dụng dữ liệu mẫu trên trình duyệt; không tạo hoặc thay đổi dữ liệu thật.</p></div>}
+            <div className="grid gap-6 lg:grid-cols-2">
               <ProfileSection title="Thông tin cá nhân" icon="person" rows={personalRows} />
               <ProfileSection title="Thông tin học vụ" icon="school" rows={academicRows} />
             </div>
-          )}
+            <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-4"><div><h2 className="flex items-center gap-2 font-serif text-lg font-semibold text-gray-900"><span className="material-symbols-outlined text-primary">forum</span>Thực hành hỏi đáp giảng viên</h2><p className="mt-1 text-sm text-gray-500">Mở một kết quả chẩn đoán, chọn nhiều giảng viên rồi đặt câu hỏi ngay dưới ảnh.</p></div><Link href="/gingivitis/" className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-600"><span className="material-symbols-outlined text-[18px]">arrow_forward</span>Mở ca chẩn đoán</Link></div>
+              <div className="mt-5 grid gap-3 sm:grid-cols-3 text-sm"><DemoStep number="1" text="Xem kết quả AI" /><DemoStep number="2" text="Chọn giảng viên" /><DemoStep number="3" text="Trao đổi theo ảnh" /></div>
+            </section>
+          </div>
         </div>
-      </section>
+      )}
     </div>
   );
+}
+
+function ProfileKey({ label, value }: { label: string; value: string }) {
+  return <div><dt className="text-xs font-medium uppercase tracking-wide text-gray-400">{label}</dt><dd className="mt-1 text-sm font-semibold text-gray-800">{value}</dd></div>;
+}
+
+function DemoStep({ number, text }: { number: string; text: string }) {
+  return <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">{number}</span><span className="font-medium text-gray-700">{text}</span></div>;
 }
 
 function ProfileSection({
