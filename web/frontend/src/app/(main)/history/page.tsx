@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import api, { CaseListItem, type ImageResult } from '@/lib/api';
 import { useAuth } from '@/components/providers/AuthProvider';
+import PatientHistoryDetail from '@/components/patient/PatientHistoryDetail';
+import { createPatientDemoRows, PATIENT_HISTORY_DEMO, type PatientHistoryDemo } from '@/lib/patient-history-demo';
 import {
   fetchScans,
   fetchScansSharedWithMe,
@@ -57,9 +59,10 @@ type Tab = 'mine' | 'shared';
 // Gộp hai loại chẩn đoán về một shape chung ở frontend (PLAN_3D_CANINE.md §5.2) —
 // KHÔNG đụng backend, tránh rủi ro hồi quy với GET /api/cases/ (mảng phẳng, không
 // phân trang) mà trang History hiện có đang phụ thuộc.
-type Row =
+type Row = (
   | { kind: 'gingivitis'; case: CaseListItem }
-  | { kind: 'canine3d'; scan: ScanListItem };
+  | { kind: 'canine3d'; scan: ScanListItem }
+) & { demo?: PatientHistoryDemo };
 
 function rowId(r: Row): number {
   return r.kind === 'gingivitis' ? r.case.id : r.scan.id;
@@ -95,7 +98,8 @@ function rowCount(r: Row): { n: number; unit: string } {
 }
 
 export default function HistoryPage() {
-  const { loading: authLoading, role } = useAuth();
+  const { loading: authLoading, role, user } = useAuth();
+  const [detail, setDetail] = useState<{ record: PatientHistoryDemo; consultation: boolean } | null>(null);
 
   const [cases, setCases]           = useState<CaseListItem[]>([]);
   const [shared, setShared]         = useState<CaseListItem[]>([]);
@@ -115,6 +119,7 @@ export default function HistoryPage() {
     let active = true;
     const objectUrls: string[] = [];
     setLoading(true);
+    setError(false);
     // GET /cases/ đã trả cả ca của mình lẫn ca được chia sẻ; gọi thêm
     // /cases/shared-with-me/ để tách riêng cho tab thứ hai. pageSize:100 để lấy
     // TOÀN BỘ phim (không phân trang thật) — khớp cách /cases/ đang là mảng phẳng.
@@ -183,6 +188,7 @@ export default function HistoryPage() {
   const mineRows: Row[] = [
     ...cases.filter(c => !sharedIds.has(c.id)).map((c): Row => ({ kind: 'gingivitis', case: c })),
     ...scans.filter(scan => !sharedScanIds.has(scan.id)).map((s): Row => ({ kind: 'canine3d', scan: s })),
+    ...(role === 'patient' ? createPatientDemoRows(user) : []),
   ];
   const sharedRows: Row[] = [
     ...shared.map((c): Row => ({ kind: 'gingivitis', case: c })),
@@ -253,6 +259,13 @@ export default function HistoryPage() {
         ))}
       </div>
 
+      {role === 'patient' && (
+        <p className="text-xs text-gray-500">
+          Bao gồm hồ sơ mẫu minh họa các lần chẩn đoán và tư vấn trước đây.
+          {error && ' Không thể tải dữ liệu từ hệ thống, hiện đang hiển thị hồ sơ mẫu.'}
+        </p>
+      )}
+
       {/* Filter bar */}
       <div className="flex gap-3 items-center flex-wrap">
         <div className="relative flex-1 min-w-52">
@@ -310,7 +323,7 @@ export default function HistoryPage() {
             <span className="material-symbols-outlined animate-spin text-2xl">autorenew</span>
             <span className="text-sm">Đang tải dữ liệu...</span>
           </div>
-        ) : error ? (
+        ) : error && role !== 'patient' ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
             <span className="material-symbols-outlined text-4xl text-red-300">cloud_off</span>
             <p className="text-sm text-gray-500">Không thể tải lịch sử</p>
@@ -392,6 +405,12 @@ export default function HistoryPage() {
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${TYPE_CLASS[row.kind]}`}>
                             {TYPE_LABEL[row.kind]}
                           </span>
+                          {row.demo && (
+                            <div className="mt-1.5 max-w-60">
+                              <p className="text-xs font-medium text-gray-700">{row.demo.title}</p>
+                              <p className="mt-0.5 text-[11px] text-gray-500">{row.demo.doctor} · Hồ sơ mẫu</p>
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-xs text-gray-500 tabular-nums whitespace-nowrap">
                           {fmt(rowCreatedAt(row))}
@@ -418,13 +437,23 @@ export default function HistoryPage() {
                                   <span className="material-symbols-outlined text-[14px]">calendar_month</span>
                                   Đặt hẹn tư vấn
                                 </Link>
-                                <Link
+                                {row.demo ? (
+                                  <button
+                                    onClick={() => {
+                                      if (row.demo) setDetail({ record: row.demo, consultation: false });
+                                    }}
+                                    className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-600"
+                                  >
+                                    <span className="material-symbols-outlined text-[14px]">visibility</span>
+                                    Xem kết quả
+                                  </button>
+                                ) : <Link
                                   href={row.kind === 'canine3d' ? `/scans/${row.scan.id}/` : `/analysis/${row.case.id}/results/0/`}
                                   className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-600"
                                 >
                                   <span className="material-symbols-outlined text-[14px]">visibility</span>
                                   Xem kết quả
-                                </Link>
+                                </Link>}
                               </>
                             ) : row.kind === 'canine3d' ? (
                               <Link
@@ -501,19 +530,36 @@ export default function HistoryPage() {
         <section className="overflow-hidden rounded-xl border border-gray-200 bg-white">
           <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
             <h2 className="font-serif text-[15px] font-semibold text-gray-900">Lịch sử tư vấn online</h2>
-            <span className="rounded-full bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary">0 buổi tư vấn</span>
+            <span className="rounded-full bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary">{PATIENT_HISTORY_DEMO.length} buổi tư vấn</span>
           </div>
-          <div className="flex flex-col items-center px-5 py-12 text-center">
-            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-50 text-primary">
-              <span className="material-symbols-outlined text-[26px]">video_chat</span>
-            </span>
-            <p className="mt-3 text-sm font-medium text-gray-800">Chưa có lịch sử tư vấn</p>
-            <p className="mt-1 max-w-lg text-xs leading-relaxed text-gray-500">
-              Lịch hẹn và kết quả tư vấn sẽ hiển thị tại đây sau khi được xác nhận.
-            </p>
+          <div className="divide-y divide-gray-100">
+            {PATIENT_HISTORY_DEMO.map(record => (
+              <div key={record.id} className="flex flex-wrap items-start gap-4 px-5 py-5">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary">
+                  <span className="material-symbols-outlined text-[24px]">video_chat</span>
+                </span>
+                <div className="min-w-0 flex-1 basis-64">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-semibold text-gray-900">{record.consultation.title}</h3>
+                    <span className="rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700">Đã hoàn tất</span>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">{record.doctor} · {record.specialty}</p>
+                  <p className="mt-1 text-xs text-gray-500">{fmt(record.consultation.date)} · Video online · {record.consultation.duration} phút</p>
+                  <p className="mt-2 text-sm leading-relaxed text-gray-600">{record.conclusion}</p>
+                  <p className="mt-2 text-xs text-gray-500">{record.followUp}</p>
+                  <p className="mt-2 text-[11px] font-mono text-gray-400">{record.consultation.code} · Hồ sơ mẫu</p>
+                </div>
+                <button onClick={() => setDetail({ record, consultation: true })}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-primary/20 px-3 py-2 text-xs font-medium text-primary hover:bg-primary-50">
+                  <span className="material-symbols-outlined text-[16px]">description</span>
+                  Xem phiếu tư vấn
+                </button>
+              </div>
+            ))}
           </div>
         </section>
       )}
+      {detail && <PatientHistoryDetail record={detail.record} consultation={detail.consultation} onClose={() => setDetail(null)} />}
     </div>
   );
 }
