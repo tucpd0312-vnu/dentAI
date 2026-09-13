@@ -81,6 +81,7 @@ export interface QASessionDetail {
     username: string;
     email: string;
     full_name: string;
+    student_code?: string;
     role: Role;
   };
   case: number | null;

@@ -108,12 +108,32 @@ export async function searchUsers(q: string): Promise<UserSuggestion[]> {
 
 /** Rút thông điệp lỗi tiếng Việt từ response DRF (detail hoặc lỗi theo field). */
 export function apiErrorMessage(err: unknown, fallback = 'Đã xảy ra lỗi. Vui lòng thử lại.'): string {
-  const data = (err as { response?: { data?: Record<string, unknown> } })?.response?.data;
-  if (!data) return fallback;
-  if (typeof data.detail === 'string') return data.detail;
-  for (const value of Object.values(data)) {
-    if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
-    if (typeof value === 'string') return value;
-  }
-  return fallback;
+  const data = (err as { response?: { data?: unknown } })?.response?.data;
+
+  // DRF thường trả {field: ["..." ]}, nhưng proxy/network có thể trả chuỗi
+  // hoặc object lồng nhau. Chỉ nhận chuỗi có nội dung để tránh ErrorBox bị rỗng.
+  const findMessage = (value: unknown): string | null => {
+    if (typeof value === 'string') return value.trim() || null;
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const message = findMessage(item);
+        if (message) return message;
+      }
+      return null;
+    }
+    if (value && typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      for (const key of ['detail', 'message', 'non_field_errors']) {
+        const message = findMessage(record[key]);
+        if (message) return message;
+      }
+      for (const item of Object.values(record)) {
+        const message = findMessage(item);
+        if (message) return message;
+      }
+    }
+    return null;
+  };
+
+  return findMessage(data) || fallback;
 }

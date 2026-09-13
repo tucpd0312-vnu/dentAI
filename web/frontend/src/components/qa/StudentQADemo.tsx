@@ -6,8 +6,8 @@ import type { QAMessage, QASessionDetail } from '@/lib/qa';
 import QAChatPanel from './QAChatPanel';
 
 const STUDENTS = [
-  { id: -101, username: 'sv.nguyenan', email: '', full_name: 'Nguyễn Minh An', role: 'student' as const },
-  { id: -102, username: 'sv.thuha', email: '', full_name: 'Trần Thu Hà', role: 'student' as const },
+  { id: -101, username: 'sv.nguyenan', email: '', full_name: 'Nguyễn Minh An', student_code: 'SV001', role: 'student' as const },
+  { id: -102, username: 'sv.thuha', email: '', full_name: 'Trần Thu Hà', student_code: 'SV002', role: 'student' as const },
 ];
 
 function sampleSessions(teacher: AuthUser): QASessionDetail[] {
@@ -84,12 +84,13 @@ export default function StudentQADemo({ teacher }: { teacher: AuthUser }) {
   }
 
   return (
-    <div className="flex h-[calc(100vh-10rem)] min-h-[550px] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-white">
       <div className="flex min-h-0 flex-1">
         <aside aria-label="Chọn sinh viên" className="w-48 shrink-0 overflow-y-auto border-r border-gray-200">
           {sessions.map(item => (
             <button key={item.id} aria-pressed={item.id === selectedId} onClick={() => { setSelectedId(item.id); setActingAs('teacher'); }} className={`w-full border-b border-gray-100 px-4 py-3 text-left transition ${item.id === selectedId ? 'bg-primary-50 ring-inset ring-1 ring-primary/20' : 'hover:bg-gray-50'}`}>
               <p className="text-sm font-semibold text-gray-900">{item.created_by.full_name}</p>
+              <p className="mt-1 text-xs text-gray-500">Mã SV: {item.created_by.student_code}</p>
             </button>
           ))}
         </aside>

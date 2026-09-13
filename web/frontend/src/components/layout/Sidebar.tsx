@@ -68,7 +68,7 @@ const NAV: NavEntry[] = [
   { href: '/users',      icon: 'group',        label: 'Quản lý người dùng', prefix: '/users',      roles: ['admin'] },
   { href: '/history',    icon: 'history',      label: 'Lịch sử chẩn đoán AI', prefix: '/history'   },
   { href: '/system-log', icon: 'receipt_long', label: 'Lịch sử hệ thống',   prefix: '/system-log', roles: ['admin'] },
-  { href: '/settings',   icon: 'settings',     label: 'Cài đặt',            prefix: '/settings',   roles: ['admin', 'doctor'] },
+  { href: '/settings',   icon: 'settings',     label: 'Cài đặt',            prefix: '/settings',   roles: ['admin'] },
   { href: '/help',       icon: 'help',         label: 'Hướng dẫn',          prefix: '/help', roles: ['admin', 'student'] },
 ];
 
@@ -114,6 +114,8 @@ export default function Sidebar() {
     const displayLabel =
       href === '/dashboard' && role === 'patient'
         ? 'Hồ sơ bệnh nhân'
+        : href === '/dashboard' && role === 'doctor'
+          ? 'Hồ sơ bác sĩ'
         : href === '/chat' && role === 'doctor'
           ? 'Hỏi đáp với sinh viên'
         : href === '/history' && role === 'patient'

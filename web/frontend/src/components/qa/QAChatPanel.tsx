@@ -151,7 +151,7 @@ export default function QAChatPanel({
   };
 
   return (
-    <div className="flex-1 h-full flex flex-col bg-gray-50 overflow-hidden">
+    <div className="min-h-0 min-w-0 flex-1 h-full flex flex-col bg-gray-50 overflow-hidden">
       {/* ── Header ── */}
       <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between gap-4 shrink-0 shadow-sm z-10">
         <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -282,7 +282,7 @@ export default function QAChatPanel({
       </header>
 
       {/* ── Main content (Split Image Annotator & Chat Messages) ── */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="min-h-0 flex-1 flex overflow-hidden">
         {/* Panel Ảnh & Bounding Box Annotator */}
         {showImagePanel && session.image_url && (
           <div className="w-1/2 p-4 border-r border-gray-200 bg-gray-950/90 flex flex-col items-center justify-center overflow-y-auto">
@@ -328,7 +328,7 @@ export default function QAChatPanel({
         )}
 
         {/* Panel Tin nhắn (Hỏi đáp Zalo/ChatGPT style) */}
-        <div className={`flex-1 flex flex-col h-full bg-white ${showImagePanel && session.image_url ? 'w-1/2' : 'w-full'}`}>
+        <div className={`min-h-0 min-w-0 flex-1 flex flex-col h-full bg-white ${showImagePanel && session.image_url ? 'w-1/2' : 'w-full'}`}>
           {/* Danh sách tin nhắn */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {session.messages.length === 0 ? (

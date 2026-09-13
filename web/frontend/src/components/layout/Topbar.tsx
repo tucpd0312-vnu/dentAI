@@ -10,7 +10,7 @@ import NotificationBell from '@/components/layout/NotificationBell';
 function getTitle(pathname: string, role?: Role): string {
   if (pathname.startsWith('/dashboard')) {
     if (role === 'patient') return 'Hồ sơ bệnh nhân';
-    if (role === 'doctor') return 'Hồ sơ Bác sĩ (Giảng viên)';
+    if (role === 'doctor') return 'Hồ sơ bác sĩ';
     return 'Tổng quan';
   }
   if (pathname === '/analysis/new') return 'Chẩn đoán viêm lợi';
