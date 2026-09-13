@@ -8,7 +8,9 @@ import { useAuth } from '@/components/providers/AuthProvider';
 import NotificationBell from '@/components/layout/NotificationBell';
 
 function getTitle(pathname: string, role: Role | null): string {
-  if (pathname.startsWith('/dashboard')) return role === 'student' ? 'Hồ sơ sinh viên' : 'Tổng quan';
+  if (pathname.startsWith('/dashboard')) return role === 'student' ? 'Hồ sơ sinh viên' : role === 'receptionist' ? 'Hồ sơ lễ tân' : 'Tổng quan';
+  if (pathname.startsWith('/reception/appointments')) return 'Quản lý lịch hẹn';
+  if (pathname.startsWith('/reception/data')) return 'Kho dữ liệu nghiệp vụ';
   if (pathname === '/analysis/new') return 'Chẩn đoán viêm lợi';
   if (/^\/analysis\/[^/]+\/processing/.test(pathname)) return 'Đang xử lý…';
   if (/^\/analysis\/[^/]+\/results\/[^/]+\/edit/.test(pathname)) return 'Chỉnh sửa kết quả';

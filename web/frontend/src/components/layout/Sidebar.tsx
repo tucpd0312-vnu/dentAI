@@ -62,6 +62,8 @@ const NAV: NavEntry[] = [
   // Kho dữ liệu mở cho MỌI vai trò (không khai `roles`) — phạm vi dữ liệu do backend
   // giới hạn qua `apps.library.access.scoped_assets`, không phải bằng việc ẩn mục này.
   { href: '/library', icon: 'inventory_2', label: 'Kho dữ liệu', prefix: '/library' },
+  { href: '/reception/data', icon: 'folder_shared', label: 'Kho dữ liệu nghiệp vụ', prefix: '/reception/data', roles: ['receptionist'] },
+  { href: '/reception/appointments', icon: 'calendar_month', label: 'Quản lý lịch hẹn', prefix: '/reception/appointments', roles: ['receptionist'] },
   // Hỏi đáp và trao đổi giữa sinh viên và giảng viên
   { href: '/chat', icon: 'forum', label: 'Hỏi đáp & Trao đổi', prefix: '/chat' },
   { href: '/users',      icon: 'group',        label: 'Quản lý người dùng', prefix: '/users',      roles: ['admin'] },
@@ -79,9 +81,7 @@ export default function Sidebar() {
   const { role, user } = useAuth();
 
   const visible = (item: NavLeaf) => {
-    // Giai đoạn đầu lễ tân chỉ có mục Tổng quan. Backend vẫn chặn độc lập để
-    // người dùng không thể vượt quyền bằng cách gõ URL hoặc gọi API trực tiếp.
-    if (role === 'receptionist') return item.href === '/dashboard';
+    if (role === 'receptionist') return ['/dashboard', '/reception/data', '/reception/appointments'].includes(item.href);
     return !item.roles || Boolean(role && item.roles.includes(role));
   };
   const active = (item: NavLeaf) =>
@@ -109,7 +109,7 @@ export default function Sidebar() {
 
   function renderLeaf(item: NavLeaf, nested: boolean) {
     const { href } = item;
-    const icon = role === 'student' && href === '/dashboard' ? 'badge' : item.icon;
+    const icon = role === 'student' && href === '/dashboard' ? 'badge' : role === 'receptionist' && href === '/dashboard' ? 'badge' : item.icon;
     const label = role === 'student'
       ? ({
           '/dashboard': 'Hồ sơ sinh viên',
@@ -117,7 +117,7 @@ export default function Sidebar() {
           '/chat': 'Hỏi đáp giảng viên',
           '/history': 'Lịch sử chẩn đoán AI',
         }[href] ?? item.label)
-      : item.label;
+      : role === 'receptionist' && href === '/dashboard' ? 'Hồ sơ lễ tân' : item.label;
     const isActive = active(item);
     const badge = href === '/users' ? pendingRequests : 0;
     return (

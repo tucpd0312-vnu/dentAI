@@ -11,18 +11,18 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const receptionistOutsideDashboard =
-    user?.role === 'receptionist' && pathname !== '/dashboard' && pathname !== '/dashboard/';
+  const receptionistPaths = ['/dashboard', '/dashboard/', '/reception/data', '/reception/data/', '/reception/appointments', '/reception/appointments/'];
+  const receptionistOutsideWorkspace = user?.role === 'receptionist' && !receptionistPaths.includes(pathname);
 
   useEffect(() => {
     if (!loading && !user) {
       router.push('/login/');
-    } else if (!loading && receptionistOutsideDashboard) {
+    } else if (!loading && receptionistOutsideWorkspace) {
       router.replace('/dashboard/');
     }
-  }, [loading, receptionistOutsideDashboard, router, user]);
+  }, [loading, receptionistOutsideWorkspace, router, user]);
 
-  if (loading || !user || receptionistOutsideDashboard) {
+  if (loading || !user || receptionistOutsideWorkspace) {
     return (
       <div className="flex h-screen items-center justify-center bg-surface">
         <span className="material-symbols-outlined text-5xl text-gray-300 animate-spin">autorenew</span>
@@ -36,10 +36,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <Topbar />
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
-        <footer className="shrink-0 border-t border-gray-200 bg-white px-6 py-2.5 text-xs text-gray-400 text-center">
+        <main className={`flex-1 overflow-y-auto ${user.role === 'receptionist' ? 'p-0' : 'p-6'}`}>{children}</main>
+        {user.role !== 'receptionist' && <footer className="shrink-0 border-t border-gray-200 bg-white px-6 py-2.5 text-xs text-gray-400 text-center">
           DentAI © 2026 - Hệ thống AI nha khoa đa chức năng
-        </footer>
+        </footer>}
       </div>
     </div>
   );
