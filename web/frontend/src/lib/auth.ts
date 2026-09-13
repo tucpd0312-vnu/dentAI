@@ -13,6 +13,11 @@ export interface AuthUser {
   full_name: string;
   role: Role;
   phone: string;
+  birth_year: number | null;
+  /** Tuổi được backend suy ra từ năm sinh tại thời điểm đọc. */
+  age: number | null;
+  organization: string;
+  lecturer_code: string;
   email_verified: boolean;
   is_active: boolean;
   date_joined: string;
@@ -42,13 +47,15 @@ export interface RegisterPayload {
   firstName?: string;
   lastName?: string;
   phone?: string;
+  birthYear?: number | null;
   organization?: string;
+  lecturerCode?: string;
   note?: string;
 }
 
 export const ROLE_LABEL: Record<Role, string> = {
   admin: 'Quản trị viên',
-  doctor: 'Bác sĩ',
+  doctor: 'Bác sĩ (Giảng viên)',
   patient: 'Bệnh nhân',
   student: 'Sinh viên',
   receptionist: 'Lễ tân',
@@ -208,7 +215,9 @@ export async function register(
     first_name: payload.firstName ?? "",
     last_name: payload.lastName ?? "",
     phone: payload.phone ?? "",
+    birth_year: payload.birthYear ?? null,
     organization: payload.organization ?? "",
+    lecturer_code: payload.lecturerCode ?? "",
     note: payload.note ?? "",
   });
   return res.data;

@@ -3,7 +3,8 @@
 Gộp một request thay vì nhiều để trang không phải chờ nhiều vòng mạng.
 
 MỌI số liệu về ca đều đi qua `scoped_cases()`: bác sĩ/bệnh nhân chỉ thấy thống kê
-của ca mình (+ ca được chia sẻ), admin thấy toàn hệ thống. Khối `users` và
+theo phạm vi được cấp, admin thấy toàn hệ thống. Riêng bác sĩ/giảng viên nhận
+response hồ sơ tối thiểu và không nhận thống kê sử dụng. Khối `users` và
 `activity` chỉ có trong response của admin. Lễ tân nhận response tối thiểu, không
 truy vấn hoặc trả dữ liệu lâm sàng trong giai đoạn đầu.
 """
@@ -48,6 +49,11 @@ class DashboardView(APIView):
                 "scope": "receptionist",
                 "available_modules": ["dashboard"],
             })
+
+        if user.role == Role.DOCTOR:
+            # Tổng quan của giảng viên là hồ sơ cá nhân. Không truy vấn và cũng
+            # không trả số liệu sử dụng/ca/phim/kho dữ liệu ở endpoint này.
+            return Response({"scope": "doctor"})
 
         if user.role == Role.PATIENT:
             # Hồ sơ bệnh nhân chỉ cần lịch sử chẩn đoán gần đây. Không truy vấn

@@ -47,6 +47,11 @@ export interface ReceptionistDashboardData {
   available_modules: ['dashboard'];
 }
 
+/** Dashboard bác sĩ chỉ dùng hồ sơ từ /auth/me/, không có số liệu sử dụng. */
+export interface DoctorDashboardData {
+  scope: 'doctor';
+}
+
 /** Response gọn dành cho Hồ sơ bệnh nhân; không phụ thuộc Kho dữ liệu/CBCT. */
 export interface PatientDashboardData {
   scope: 'patient';
@@ -57,7 +62,8 @@ export interface PatientDashboardData {
 export type DashboardData =
   | OperationalDashboardData
   | PatientDashboardData
-  | ReceptionistDashboardData;
+  | ReceptionistDashboardData
+  | DoctorDashboardData;
 
 export async function fetchDashboard(): Promise<DashboardData> {
   const res = await api.get<DashboardData>('/dashboard/');

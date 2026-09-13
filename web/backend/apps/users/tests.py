@@ -57,6 +57,7 @@ class LoginTests(APITestCase):
         self.user.refresh_from_db()
 
         self.assertEqual(self.user.role, Role.DOCTOR)
+        self.assertEqual(self.user.organization, "Dental Clinic")
         self.assertEqual(self.user.password, password_hash_before)
         self.assertTrue(self.user.check_password(self.password))
 

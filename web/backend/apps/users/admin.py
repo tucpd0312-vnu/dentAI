@@ -6,7 +6,15 @@ from .models import EmailOTP, Notification, User
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     fieldsets = BaseUserAdmin.fieldsets + (
-        ("Role & Verification", {"fields": ("role", "phone", "email_verified")}),
+        (
+            "Role & Verification",
+            {
+                "fields": (
+                    "role", "phone", "birth_year", "organization",
+                    "lecturer_code", "email_verified",
+                )
+            },
+        ),
     )
     list_display = BaseUserAdmin.list_display + ("role", "email_verified")
     list_filter = BaseUserAdmin.list_filter + ("role", "email_verified")

@@ -7,8 +7,16 @@ import { qaApi, type QASessionListItem, type QASessionDetail } from '@/lib/qa';
 import QASidebar from '@/components/qa/QASidebar';
 import QAChatPanel from '@/components/qa/QAChatPanel';
 import NewSessionModal from '@/components/qa/NewSessionModal';
+import StudentQADemo from '@/components/qa/StudentQADemo';
 
 export default function ChatPage() {
+  const { user, loading } = useAuth();
+  if (loading || !user) return null;
+  if (user.role === 'doctor') return <StudentQADemo teacher={user} />;
+  return <LiveChatPage />;
+}
+
+function LiveChatPage() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -193,10 +201,12 @@ export default function ChatPage() {
               <span className="material-symbols-outlined text-3xl">forum</span>
             </div>
             <h3 className="text-base font-bold text-gray-800">
-              Trao đổi & Hỏi đáp Giảng viên
+              {user?.role === 'doctor' ? 'Hỏi đáp với sinh viên' : 'Trao đổi & Hỏi đáp Giảng viên'}
             </h3>
             <p className="text-xs text-gray-500 mt-1 max-w-md">
-              Chọn một phiên hỏi đáp bên trái hoặc tạo phiên mới từ ảnh kết quả AI để trao đổi trực tiếp với giảng viên và các sinh viên khác.
+              {user?.role === 'doctor'
+                ? 'Chọn một phiên hỏi đáp bên trái để xem câu hỏi và phản hồi trực tiếp cho sinh viên.'
+                : 'Chọn một phiên hỏi đáp bên trái hoặc tạo phiên mới từ ảnh kết quả AI để trao đổi trực tiếp với giảng viên và các sinh viên khác.'}
             </p>
             <button
               onClick={() => setShowNewModal(true)}

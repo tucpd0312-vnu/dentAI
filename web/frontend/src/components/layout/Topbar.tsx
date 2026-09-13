@@ -8,13 +8,18 @@ import { useAuth } from '@/components/providers/AuthProvider';
 import NotificationBell from '@/components/layout/NotificationBell';
 
 function getTitle(pathname: string, role?: Role): string {
-  if (pathname.startsWith('/dashboard')) return role === 'patient' ? 'Hồ sơ bệnh nhân' : 'Tổng quan';
+  if (pathname.startsWith('/dashboard')) {
+    if (role === 'patient') return 'Hồ sơ bệnh nhân';
+    if (role === 'doctor') return 'Hồ sơ Bác sĩ (Giảng viên)';
+    return 'Tổng quan';
+  }
   if (pathname === '/analysis/new') return 'Chẩn đoán viêm lợi';
   if (/^\/analysis\/[^/]+\/processing/.test(pathname)) return 'Đang xử lý…';
   if (/^\/analysis\/[^/]+\/results\/[^/]+\/edit/.test(pathname)) return 'Chỉnh sửa kết quả';
   if (/^\/analysis\/[^/]+\/results/.test(pathname)) return 'Kết quả chẩn đoán';
-  if (pathname.startsWith('/history')) return role === 'patient' ? 'Lịch sử' : 'Lịch sử chẩn đoán';
+  if (pathname.startsWith('/history')) return role === 'patient' || role === 'doctor' ? 'Lịch sử' : 'Lịch sử chẩn đoán';
   if (pathname.startsWith('/appointments')) return 'Đặt hẹn tư vấn';
+  if (pathname.startsWith('/telemedicine')) return role === 'doctor' ? 'Lịch hẹn của tôi' : 'Telemedicine';
   if (pathname.startsWith('/profile')) return 'Hồ sơ cá nhân';
   if (pathname === '/scans/new') return 'Tải phim CBCT';
   if (/^\/scans\/[^/]+/.test(pathname)) return 'Chi tiết phim CBCT';
@@ -24,6 +29,7 @@ function getTitle(pathname: string, role?: Role): string {
   if (pathname === '/library/new') return 'Tải dữ liệu lên';
   if (/^\/library\/[^/]+/.test(pathname)) return 'Chi tiết dữ liệu';
   if (pathname.startsWith('/library')) return 'Kho dữ liệu';
+  if (pathname.startsWith('/chat')) return role === 'doctor' ? 'Hỏi đáp với sinh viên' : 'Hỏi đáp & Trao đổi';
   if (pathname.startsWith('/users')) return 'Quản lý người dùng';
   if (pathname.startsWith('/system-log')) return 'Lịch sử hệ thống';
   if (pathname.startsWith('/settings')) return 'Cài đặt';
@@ -69,7 +75,8 @@ export default function Topbar() {
   }
 
   const displayName = user?.full_name || user?.username || '';
-  const showConsultationSummary = user?.role === 'patient' && pathname.startsWith('/history');
+  const showConsultationSummary =
+    (user?.role === 'patient' || user?.role === 'doctor') && pathname.startsWith('/history');
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6">
@@ -134,7 +141,7 @@ export default function Topbar() {
 
                 {user.role !== 'receptionist' && (
                   <a
-                    href={user.role === 'patient' ? '/profile/' : '/settings/'}
+                    href={user.role === 'patient' || user.role === 'doctor' ? '/profile/' : '/settings/'}
                     role="menuitem"
                     className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-50"
                   >

@@ -28,7 +28,7 @@ export default function InteractiveImageAnnotator({
   const [hoveredBoxId, setHoveredBoxId] = useState<number | string | null>(null);
 
   // Chuẩn hoá URL media nếu cần
-  const formattedUrl = imageUrl.startsWith('/media') || imageUrl.startsWith('http')
+  const formattedUrl = imageUrl.startsWith('/media') || imageUrl.startsWith('http') || imageUrl.startsWith('blob:')
     ? imageUrl
     : imageUrl.startsWith('/')
     ? imageUrl

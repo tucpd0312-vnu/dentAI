@@ -13,6 +13,7 @@ interface Props {
   currentUser: { id: number; username: string; full_name: string; role: Role } | null;
   onSessionUpdated: (updated: QASessionDetail) => void;
   onDeleteSession?: (id: number) => void;
+  demoMode?: boolean;
 }
 
 export default function QAChatPanel({
@@ -20,6 +21,7 @@ export default function QAChatPanel({
   currentUser,
   onSessionUpdated,
   onDeleteSession,
+  demoMode = false,
 }: Props) {
   const [content, setContent] = useState('');
   const [isDrawing, setIsDrawing] = useState(false);
@@ -68,11 +70,20 @@ export default function QAChatPanel({
 
     setSending(true);
     try {
-      const newMsg = await qaApi.sendMessage(session.id, {
+      const payload = {
         content: content.trim(),
         bounding_box: currentBox,
         box_comment: boxComment.trim() || undefined,
-      });
+      };
+      const newMsg: QAMessage = demoMode && currentUser ? {
+        id: Date.now(),
+        session: session.id,
+        sender: { ...currentUser, email: '' },
+        content: payload.content,
+        bounding_box: payload.bounding_box,
+        box_comment: payload.box_comment || '',
+        created_at: new Date().toISOString(),
+      } : await qaApi.sendMessage(session.id, payload);
 
       // Cập nhật state session với tin nhắn mới
       const updatedSession: QASessionDetail = {
@@ -102,6 +113,10 @@ export default function QAChatPanel({
   };
 
   const handleStatusChange = async (newStatus: 'open' | 'resolved' | 'closed') => {
+    if (demoMode) {
+      onSessionUpdated({ ...session, status: newStatus });
+      return;
+    }
     try {
       const updated = await qaApi.updateSession(session.id, { status: newStatus });
       onSessionUpdated({ ...session, status: updated.status });
@@ -112,6 +127,11 @@ export default function QAChatPanel({
 
   const handleSaveTitle = async () => {
     if (!newTitle.trim()) return;
+    if (demoMode) {
+      onSessionUpdated({ ...session, title: newTitle.trim() });
+      setIsEditingTitle(false);
+      return;
+    }
     try {
       const updated = await qaApi.updateSession(session.id, { title: newTitle.trim() });
       onSessionUpdated({ ...session, title: updated.title });
@@ -222,16 +242,16 @@ export default function QAChatPanel({
           )}
 
           {/* Nút chia sẻ phiên */}
-          <button
+          {!demoMode && <button
             onClick={() => setShowShareModal(true)}
             className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
           >
             <span className="material-symbols-outlined text-[16px]">share</span>
             Chia sẻ ({session.shares.length})
-          </button>
+          </button>}
 
           {/* Trạng thái phiên */}
-          {(isOwner || isTeacher) ? (
+          {!demoMode && ((isOwner || isTeacher) ? (
             <select
               value={session.status}
               onChange={(e) => handleStatusChange(e.target.value as any)}
@@ -257,7 +277,7 @@ export default function QAChatPanel({
                 ? 'Đã đóng'
                 : 'Đang trao đổi'}
             </span>
-          )}
+          ))}
         </div>
       </header>
 
@@ -282,7 +302,7 @@ export default function QAChatPanel({
                   }`}
                 >
                   <span className="material-symbols-outlined text-[16px]">crop_square</span>
-                  {isDrawing ? 'Đang vẽ vùng... (Bấm để huỷ)' : 'Đánh dấu vùng cần hỏi'}
+                  {isDrawing ? 'Đang vẽ vùng... (Bấm để huỷ)' : isTeacher ? 'Đánh dấu lại / giải đáp' : 'Đánh dấu vùng cần hỏi'}
                 </button>
               </div>
 
@@ -363,6 +383,25 @@ export default function QAChatPanel({
                       }`}
                     >
                       {/* Bounding box badge nếu có */}
+                      {demoMode && msg.bounding_box && session.image_url && (
+                        <button
+                          type="button"
+                          onClick={() => { setActiveHighlightBox(msg.bounding_box); setShowImagePanel(true); }}
+                          className="relative mb-2 block w-48 overflow-hidden rounded-lg border border-white/30"
+                          aria-label={`Xem ảnh có bounding box của ${msg.sender.full_name}`}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={session.image_url} alt="Ảnh kết quả AI đã đánh dấu" className="block w-full" />
+                          <span
+                            className="absolute border-2"
+                            style={{
+                              left: `${msg.bounding_box.x * 100}%`, top: `${msg.bounding_box.y * 100}%`,
+                              width: `${msg.bounding_box.width * 100}%`, height: `${msg.bounding_box.height * 100}%`,
+                              borderColor: isMsgTeacher ? '#10b981' : '#3b82f6',
+                            }}
+                          />
+                        </button>
+                      )}
                       {msg.bounding_box && (
                         <div
                           onClick={() => {
@@ -475,7 +514,7 @@ export default function QAChatPanel({
                       }`}
                     >
                       <span className="material-symbols-outlined text-[16px]">crop_free</span>
-                      {isDrawing ? 'Đang bật vẽ vùng' : 'Đánh dấu vùng hỏi'}
+                      {isDrawing ? 'Đang bật vẽ vùng' : isTeacher ? 'Đánh dấu lại trên ảnh' : 'Đánh dấu vùng hỏi'}
                     </button>
                   )}
                   <span className="text-[11px] text-gray-400 hidden sm:inline">

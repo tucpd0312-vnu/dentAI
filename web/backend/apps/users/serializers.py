@@ -2,6 +2,7 @@ import re
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.core.validators import validate_email
+from django.utils import timezone
 from .models import Notification, User, EmailOTP, Role, RoleRequest
 
 
@@ -42,7 +43,9 @@ class RegisterSerializer(serializers.Serializer):
     first_name = serializers.CharField(max_length=150, required=False, allow_blank=True, default="")
     last_name = serializers.CharField(max_length=150, required=False, allow_blank=True, default="")
     phone = serializers.CharField(max_length=20, required=False, allow_blank=True, default="")
+    birth_year = serializers.IntegerField(required=False, allow_null=True, default=None)
     organization = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")
+    lecturer_code = serializers.CharField(max_length=50, required=False, allow_blank=True, default="")
     note = serializers.CharField(required=False, allow_blank=True, default="")
 
     def validate_username(self, value):
@@ -68,13 +71,21 @@ class RegisterSerializer(serializers.Serializer):
                 raise serializers.ValidationError(
                     {"organization": "Vui lòng nhập đơn vị công tác khi đăng ký với vai trò bác sĩ."}
                 )
+        birth_year = data.get("birth_year")
+        current_year = timezone.localdate().year
+        if birth_year is not None and not current_year - 120 <= birth_year <= current_year:
+            raise serializers.ValidationError(
+                {"birth_year": f"Năm sinh phải từ {current_year - 120} đến {current_year}."}
+            )
         return data
 
     def create(self, validated_data):
         validated_data.pop("confirm_password")
         password = validated_data.pop("password")
         requested_role = validated_data.pop("requested_role", Role.PATIENT)
-        organization = validated_data.pop("organization", "")
+        organization = (validated_data.get("organization") or "").strip()
+        validated_data["organization"] = organization
+        validated_data["lecturer_code"] = (validated_data.get("lecturer_code") or "").strip()
         note = validated_data.pop("note", "")
 
         user = User.objects.create_user(
@@ -172,6 +183,7 @@ class UserSerializer(serializers.ModelSerializer):
     """
 
     full_name = serializers.CharField(read_only=True)
+    age = serializers.IntegerField(read_only=True)
     # Badge sidebar lấy từ đây thay vì gọi endpoint riêng: AuthProvider đã fetch
     # /auth/me/ một lần khi tải nên trường này miễn phí. Người không phải admin
     # luôn nhận 0.
@@ -202,14 +214,25 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "id", "username", "email", "first_name", "last_name", "full_name",
-            "role", "phone", "email_verified", "is_active",
+            "role", "phone", "birth_year", "age", "organization", "lecturer_code",
+            "email_verified", "is_active",
             "date_joined", "last_login",
             "pending_role_requests", "my_role_request",
         ]
         read_only_fields = [
-            "id", "username", "role", "email_verified", "is_active",
+            "id", "username", "role", "age", "email_verified", "is_active",
             "date_joined", "last_login",
         ]
+
+    def validate_birth_year(self, value):
+        if value is None:
+            return value
+        current_year = timezone.localdate().year
+        if not current_year - 120 <= value <= current_year:
+            raise serializers.ValidationError(
+                f"Năm sinh phải từ {current_year - 120} đến {current_year}."
+            )
+        return value
 
 
 class ChangePasswordSerializer(serializers.Serializer):

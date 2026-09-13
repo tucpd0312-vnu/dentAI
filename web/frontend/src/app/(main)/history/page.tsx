@@ -96,6 +96,7 @@ function rowCount(r: Row): { n: number; unit: string } {
 
 export default function HistoryPage() {
   const { loading: authLoading, role } = useAuth();
+  const usesPatientHistory = role === 'patient' || role === 'doctor';
 
   const [cases, setCases]           = useState<CaseListItem[]>([]);
   const [shared, setShared]         = useState<CaseListItem[]>([]);
@@ -231,7 +232,7 @@ export default function HistoryPage() {
       <div className="flex gap-1.5 border-b border-gray-200">
         {([
           { key: 'mine' as Tab, label: 'Ca của tôi', icon: 'folder', n: mineRows.length },
-          { key: 'shared' as Tab, label: role === 'patient' ? 'Lịch sử được chia sẻ' : 'Được chia sẻ với tôi', icon: 'share', n: sharedRows.length },
+          { key: 'shared' as Tab, label: usesPatientHistory ? 'Lịch sử được chia sẻ' : 'Được chia sẻ với tôi', icon: 'share', n: sharedRows.length },
         ]).map(t => (
           <button
             key={t.key}
@@ -409,7 +410,7 @@ export default function HistoryPage() {
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            {role === 'patient' && rowNormStatus(row) === 'done' ? (
+                            {usesPatientHistory && rowNormStatus(row) === 'done' ? (
                               <>
                                 <Link
                                   href="/telemedicine/"
@@ -497,7 +498,7 @@ export default function HistoryPage() {
         )}
       </div>
 
-      {role === 'patient' && (
+      {usesPatientHistory && (
         <section className="overflow-hidden rounded-xl border border-gray-200 bg-white">
           <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
             <h2 className="font-serif text-[15px] font-semibold text-gray-900">Lịch sử tư vấn online</h2>

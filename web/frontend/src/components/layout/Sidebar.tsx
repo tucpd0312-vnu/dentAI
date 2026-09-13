@@ -60,6 +60,7 @@ const NAV: NavEntry[] = [
     ],
   },
   { href: '/appointments', icon: 'calendar_month', label: 'Đặt hẹn', prefix: '/appointments', roles: ['patient'] },
+  { href: '/telemedicine/', icon: 'event_available', label: 'Lịch hẹn của tôi', prefix: '/telemedicine', roles: ['doctor'] },
   // Bệnh nhân không dùng Kho dữ liệu trong giao diện tích hợp.
   { href: '/library', icon: 'inventory_2', label: 'Kho dữ liệu', prefix: '/library', roles: ['admin', 'doctor', 'student'] },
   // Hỏi đáp và trao đổi giữa sinh viên và giảng viên
@@ -113,8 +114,12 @@ export default function Sidebar() {
     const displayLabel =
       href === '/dashboard' && role === 'patient'
         ? 'Hồ sơ bệnh nhân'
+        : href === '/chat' && role === 'doctor'
+          ? 'Hỏi đáp với sinh viên'
         : href === '/history' && role === 'patient'
           ? 'Lịch sử'
+          : href === '/history' && role === 'doctor'
+            ? 'Lịch sử'
           : label;
     const isActive = active(item);
     const badge = href === '/users' ? pendingRequests : 0;

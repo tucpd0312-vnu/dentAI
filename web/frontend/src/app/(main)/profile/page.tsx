@@ -11,8 +11,16 @@ const inputClass = 'w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
-  const { allowed, checking } = useRequireRole(['patient']);
-  const [profile, setProfile] = useState({ first_name: '', last_name: '', email: '', phone: '' });
+  const { allowed, checking } = useRequireRole(['patient', 'doctor']);
+  const [profile, setProfile] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    birth_year: null as number | null,
+    organization: '',
+    lecturer_code: '',
+  });
   const [saving, setSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -23,7 +31,15 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!user) return;
-    setProfile({ first_name: user.first_name, last_name: user.last_name, email: user.email, phone: user.phone });
+    setProfile({
+      first_name: user.first_name,
+      last_name: user.last_name,
+      email: user.email,
+      phone: user.phone,
+      birth_year: user.birth_year,
+      organization: user.organization,
+      lecturer_code: user.lecturer_code,
+    });
   }, [user]);
 
   async function saveProfile(event: React.FormEvent) {
@@ -70,7 +86,11 @@ export default function ProfilePage() {
     <div className="mx-auto max-w-4xl space-y-5">
       <div>
         <h1 className="font-serif text-xl font-semibold text-gray-900">Hồ sơ cá nhân</h1>
-        <p className="mt-1 text-sm text-gray-500">Thông tin này sẽ được dùng khi kết nối và đặt hẹn với Telemedicine.</p>
+        <p className="mt-1 text-sm text-gray-500">
+          {user.role === 'doctor'
+            ? 'Cập nhật thông tin hiển thị trên hồ sơ Bác sĩ (Giảng viên).'
+            : 'Thông tin này sẽ được dùng khi kết nối và đặt hẹn với Telemedicine.'}
+        </p>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
@@ -91,6 +111,29 @@ export default function ProfilePage() {
             <label className="block text-xs font-medium text-gray-600">Số điện thoại
               <input value={profile.phone} onChange={e => setProfile(value => ({ ...value, phone: e.target.value }))} className={`${inputClass} mt-1.5`} placeholder="Ví dụ: 0901234567" />
             </label>
+            {user.role === 'doctor' && (
+              <>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="text-xs font-medium text-gray-600">Năm sinh
+                    <input
+                      type="number"
+                      min={new Date().getFullYear() - 120}
+                      max={new Date().getFullYear()}
+                      value={profile.birth_year ?? ''}
+                      onChange={e => setProfile(value => ({ ...value, birth_year: e.target.value ? Number(e.target.value) : null }))}
+                      className={`${inputClass} mt-1.5`}
+                      placeholder="Ví dụ: 1985"
+                    />
+                  </label>
+                  <label className="text-xs font-medium text-gray-600">Mã giảng viên
+                    <input value={profile.lecturer_code} onChange={e => setProfile(value => ({ ...value, lecturer_code: e.target.value }))} className={`${inputClass} mt-1.5`} placeholder="Ví dụ: GV001" />
+                  </label>
+                </div>
+                <label className="block text-xs font-medium text-gray-600">Đơn vị công tác
+                  <input value={profile.organization} onChange={e => setProfile(value => ({ ...value, organization: e.target.value }))} className={`${inputClass} mt-1.5`} placeholder="Khoa / Bộ môn / Trường" />
+                </label>
+              </>
+            )}
             <label className="block text-xs font-medium text-gray-600">Tên đăng nhập
               <input value={user.username} readOnly className={`${inputClass} mt-1.5 bg-gray-50 text-gray-500`} />
             </label>
@@ -106,7 +149,7 @@ export default function ProfilePage() {
           <section className="rounded-xl border border-gray-200 bg-white p-5">
             <div className="flex items-center gap-3">
               <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">{(user.full_name || user.username).slice(0, 2).toUpperCase()}</span>
-              <div><p className="font-medium text-gray-900">{user.full_name || user.username}</p><p className="text-xs text-gray-500">Bệnh nhân · @{user.username}</p></div>
+              <div><p className="font-medium text-gray-900">{user.full_name || user.username}</p><p className="text-xs text-gray-500">{user.role === 'doctor' ? 'Bác sĩ (Giảng viên)' : 'Bệnh nhân'} · @{user.username}</p></div>
             </div>
             <div className="mt-4 flex items-center gap-2 rounded-lg bg-primary-50 px-3 py-2 text-xs text-primary">
               <span className="material-symbols-outlined text-[17px]">verified</span>{user.email_verified ? 'Email đã xác thực' : 'Email chưa xác thực'}

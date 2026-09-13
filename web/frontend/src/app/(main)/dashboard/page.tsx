@@ -21,6 +21,7 @@ import {
   type AssignmentWorkbook,
 } from '@/lib/reception';
 import PatientDashboard from '@/components/patient/PatientDashboard';
+import DoctorDashboard from '@/components/doctor/DoctorDashboard';
 
 const MGI_LEVELS = ['0', '1', '2', '3', '4'];
 
@@ -575,6 +576,7 @@ export default function DashboardPage() {
     if (user?.role === 'patient') {
       return <PatientDashboard user={user} data={EMPTY_PATIENT_DASHBOARD} />;
     }
+    if (user?.role === 'doctor') return <DoctorDashboard user={user} />;
     return (
       <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
         <span className="material-symbols-outlined text-[18px]">error</span>
@@ -595,6 +597,10 @@ export default function DashboardPage() {
 
   if (data.scope === 'receptionist') {
     return <ReceptionistDashboard user={user} />;
+  }
+
+  if (data.scope === 'doctor') {
+    return user ? <DoctorDashboard user={user} /> : null;
   }
 
   if (data.scope === 'patient') {

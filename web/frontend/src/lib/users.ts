@@ -12,6 +12,10 @@ export interface AdminUser {
   full_name: string;
   role: Role;
   phone: string;
+  birth_year: number | null;
+  age: number | null;
+  organization: string;
+  lecturer_code: string;
   is_active: boolean;
   is_deleted: boolean;
   email_verified: boolean;
@@ -45,6 +49,9 @@ export interface CreateUserPayload {
   first_name?: string;
   last_name?: string;
   phone?: string;
+  birth_year?: number | null;
+  organization?: string;
+  lecturer_code?: string;
 }
 
 /** Kết quả autocomplete — email luôn ở dạng che một phần. */

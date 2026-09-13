@@ -64,7 +64,9 @@ export default function RegisterPage() {
     lastName: '',
     firstName: '',
     phone: '',
+    age: '',
     organization: '',
+    lecturerCode: '',
     note: '',
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -97,7 +99,9 @@ export default function RegisterPage() {
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         phone: form.phone.trim(),
+        birthYear: form.age ? new Date().getFullYear() - Number(form.age) : null,
         organization: form.organization.trim(),
+        lecturerCode: form.lecturerCode.trim(),
         note: form.note.trim(),
       });
       router.push(`/verify-otp/?email=${encodeURIComponent(res.email)}`);
@@ -119,7 +123,14 @@ export default function RegisterPage() {
     form.email.trim() &&
     form.password &&
     form.confirmPassword &&
-    (!isDoctor || (form.lastName.trim() && form.firstName.trim() && form.organization.trim())) &&
+    (!isDoctor || (
+      form.lastName.trim() &&
+      form.firstName.trim() &&
+      Number(form.age) >= 18 &&
+      Number(form.age) <= 120 &&
+      form.organization.trim() &&
+      form.lecturerCode.trim()
+    )) &&
     !submitting;
 
   return (
@@ -222,7 +233,7 @@ export default function RegisterPage() {
                   disabled={submitting}
                   className={inputCls}
                 />
-              </div>
+            </div>
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-gray-600">Tên *</label>
                 <input
@@ -250,6 +261,35 @@ export default function RegisterPage() {
                 disabled={submitting}
                 className={inputCls}
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-gray-600">Tuổi *</label>
+                <input
+                  type="number"
+                  min={18}
+                  max={120}
+                  value={form.age}
+                  onChange={e => update('age', e.target.value)}
+                  placeholder="Ví dụ: 40"
+                  required
+                  disabled={submitting}
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-gray-600">Mã giảng viên *</label>
+                <input
+                  type="text"
+                  value={form.lecturerCode}
+                  onChange={e => update('lecturerCode', e.target.value)}
+                  placeholder="Ví dụ: GV001"
+                  required
+                  disabled={submitting}
+                  className={inputCls}
+                />
+              </div>
             </div>
 
             <div>

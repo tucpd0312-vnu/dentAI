@@ -26,13 +26,15 @@ class AdminUserSerializer(serializers.ModelSerializer):
     """Đọc + sửa user (admin). `role` và `is_active` ghi được ở đây."""
 
     full_name = serializers.CharField(read_only=True)
+    age = serializers.IntegerField(read_only=True)
     case_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = User
         fields = [
             "id", "username", "email", "first_name", "last_name", "full_name",
-            "role", "phone", "is_active", "is_deleted", "email_verified",
+            "role", "phone", "birth_year", "age", "organization", "lecturer_code",
+            "is_active", "is_deleted", "email_verified",
             "date_joined", "last_login", "deleted_at", "case_count",
         ]
         read_only_fields = [
@@ -52,7 +54,8 @@ class AdminUserCreateSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "id", "username", "email", "password",
-            "first_name", "last_name", "role", "phone",
+            "first_name", "last_name", "role", "phone", "birth_year",
+            "organization", "lecturer_code",
         ]
 
     def validate_username(self, value):

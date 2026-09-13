@@ -19,6 +19,10 @@ class User(AbstractUser):
         max_length=20, choices=Role.choices, default=Role.PATIENT
     )
     phone = models.CharField(max_length=20, blank=True)
+    # Lưu năm sinh thay vì tuổi để thông tin hồ sơ không sai lệch theo thời gian.
+    birth_year = models.PositiveSmallIntegerField(null=True, blank=True)
+    organization = models.CharField(max_length=255, blank=True)
+    lecturer_code = models.CharField(max_length=50, blank=True)
     email_verified = models.BooleanField(default=False)
     # Soft delete — giữ vết cho case/feedback/log đã tạo.
     # default manager `objects` KHÔNG lọc is_deleted (đổi default manager của
@@ -39,6 +43,12 @@ class User(AbstractUser):
     @property
     def full_name(self) -> str:
         return self.get_full_name() or self.username
+
+    @property
+    def age(self) -> int | None:
+        if self.birth_year is None:
+            return None
+        return timezone.localdate().year - self.birth_year
 
     def can_edit_labels(self) -> bool:
         """Chỉ bác sĩ và admin được sửa nhãn (nhãn sửa sẽ feed vào FALC)."""
@@ -329,7 +339,14 @@ class RoleRequest(models.Model):
     def approve(self, reviewer, note=""):
         """Cấp vai trò đã xin cho người dùng."""
         self.user.role = self.requested_role
-        self.user.save(update_fields=["role", "is_staff"])
+        # Đơn vị đã được xác minh trong yêu cầu cấp quyền cũng chính là đơn vị
+        # hiển thị trên hồ sơ giảng viên. Chỉ điền khi hồ sơ chưa có giá trị để
+        # không ghi đè một cập nhật mới hơn của người dùng/quản trị viên.
+        update_fields = ["role", "is_staff"]
+        if self.requested_role == Role.DOCTOR and not self.user.organization:
+            self.user.organization = self.organization
+            update_fields.append("organization")
+        self.user.save(update_fields=update_fields)
         self.status = self.Status.APPROVED
         self.reviewed_by = reviewer
         self.review_note = note

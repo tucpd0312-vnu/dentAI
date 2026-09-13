@@ -82,16 +82,10 @@ class DashboardScopeTests(TestCase):
         client.force_authenticate(user=user)
         return client.get("/api/dashboard/")
 
-    def test_doctor_module_statistics_follow_access_scope(self):
+    def test_doctor_dashboard_only_returns_profile_scope(self):
         response = self.get_dashboard(self.doctor)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["cases"]["total"], 2)
-        self.assertEqual(response.data["scans"]["total"], 2)
-        self.assertEqual(response.data["scans"]["by_status"]["ready"], 1)
-        self.assertEqual(response.data["scans"]["shared_with_me"], 1)
-        self.assertEqual(response.data["library"]["total"], 2)
-        self.assertEqual(response.data["library"]["by_status"]["processing"], 1)
-        self.assertEqual(response.data["library"]["shared_with_me"], 1)
+        self.assertEqual(response.data, {"scope": "doctor"})
 
     def test_patient_dashboard_only_returns_diagnosis_data(self):
         Case.objects.create(patient=self.patient, created_by=self.patient_user)
