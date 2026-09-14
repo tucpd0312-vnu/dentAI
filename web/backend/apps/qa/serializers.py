@@ -79,44 +79,6 @@ class QASessionListSerializer(serializers.ModelSerializer):
             "shared_with_count",
         ]
 
-    def validate(self, data):
-        """Kiểm tra quyền hạn truy cập case/image khi tạo phiên hỏi đáp."""
-        request = self.context.get("request")
-        user = request.user if request else None
-        
-        if not user:
-            return data
-        
-        # Kiểm tra case
-        case = data.get("case")
-        if case:
-            try:
-                from apps.cases.access import scoped_cases
-                allowed_cases = scoped_cases(user)
-                if not allowed_cases.filter(pk=case.pk).exists():
-                    raise serializers.ValidationError(
-                        {"case": "Bạn không có quyền truy cập ca chẩn đoán này."}
-                    )
-            except ImportError:
-                # Nếu import không được, bỏ qua check
-                pass
-        
-        # Kiểm tra image (nếu được cấp ID)
-        image = data.get("image")
-        if image:
-            try:
-                from apps.cases.access import scoped_images
-                allowed_images = scoped_images(user)
-                if not allowed_images.filter(pk=image.pk).exists():
-                    raise serializers.ValidationError(
-                        {"image": "Bạn không có quyền truy cập ảnh này."}
-                    )
-            except ImportError:
-                # Nếu import không được, bỏ qua check
-                pass
-        
-        return data
-
     def get_latest_message(self, obj):
         latest = obj.messages.order_by("-created_at").first()
         if not latest:
@@ -158,6 +120,44 @@ class QASessionDetailSerializer(serializers.ModelSerializer):
             "shares",
             "is_owner",
         ]
+
+    def validate(self, data):
+        """Kiểm tra quyền hạn truy cập case/image khi tạo phiên hỏi đáp."""
+        request = self.context.get("request")
+        user = request.user if request else None
+
+        if not user:
+            return data
+
+        # Kiểm tra case
+        case = data.get("case")
+        if case:
+            try:
+                from apps.cases.access import scoped_cases
+                allowed_cases = scoped_cases(user)
+                if not allowed_cases.filter(pk=case.pk).exists():
+                    raise serializers.ValidationError(
+                        {"case": "Bạn không có quyền truy cập ca chẩn đoán này."}
+                    )
+            except ImportError:
+                # Nếu import không được, bỏ qua check
+                pass
+
+        # Kiểm tra image (nếu được cấp ID)
+        image = data.get("image")
+        if image:
+            try:
+                from apps.cases.access import scoped_images
+                allowed_images = scoped_images(user)
+                if not allowed_images.filter(pk=image.pk).exists():
+                    raise serializers.ValidationError(
+                        {"image": "Bạn không có quyền truy cập ảnh này."}
+                    )
+            except ImportError:
+                # Nếu import không được, bỏ qua check
+                pass
+
+        return data
 
     def get_is_owner(self, obj):
         request = self.context.get("request")

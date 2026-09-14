@@ -43,7 +43,14 @@ const inputCls =
 export default function LibraryPage() {
   // Không dùng useRequireRole: kho dữ liệu mở cho MỌI vai trò (§B.4) — phạm vi dữ liệu
   // đã bị backend giới hạn theo `scoped_assets`, không cần chặn ở route.
-  const { canViewAllLibrary, canEditLabels, isDoctor, loading: authLoading } = useAuth();
+  const {
+    isAdmin,
+    isDoctor,
+    isStudent,
+    canEditLabels,
+    canViewAllLibrary,
+    loading: authLoading,
+  } = useAuth();
   const [editableOnly, setEditableOnly] = useState(false);
 
   const [rows, setRows] = useState<DataAsset[]>([]);
@@ -163,7 +170,9 @@ export default function LibraryPage() {
     <div className="mx-auto max-w-6xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-serif text-xl font-semibold text-gray-900">Kho dữ liệu</h1>
+          <h1 className="font-serif text-xl font-semibold text-gray-900">
+            {isStudent ? 'Kho dữ liệu của tôi' : 'Kho dữ liệu'}
+          </h1>
           <p className="mt-0.5 text-sm text-gray-500">
             {loading ? 'Đang tải…' : `${count} mục dữ liệu`}
             {canViewAllLibrary

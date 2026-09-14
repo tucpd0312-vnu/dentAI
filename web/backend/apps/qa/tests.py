@@ -49,6 +49,7 @@ class QASystemTests(APITestCase):
                 "label": "Răng 21",
             },
             "box_comment": "Vùng lợi sưng đỏ quanh chân răng 21",
+            "share_with_user_ids": [self.doctor.id],
         }
         res = self.client.post("/api/qa/sessions/", payload, format="json")
         self.assertEqual(res.status_code, 201)
@@ -58,6 +59,9 @@ class QASystemTests(APITestCase):
         self.assertEqual(session.title, "Hỏi về vùng răng 21 bị viêm nặng")
         self.assertEqual(session.created_by, self.student)
         self.assertEqual(session.messages.count(), 1)
+        self.assertTrue(
+            QASessionShare.objects.filter(session=session, shared_with=self.doctor).exists()
+        )
 
         msg = session.messages.first()
         self.assertEqual(msg.sender, self.student)
@@ -75,6 +79,11 @@ class QASystemTests(APITestCase):
             session=session,
             sender=self.student,
             content="Xin ý kiến thầy về răng 11",
+        )
+        QASessionShare.objects.create(
+            session=session,
+            shared_with=self.doctor,
+            shared_by=self.student,
         )
 
         # Doctor replies
@@ -98,6 +107,34 @@ class QASystemTests(APITestCase):
         self.assertEqual(res_update.status_code, 200)
         session.refresh_from_db()
         self.assertEqual(session.status, "resolved")
+
+    def test_student_must_select_at_least_one_teacher(self):
+        self.client.force_authenticate(user=self.student)
+        res = self.client.post(
+            "/api/qa/sessions/",
+            {"title": "Câu hỏi chưa chọn giảng viên", "initial_content": "Nhờ giải đáp ạ"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("share_with_user_ids", res.data)
+
+    def test_unselected_doctor_cannot_read_student_session(self):
+        other_doctor = User.objects.create_user(
+            username="doctor_other",
+            email="doctor_other@example.com",
+            password="Password123!",
+            role=Role.DOCTOR,
+        )
+        session = QASession.objects.create(title="Hỏi riêng giảng viên", created_by=self.student)
+        QASessionShare.objects.create(
+            session=session,
+            shared_with=self.doctor,
+            shared_by=self.student,
+        )
+
+        self.client.force_authenticate(user=other_doctor)
+        res = self.client.get(f"/api/qa/sessions/{session.id}/")
+        self.assertEqual(res.status_code, 404)
 
     def test_sharing_qa_session_with_another_student(self):
         session = QASession.objects.create(
@@ -145,7 +182,6 @@ class QASystemTests(APITestCase):
         )
         case = Case.objects.create(
             patient=patient,
-            diagnosis="Viêm nươu",
             created_by=other_doctor,
         )
 
@@ -156,6 +192,7 @@ class QASystemTests(APITestCase):
             "image_url": "/media/cases/1/annotated_0.jpg",
             "case": case.id,  # Sinh viên cố tạo session với case không được phép truy cập
             "initial_content": "Thưa thầy...",
+            "share_with_user_ids": [self.doctor.id],
         }
         res = self.client.post("/api/qa/sessions/", payload, format="json")
         # Nên nhận lỗi 400 validation error

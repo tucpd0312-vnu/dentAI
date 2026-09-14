@@ -13,6 +13,8 @@ interface Props {
   currentUser: { id: number; username: string; full_name: string; role: Role } | null;
   onSessionUpdated: (updated: QASessionDetail) => void;
   onDeleteSession?: (id: number) => void;
+  embedded?: boolean;
+  /** Phiên minh hoạ chỉ cập nhật state tại trình duyệt, không gọi API. */
   demoMode?: boolean;
 }
 
@@ -21,6 +23,7 @@ export default function QAChatPanel({
   currentUser,
   onSessionUpdated,
   onDeleteSession,
+  embedded = false,
   demoMode = false,
 }: Props) {
   const [content, setContent] = useState('');
@@ -29,7 +32,7 @@ export default function QAChatPanel({
   const [boxComment, setBoxComment] = useState('');
   const [activeHighlightBox, setActiveHighlightBox] = useState<BoundingBox | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [showImagePanel, setShowImagePanel] = useState(Boolean(session.image_url));
+  const [showImagePanel, setShowImagePanel] = useState(Boolean(session.image_url) && !embedded);
   const [sending, setSending] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [newTitle, setNewTitle] = useState(session.title);
@@ -46,12 +49,12 @@ export default function QAChatPanel({
   // Cập nhật title khi session đổi
   useEffect(() => {
     setNewTitle(session.title);
-    setShowImagePanel(Boolean(session.image_url));
+    setShowImagePanel(Boolean(session.image_url) && !embedded);
     setCurrentBox(null);
     setBoxComment('');
     setIsDrawing(false);
     setActiveHighlightBox(null);
-  }, [session.id, session.title, session.image_url]);
+  }, [embedded, session.id, session.title, session.image_url]);
 
   // Danh sách các bounding boxes từ tất cả tin nhắn
   const existingBoxes = session.messages
@@ -70,20 +73,35 @@ export default function QAChatPanel({
 
     setSending(true);
     try {
-      const payload = {
+      if (demoMode) {
+        const now = new Date().toISOString();
+        const newMsg: QAMessage = {
+          id: Date.now(),
+          session: session.id,
+          sender: {
+            id: currentUser?.id || 9000,
+            username: currentUser?.username || 'sinhvien.demo',
+            email: '',
+            full_name: currentUser?.full_name || 'Sinh viên minh hoạ',
+            role: currentUser?.role || 'student',
+          },
+          content: content.trim(),
+          bounding_box: currentBox,
+          box_comment: boxComment.trim(),
+          created_at: now,
+        };
+        onSessionUpdated({ ...session, messages: [...session.messages, newMsg], updated_at: now });
+        setContent('');
+        setCurrentBox(null);
+        setBoxComment('');
+        setIsDrawing(false);
+        return;
+      }
+      const newMsg = await qaApi.sendMessage(session.id, {
         content: content.trim(),
         bounding_box: currentBox,
         box_comment: boxComment.trim() || undefined,
-      };
-      const newMsg: QAMessage = demoMode && currentUser ? {
-        id: Date.now(),
-        session: session.id,
-        sender: { ...currentUser, email: '' },
-        content: payload.content,
-        bounding_box: payload.bounding_box,
-        box_comment: payload.box_comment || '',
-        created_at: new Date().toISOString(),
-      } : await qaApi.sendMessage(session.id, payload);
+      });
 
       // Cập nhật state session với tin nhắn mới
       const updatedSession: QASessionDetail = {

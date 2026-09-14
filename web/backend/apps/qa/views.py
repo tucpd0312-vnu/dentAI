@@ -1,9 +1,7 @@
-import logging
-
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
-from rest_framework import status, viewsets
+from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
@@ -18,9 +16,8 @@ from .serializers import (
     QASessionDetailSerializer,
     QASessionListSerializer,
     QASessionShareSerializer,
+    UserMiniSerializer,
 )
-
-logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -31,7 +28,7 @@ class QASessionViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_serializer_class(self):
-        if self.action in ["retrieve", "update", "partial_update"]:
+        if self.action in ["create", "retrieve", "update", "partial_update"]:
             return QASessionDetailSerializer
         return QASessionListSerializer
 
@@ -41,16 +38,23 @@ class QASessionViewSet(viewsets.ModelViewSet):
             "messages", "shares", "shares__shared_with"
         )
 
-        is_staff_or_doctor = user.role in [Role.ADMIN, Role.DOCTOR]
+        is_admin = user.role == Role.ADMIN
+        is_doctor = user.role == Role.DOCTOR
 
         if self.action != "list":
-            if is_staff_or_doctor:
+            if is_admin:
                 return qs
+            if is_doctor:
+                # Phiên cũ chưa có người nhận cụ thể vẫn giữ khả năng hỗ trợ như
+                # trước; phiên mới đã có share thì chỉ giảng viên được chọn thấy.
+                return qs.filter(
+                    Q(created_by=user) | Q(shares__shared_with=user) | Q(shares__isnull=True)
+                ).distinct()
             return qs.filter(Q(created_by=user) | Q(shares__shared_with=user)).distinct()
 
         scope = self.request.query_params.get("scope", "all")
 
-        if is_staff_or_doctor:
+        if is_admin:
             if scope == "mine":
                 qs = qs.filter(created_by=user)
             elif scope == "shared":
@@ -60,7 +64,22 @@ class QASessionViewSet(viewsets.ModelViewSet):
                 qs = qs.filter(status=QASession.Status.OPEN).exclude(
                     messages__sender__role__in=[Role.DOCTOR, Role.ADMIN]
                 )
-            # scope == "all": Giảng viên/bác sĩ xem được tất cả các phiên hỏi đáp để hỗ trợ
+            # scope == "all": quản trị viên xem được toàn bộ phiên hỏi đáp.
+        elif is_doctor:
+            # Giảng viên chỉ thấy các phiên được sinh viên chọn/chia sẻ cho mình.
+            # Việc này làm cho bước "chọn giảng viên" có ý nghĩa về cả thông báo
+            # lẫn quyền truy cập, thay vì mọi giảng viên đều đọc được mọi câu hỏi.
+            qs = qs.filter(
+                Q(created_by=user) | Q(shares__shared_with=user) | Q(shares__isnull=True)
+            )
+            if scope == "mine":
+                qs = qs.filter(created_by=user)
+            elif scope == "shared":
+                qs = qs.filter(shares__shared_with=user)
+            elif scope == "unanswered":
+                qs = qs.filter(status=QASession.Status.OPEN).exclude(
+                    messages__sender__role__in=[Role.DOCTOR, Role.ADMIN]
+                )
         else:
             # Sinh viên / Bệnh nhân chỉ xem các phiên của mình hoặc được chia sẻ cho mình
             if scope == "shared":
@@ -90,7 +109,9 @@ class QASessionViewSet(viewsets.ModelViewSet):
 
     def check_object_access(self, session: QASession):
         user = self.request.user
-        if user.role in [Role.ADMIN, Role.DOCTOR]:
+        if user.role == Role.ADMIN:
+            return True
+        if user.role == Role.DOCTOR and not session.shares.exists():
             return True
         if session.created_by_id == user.id:
             return True
@@ -100,6 +121,33 @@ class QASessionViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = self.request.user
+        shared_user_ids = self.request.data.get("share_with_user_ids", [])
+        if not isinstance(shared_user_ids, list):
+            raise serializers.ValidationError({
+                "share_with_user_ids": "Danh sách giảng viên không hợp lệ."
+            })
+
+        # Sinh viên phải chủ động chọn ít nhất một giảng viên trước khi mở phiên.
+        # Chỉ nhận tài khoản bác sĩ/giảng viên còn hoạt động; không âm thầm bỏ qua ID
+        # sai vì như vậy câu hỏi có thể được tạo mà không có người nhận.
+        selected_teachers = []
+        if user.role == Role.STUDENT:
+            unique_ids = list(dict.fromkeys(shared_user_ids))
+            selected_teachers = list(User.objects.filter(
+                pk__in=unique_ids,
+                role=Role.DOCTOR,
+                is_active=True,
+                is_deleted=False,
+            ))
+            if not unique_ids:
+                raise serializers.ValidationError({
+                    "share_with_user_ids": "Vui lòng chọn ít nhất một giảng viên trước khi đặt câu hỏi."
+                })
+            if len(selected_teachers) != len(unique_ids):
+                raise serializers.ValidationError({
+                    "share_with_user_ids": "Danh sách chỉ được gồm các giảng viên đang hoạt động."
+                })
+
         session = serializer.save(created_by=user)
 
         # Tạo tin nhắn đầu tiên nếu client gửi kèm
@@ -108,20 +156,15 @@ class QASessionViewSet(viewsets.ModelViewSet):
         box_comment = self.request.data.get("box_comment", "")
 
         if initial_content:
-            try:
-                QAMessage.objects.create(
-                    session=session,
-                    sender=user,
-                    content=initial_content,
-                    bounding_box=bounding_box,
-                    box_comment=box_comment,
-                )
-            except Exception as e:
-                # Log lỗi nhưng không làm hỏng phiên hỏi đáp
-                logger.exception("Lỗi khi tạo tin nhắn đầu tiên cho session %s", session.pk)
+            QAMessage.objects.create(
+                session=session,
+                sender=user,
+                content=initial_content,
+                bounding_box=bounding_box,
+                box_comment=box_comment,
+            )
 
         # Xử lý chia sẻ ngay khi tạo nếu có
-        shared_user_ids = self.request.data.get("share_with_user_ids", [])
         if isinstance(shared_user_ids, list) and shared_user_ids:
             for uid in shared_user_ids:
                 try:
@@ -132,32 +175,38 @@ class QASessionViewSet(viewsets.ModelViewSet):
                             shared_with=target,
                             defaults={"shared_by": user},
                         )
-                        notify_user(
-                            target,
-                            kind=Notification.Kind.SHARE,
-                            level=Notification.Level.INFO,
-                            title=f"{user.full_name} đã chia sẻ một phiên hỏi đáp",
-                            message=f"Phiên: {session.title}",
-                            link=f"/chat?session={session.pk}",
-                        )
+                        if user.role != Role.STUDENT:
+                            notify_user(
+                                target,
+                                kind=Notification.Kind.SHARE,
+                                level=Notification.Level.INFO,
+                                title=f"{user.full_name} đã chia sẻ một phiên hỏi đáp",
+                                message=f"Phiên: {session.title}",
+                                link=f"/chat?session={session.pk}",
+                            )
                 except User.DoesNotExist:
                     pass
 
-        # Nếu sinh viên đặt câu hỏi, gửi thông báo cho các bác sĩ/giảng viên hệ thống
+        # Chỉ thông báo cho đúng các giảng viên mà sinh viên đã chọn.
         if user.role == Role.STUDENT:
-            try:
-                doctors = User.objects.filter(role=Role.DOCTOR, is_active=True, is_deleted=False)[:10]
-                notify_users(
-                    doctors,
-                    kind=Notification.Kind.SYSTEM,
-                    level=Notification.Level.INFO,
-                    title=f"Sinh viên {user.full_name} đặt câu hỏi mới",
-                    message=f"Chủ đề: {session.title}",
-                    link=f"/chat?session={session.pk}",
-                )
-            except Exception as e:
-                # Log lỗi nhưng không làm hỏng phiên hỏi đáp
-                logger.exception("Lỗi khi gửi thông báo cho bác sĩ về phiên %s", session.pk)
+            notify_users(
+                selected_teachers,
+                kind=Notification.Kind.SYSTEM,
+                level=Notification.Level.INFO,
+                title=f"Sinh viên {user.full_name} đặt câu hỏi mới",
+                message=f"Chủ đề: {session.title}",
+                link=f"/chat?session={session.pk}",
+            )
+
+    @action(detail=False, methods=["get"], url_path="teachers")
+    def teachers(self, request):
+        """Danh sách giảng viên để sinh viên chọn trước khi đặt câu hỏi."""
+        teachers = User.objects.filter(
+            role=Role.DOCTOR,
+            is_active=True,
+            is_deleted=False,
+        ).order_by("first_name", "last_name", "username")
+        return Response(UserMiniSerializer(teachers, many=True).data)
 
     def update(self, request, *args, **kwargs):
         session = self.get_object()

@@ -8,11 +8,11 @@ Tài liệu này mô tả chi tiết kiến trúc, các file thay đổi, cấu 
 
 Sau khi sử dụng tính năng AI hỗ trợ chẩn đoán hình ảnh (ví dụ: phát hiện viêm lợi, viền răng, mảng bám):
 1. **Sinh viên** xem ảnh kết quả AI, bấm nút **"Hỏi giảng viên"** trên thanh công cụ.
-2. Hệ thống chuyển tới màn hình **Hỏi đáp & Trao đổi** (`/chat`), tải sẵn ảnh kết quả ca bệnh.
-3. Sinh viên có thể dùng chuột **kéo thả vẽ Bounding Box** lên vùng răng / lợi cụ thể cần hỏi, nhập **ghi chú cho vùng** và nội dung câu hỏi.
-4. **Lưu trữ Persistent (giống Zalo / Messenger)**: Mọi câu hỏi, phản hồi và tọa độ vùng đánh dấu được lưu trữ vĩnh viễn trong cơ sở dữ liệu PostgreSQL. Khi chuyển trang, ẩn giao diện hoặc tải lại đều không bị mất.
-5. **Chia phiên thảo luận (giống ChatGPT / Claude)**: Mỗi ca bệnh hoặc mỗi vấn đề có thể chia thành các phiên riêng biệt với tiêu đề, trạng thái (*Đang mở*, *Đã giải đáp*, *Đã đóng*).
-6. **Chia sẻ phiên (Collaboration)**: Sinh viên hoặc giảng viên có thể chia sẻ phiên hỏi đáp cho các sinh viên hoặc giảng viên khác để cùng tham gia thảo luận nhóm.
+2. Hệ thống mở mục **Hỏi đáp giảng viên ngay trên màn hình kết quả**; nút này cũng dùng để ẩn/hiện khung hỏi đáp.
+3. Sinh viên chọn **một hoặc nhiều giảng viên**, nhập câu hỏi rồi gửi. Chỉ các giảng viên được chọn nhận thông báo và truy cập phiên mới.
+4. Sau khi tạo phiên, sinh viên có thể dùng chuột **kéo thả vẽ Bounding Box** lên vùng răng / lợi cụ thể cần hỏi, nhập **ghi chú cho vùng** và nội dung câu hỏi tiếp theo.
+5. **Lưu trữ Persistent (giống Zalo / Messenger)**: Mọi câu hỏi, phản hồi và tọa độ vùng đánh dấu được lưu trữ vĩnh viễn trong cơ sở dữ liệu PostgreSQL. Khi chuyển trang, ẩn giao diện hoặc tải lại đều không bị mất.
+6. **Chia phiên thảo luận (giống ChatGPT / Claude)**: Mỗi ca bệnh hoặc mỗi vấn đề có thể chia thành các phiên riêng biệt với tiêu đề, trạng thái (*Đang mở*, *Đã giải đáp*, *Đã đóng*).
 7. **Phản hồi từ Giảng viên (người thật)**: Giảng viên nhận thông báo, mở phiên để xem trực quan vùng sinh viên đã khoanh vùng và gửi phản hồi hướng dẫn chuyên môn.
 
 ---
@@ -94,6 +94,7 @@ sequenceDiagram
     autonumber
     actor SinhVien as Sinh viên (Student)
     participant ResultsPage as Trang Kết Quả AI (page.tsx)
+    participant InlineQA as Hỏi đáp trên trang Kết quả
     participant ChatPage as Trang Hỏi Đáp (chat/page.tsx)
     participant Annotator as InteractiveImageAnnotator
     participant BackendAPI as Backend QA API (views.py)
@@ -102,12 +103,13 @@ sequenceDiagram
 
     SinhVien->>ResultsPage: Xem kết quả chẩn đoán viêm lợi AI
     SinhVien->>ResultsPage: Bấm nút "Hỏi giảng viên"
-    ResultsPage->>ChatPage: Điều hướng sang /chat?caseId=...&imageUrl=...
-    ChatPage->>Annotator: Hiển thị ảnh ca bệnh
+    ResultsPage->>InlineQA: Mở khung hỏi đáp tại chỗ
+    SinhVien->>InlineQA: Chọn một hoặc nhiều giảng viên
+    InlineQA->>Annotator: Hiển thị ảnh ca bệnh khi cần đánh dấu
     SinhVien->>Annotator: Kéo thả chuột khoanh vùng viền lợi răng 21
-    Annotator-->>ChatPage: Trả về tọa độ Bounding Box {x, y, width, height}
-    SinhVien->>ChatPage: Nhập câu hỏi & bấm "Gửi câu hỏi"
-    ChatPage->>BackendAPI: POST /api/qa/sessions/{id}/messages/
+    Annotator-->>InlineQA: Trả về tọa độ Bounding Box {x, y, width, height}
+    SinhVien->>InlineQA: Nhập câu hỏi & bấm "Gửi câu hỏi"
+    InlineQA->>BackendAPI: POST /api/qa/sessions/ kèm danh sách giảng viên
     BackendAPI->>DB: Lưu QAMessage (text + bounding_box + comment)
     BackendAPI->>DB: Tạo Notification gửi tới Giảng viên
     GiangVien->>ChatPage: Mở phiên hỏi đáp từ thông báo
@@ -125,7 +127,8 @@ sequenceDiagram
 1. **Sinh viên đặt câu hỏi từ ảnh chẩn đoán**:
    - Vào mục **AI hỗ trợ chẩn đoán lâm sàng** → **Chẩn đoán viêm lợi** (hoặc mở một ca bất kỳ).
    - Trên thanh công cụ, nhấn **"Hỏi giảng viên"**.
-   - Nhập tiêu đề hoặc câu hỏi ban đầu để mở phiên.
+   - Khung hỏi đáp mở ngay bên dưới thanh công cụ của màn kết quả.
+   - Chọn một hoặc nhiều giảng viên, nhập câu hỏi ban đầu và gửi.
    - Nhấn nút **"Đánh dấu vùng hỏi"**, kéo rê chuột trên ảnh để khoanh vùng răng hoặc lợi muốn hỏi.
    - Nhập thêm ghi chú vùng (nếu cần) và nhấn **"Gửi câu hỏi"** (hoặc `Ctrl + Enter`).
 

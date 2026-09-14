@@ -98,7 +98,8 @@ function rowCount(r: Row): { n: number; unit: string } {
 }
 
 export default function HistoryPage() {
-  const { loading: authLoading, role, user } = useAuth();
+  const { loading: authLoading, role, user, isStudent } = useAuth();
+  const usesPatientHistory = role === 'patient';
   const [detail, setDetail] = useState<{ record: PatientHistoryDemo; consultation: boolean } | null>(null);
 
   const [cases, setCases]           = useState<CaseListItem[]>([]);
@@ -226,7 +227,9 @@ export default function HistoryPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-serif font-bold text-xl text-gray-900">Lịch sử chẩn đoán</h1>
+          <h1 className="font-serif font-bold text-xl text-gray-900">
+            {isStudent ? 'Lịch sử chẩn đoán AI' : 'Lịch sử chẩn đoán'}
+          </h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {loading ? 'Đang tải...' : `${source.length} kết quả`}
           </p>

@@ -18,6 +18,11 @@ export interface AuthUser {
   age: number | null;
   organization: string;
   lecturer_code: string;
+  student_code: string;
+  academic_year: string;
+  class_name: string;
+  major: string;
+  institution: string;
   email_verified: boolean;
   is_active: boolean;
   date_joined: string;

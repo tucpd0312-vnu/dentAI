@@ -11,13 +11,17 @@ function getTitle(pathname: string, role?: Role): string {
   if (pathname.startsWith('/dashboard')) {
     if (role === 'patient') return 'Hồ sơ bệnh nhân';
     if (role === 'doctor') return 'Hồ sơ bác sĩ';
+    if (role === 'student') return 'Hồ sơ sinh viên';
+    if (role === 'receptionist') return 'Hồ sơ lễ tân';
     return 'Tổng quan';
   }
+  if (pathname.startsWith('/reception/appointments')) return 'Quản lý lịch hẹn';
+  if (pathname.startsWith('/reception/data')) return 'Kho dữ liệu nghiệp vụ';
   if (pathname === '/analysis/new') return 'Chẩn đoán viêm lợi';
   if (/^\/analysis\/[^/]+\/processing/.test(pathname)) return 'Đang xử lý…';
   if (/^\/analysis\/[^/]+\/results\/[^/]+\/edit/.test(pathname)) return 'Chỉnh sửa kết quả';
   if (/^\/analysis\/[^/]+\/results/.test(pathname)) return 'Kết quả chẩn đoán';
-  if (pathname.startsWith('/history')) return role === 'patient' || role === 'doctor' ? 'Lịch sử' : 'Lịch sử chẩn đoán';
+  if (pathname.startsWith('/history')) return role === 'patient' || role === 'doctor' ? 'Lịch sử' : role === 'student' ? 'Lịch sử chẩn đoán AI' : 'Lịch sử chẩn đoán';
   if (pathname.startsWith('/appointments')) return 'Đặt hẹn tư vấn';
   if (pathname.startsWith('/telemedicine')) return role === 'doctor' ? 'Lịch hẹn của tôi' : 'Telemedicine';
   if (pathname.startsWith('/profile')) return 'Hồ sơ cá nhân';
@@ -28,8 +32,8 @@ function getTitle(pathname: string, role?: Role): string {
   if (pathname.startsWith('/gingivitis')) return 'Chẩn đoán viêm lợi';
   if (pathname === '/library/new') return 'Tải dữ liệu lên';
   if (/^\/library\/[^/]+/.test(pathname)) return 'Chi tiết dữ liệu';
-  if (pathname.startsWith('/library')) return 'Kho dữ liệu';
-  if (pathname.startsWith('/chat')) return role === 'doctor' ? 'Hỏi đáp với sinh viên' : 'Hỏi đáp & Trao đổi';
+  if (pathname.startsWith('/library')) return role === 'student' ? 'Kho dữ liệu của tôi' : 'Kho dữ liệu';
+  if (pathname.startsWith('/chat')) return role === 'doctor' ? 'Hỏi đáp với sinh viên' : role === 'student' ? 'Hỏi đáp giảng viên' : 'Hỏi đáp & Trao đổi';
   if (pathname.startsWith('/users')) return 'Quản lý người dùng';
   if (pathname.startsWith('/system-log')) return 'Lịch sử hệ thống';
   if (pathname.startsWith('/settings')) return 'Cài đặt';
@@ -46,7 +50,7 @@ function initials(name: string): string {
 
 export default function Topbar() {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, role, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -141,12 +145,12 @@ export default function Topbar() {
 
                 {user.role !== 'receptionist' && (
                   <a
-                    href={user.role === 'patient' || user.role === 'doctor' ? '/profile/' : '/settings/'}
+                    href={user.role === 'patient' || user.role === 'doctor' ? '/profile/' : user.role === 'student' ? '/dashboard/' : '/settings/'}
                     role="menuitem"
                     className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-50"
                   >
                     <span className="material-symbols-outlined text-[18px] text-gray-400">person</span>
-                    Hồ sơ &amp; đổi mật khẩu
+                    {user.role === 'student' ? 'Hồ sơ sinh viên' : 'Hồ sơ & đổi mật khẩu'}
                   </a>
                 )}
 

@@ -23,6 +23,13 @@ class User(AbstractUser):
     birth_year = models.PositiveSmallIntegerField(null=True, blank=True)
     organization = models.CharField(max_length=255, blank=True)
     lecturer_code = models.CharField(max_length=50, blank=True)
+    # Thông tin học vụ chỉ dùng khi role=student. Để trống với các vai trò khác
+    # nhằm giữ một bảng tài khoản duy nhất và không làm ảnh hưởng dữ liệu cũ.
+    student_code = models.CharField(max_length=32, blank=True, db_index=True)
+    academic_year = models.CharField(max_length=20, blank=True)
+    class_name = models.CharField(max_length=100, blank=True)
+    major = models.CharField(max_length=150, blank=True)
+    institution = models.CharField(max_length=255, blank=True)
     email_verified = models.BooleanField(default=False)
     # Soft delete — giữ vết cho case/feedback/log đã tạo.
     # default manager `objects` KHÔNG lọc is_deleted (đổi default manager của

@@ -201,12 +201,12 @@ function LiveChatPage() {
               <span className="material-symbols-outlined text-3xl">forum</span>
             </div>
             <h3 className="text-base font-bold text-gray-800">
-              {user?.role === 'doctor' ? 'Hỏi đáp với sinh viên' : 'Trao đổi & Hỏi đáp Giảng viên'}
+              {user?.role === 'doctor' ? 'Hỏi đáp với sinh viên' : user?.role === 'student' ? 'Hỏi đáp giảng viên' : 'Trao đổi & Hỏi đáp Giảng viên'}
             </h3>
             <p className="text-xs text-gray-500 mt-1 max-w-md">
               {user?.role === 'doctor'
                 ? 'Chọn một phiên hỏi đáp bên trái để xem câu hỏi và phản hồi trực tiếp cho sinh viên.'
-                : 'Chọn một phiên hỏi đáp bên trái hoặc tạo phiên mới từ ảnh kết quả AI để trao đổi trực tiếp với giảng viên và các sinh viên khác.'}
+                : 'Chọn một phiên hỏi đáp hoặc mở kết quả chẩn đoán AI để gửi câu hỏi tới giảng viên bạn chọn.'}
             </p>
             <button
               onClick={() => setShowNewModal(true)}

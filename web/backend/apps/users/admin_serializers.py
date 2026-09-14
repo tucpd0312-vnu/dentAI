@@ -34,6 +34,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
         fields = [
             "id", "username", "email", "first_name", "last_name", "full_name",
             "role", "phone", "birth_year", "age", "organization", "lecturer_code",
+            "student_code", "academic_year", "class_name", "major", "institution",
             "is_active", "is_deleted", "email_verified",
             "date_joined", "last_login", "deleted_at", "case_count",
         ]
@@ -55,7 +56,8 @@ class AdminUserCreateSerializer(serializers.ModelSerializer):
         fields = [
             "id", "username", "email", "password",
             "first_name", "last_name", "role", "phone", "birth_year",
-            "organization", "lecturer_code",
+            "organization", "lecturer_code", "student_code", "academic_year",
+            "class_name", "major", "institution",
         ]
 
     def validate_username(self, value):
