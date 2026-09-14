@@ -5,9 +5,7 @@ import Link from 'next/link';
 
 import { useAuth } from '@/components/providers/AuthProvider';
 import {
-  ASSET_STATUS_CLASS,
   libraryTabs,
-  ASSET_STATUS_LABEL,
   DATA_TYPE_ICON,
   DATA_TYPE_LABEL,
   DIAGNOSIS_ROUTES,
@@ -21,7 +19,6 @@ import {
   type DataCategory,
   type DataType,
 } from '@/lib/library';
-import { formatFileSize } from '@/lib/scans';
 import { apiErrorMessage } from '@/lib/users';
 
 const PAGE_SIZE = 20;
@@ -169,7 +166,7 @@ export default function LibraryPage() {
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
   const showPatient = canEditLabels || isReceptionist;
-  const columns = isReceptionist ? 4 : 7 + Number(showPatient) + Number(canViewAllLibrary);
+  const columns = isReceptionist ? 4 : 5 + Number(showPatient);
   const activeFilterCount =
     Number(Boolean(search.trim())) +
     Number(Boolean(birthYear)) +
@@ -201,24 +198,24 @@ export default function LibraryPage() {
             onClick={() => setFiltersOpen(open => !open)}
             aria-expanded={filtersOpen}
             aria-controls="library-filters"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
+            className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-5 py-3 text-base font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
           >
-            <span className="material-symbols-outlined text-[18px]">filter_alt</span>
+            <span className="material-symbols-outlined text-[22px]">filter_alt</span>
             Bộ lọc
             {activeFilterCount > 0 && (
               <span className="rounded-full bg-primary px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-white">
                 {activeFilterCount}
               </span>
             )}
-            <span className="material-symbols-outlined text-[18px] text-gray-400">
+            <span className="material-symbols-outlined text-[22px] text-gray-400">
               {filtersOpen ? 'expand_less' : 'expand_more'}
             </span>
           </button>
           {!isReceptionist && <Link
             href="/library/new/"
-            className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-600"
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-base font-semibold text-white shadow-sm hover:bg-primary-600"
           >
-            <span className="material-symbols-outlined text-[18px]">upload</span>
+            <span className="material-symbols-outlined text-[22px]">upload</span>
             Tải dữ liệu lên
           </Link>}
         </div>
@@ -239,8 +236,8 @@ export default function LibraryPage() {
 
       {/* ── Bộ lọc ── */}
       {filtersOpen && (
-        <div id="library-filters" className="space-y-2 rounded-xl border border-gray-200 bg-white p-3">
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+        <div id="library-filters" className="space-y-3 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <div className="flex shrink-0 gap-1 overflow-x-auto">
               {libraryTabs(canViewAllLibrary).map(t => (
                 <button
@@ -251,7 +248,7 @@ export default function LibraryPage() {
                     setTab(t.value);
                     setPage(1);
                   }}
-                  className={`shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  className={`shrink-0 rounded-xl px-4 py-2.5 text-base font-medium transition-colors ${
                     tab === t.value
                       ? 'bg-primary/10 text-primary'
                       : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
@@ -339,9 +336,6 @@ export default function LibraryPage() {
                 <th className="px-5 py-4 font-medium">Phân loại</th>
                 {!isReceptionist && <>
                 <th className="px-4 py-3 font-medium">Loại dữ liệu</th>
-                <th className="px-4 py-3 font-medium">Trạng thái</th>
-                <th className="px-4 py-3 font-medium">Dung lượng</th>
-                {canViewAllLibrary && <th className="px-4 py-3 font-medium">Người tải lên</th>}
                 <th className="px-4 py-3 font-medium">Ngày tải lên</th>
                 </>}
                 <th className="px-4 py-3" />
@@ -426,28 +420,6 @@ export default function LibraryPage() {
                         {a.data_type_display}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${ASSET_STATUS_CLASS[a.status]}`}
-                      >
-                        {(a.status === 'processing' || a.status === 'uploading') && (
-                          <span className="material-symbols-outlined animate-spin text-[11px]">
-                            autorenew
-                          </span>
-                        )}
-                        {ASSET_STATUS_LABEL[a.status]}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 tabular-nums text-gray-500">
-                      {a.file_size ? formatFileSize(a.file_size) : '—'}
-                    </td>
-                    {canViewAllLibrary && (
-                      <td className="px-4 py-3 text-gray-600">
-                        {a.uploaded_by?.full_name || a.uploaded_by?.username || (
-                          <span className="text-gray-300">—</span>
-                        )}
-                      </td>
-                    )}
                     <td className="whitespace-nowrap px-4 py-3 text-gray-500">
                       {fmtDate(a.created_at)}
                     </td>
