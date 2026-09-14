@@ -127,6 +127,7 @@ export interface DataAssetDetail extends DataAsset {
 
 export interface AssetFilters {
   q?: string;
+  birth_year?: number;
   category?: number;
   data_type?: DataType | '';
   uploaded_by?: number;
@@ -261,6 +262,7 @@ export async function createCategory(name: string): Promise<DataCategory> {
 export async function fetchAssets(filters: AssetFilters = {}): Promise<Paginated<DataAsset>> {
   const params: Record<string, string | number> = {};
   if (filters.q) params.q = filters.q;
+  if (filters.birth_year) params.birth_year = filters.birth_year;
   if (filters.category) params.category = filters.category;
   if (filters.data_type) params.data_type = filters.data_type;
   if (filters.uploaded_by) params.uploaded_by = filters.uploaded_by;

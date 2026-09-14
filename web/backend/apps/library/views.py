@@ -99,6 +99,7 @@ class CategoryListCreateView(APIView):
     Tên được chuẩn hoá và chống trùng không phân biệt hoa/thường để lựa chọn
     "Khác — nhập tên mới" không làm sinh các danh mục tương đương.
     """
+    allow_receptionist_methods = ("GET",)
 
     def get_permissions(self):
         if self.request.method == "POST":
@@ -142,6 +143,7 @@ class CategoryListCreateView(APIView):
 
 class AssetListView(APIView):
     permission_classes = [IsActiveUser]
+    allow_receptionist_methods = ("GET",)
 
     def get(self, request):
         qs = scoped_assets(request.user)
@@ -167,6 +169,13 @@ class AssetListView(APIView):
         data_type = request.query_params.get("data_type")
         if data_type:
             qs = qs.filter(data_type=data_type)
+
+        birth_year = request.query_params.get("birth_year")
+        if birth_year:
+            if can_see_patient_info(request.user):
+                qs = qs.filter(patient__birth_year=birth_year)
+            elif request.user.role in (Role.PATIENT, Role.STUDENT):
+                qs = qs.filter(patient__birth_year=birth_year, uploaded_by=request.user)
 
         diagnosis = request.query_params.get("diagnosis")
         if diagnosis:
@@ -538,6 +547,7 @@ class AssetUploadCompleteView(APIView):
 
 class AssetDetailView(APIView):
     permission_classes = [IsActiveUser]
+    allow_receptionist_methods = ("GET",)
 
     def get(self, request, pk):
         asset = get_object_or_404(scoped_assets(request.user), pk=pk)
@@ -593,6 +603,7 @@ class AssetStatusView(APIView):
     """Polling trong lúc Celery xử lý — trang chi tiết gọi mỗi 2s cho tới khi xong."""
 
     permission_classes = [IsActiveUser]
+    allow_receptionist_methods = ("GET",)
 
     def get(self, request, pk):
         asset = get_object_or_404(scoped_assets(request.user), pk=pk)
@@ -612,6 +623,7 @@ class AssetPreviewView(APIView):
     """
 
     permission_classes = [IsActiveUser]
+    allow_receptionist_methods = ("GET",)
 
     def get(self, request, pk, index):
         asset = get_object_or_404(scoped_assets(request.user), pk=pk)
@@ -632,6 +644,7 @@ class AssetThumbnailView(APIView):
     """
 
     permission_classes = [IsActiveUser]
+    allow_receptionist_methods = ("GET",)
 
     def get(self, request, pk):
         asset = get_object_or_404(scoped_assets(request.user), pk=pk)
@@ -642,6 +655,7 @@ class AssetThumbnailView(APIView):
 
 class AssetDownloadView(APIView):
     permission_classes = [IsActiveUser]
+    allow_receptionist_methods = ("GET",)
 
     def get(self, request, pk):
         asset = get_object_or_404(scoped_assets(request.user), pk=pk)

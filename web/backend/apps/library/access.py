@@ -40,9 +40,9 @@ def _is_admin(user) -> bool:
 
 
 def can_view_all_assets(user) -> bool:
-    """Bác sĩ/giảng viên và admin được xem toàn kho, độc lập với quyền sửa."""
+    """Bác sĩ/giảng viên, lễ tân và admin được xem toàn kho, độc lập với quyền sửa."""
     return bool(
-        user and user.is_authenticated and user.role in (Role.ADMIN, Role.DOCTOR)
+        user and user.is_authenticated and user.role in (Role.ADMIN, Role.DOCTOR, Role.RECEPTIONIST)
     )
 
 
@@ -61,8 +61,6 @@ def scoped_assets(user):
                      _source_share=Exists(source_links_for(user)))
     if can_view_all_assets(user):
         return qs
-    if user.role == Role.RECEPTIONIST:
-        return qs.none()
     return qs.filter(Q(uploaded_by=user) | Q(_direct_share=True) | Q(_source_share=True))
 
 
@@ -114,7 +112,7 @@ def asset_permission_for(user, asset) -> str:
 def can_see_patient_info(user, asset=None) -> bool:
     """Quyền đọc khối PHI của một tư liệu.
 
-    Bác sĩ/admin đọc được PHI trong phạm vi tư liệu họ truy cập. Bệnh nhân và sinh
+    Bác sĩ/admin/lễ tân đọc được PHI trong phạm vi tư liệu họ truy cập. Bệnh nhân và sinh
     viên chỉ đọc PHI trên tư liệu do chính họ tải lên; nhận chia sẻ từ người khác
     không làm lộ tên, tuổi, giới tính hay mô tả của bệnh nhân khác.
 
@@ -123,6 +121,6 @@ def can_see_patient_info(user, asset=None) -> bool:
     """
     if not (user and user.is_authenticated):
         return False
-    if user.role in (Role.ADMIN, Role.DOCTOR):
+    if user.role in (Role.ADMIN, Role.DOCTOR, Role.RECEPTIONIST):
         return True
     return bool(asset is not None and asset.uploaded_by_id == user.pk)

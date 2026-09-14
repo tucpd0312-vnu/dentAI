@@ -12,8 +12,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const router = useRouter();
   const pathname = usePathname();
   const doctorChat = user?.role === 'doctor' && pathname.startsWith('/chat');
-  const receptionistPaths = ['/dashboard', '/dashboard/', '/reception/data', '/reception/data/', '/reception/appointments', '/reception/appointments/'];
-  const receptionistOutsideWorkspace = user?.role === 'receptionist' && !receptionistPaths.includes(pathname);
+  const receptionistPaths = ['/dashboard', '/dashboard/', '/library', '/library/', '/reception/data', '/reception/data/', '/reception/appointments', '/reception/appointments/'];
+  const receptionistOutsideWorkspace = user?.role === 'receptionist' && !receptionistPaths.some(path => pathname === path || pathname.startsWith(`${path}/`));
   const patientBlockedPath =
     user?.role === 'patient' &&
     ['/library', '/chat', '/help', '/settings', '/users', '/system-log'].some(prefix =>

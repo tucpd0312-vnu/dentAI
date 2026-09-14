@@ -47,6 +47,7 @@ export default function LibraryPage() {
     isAdmin,
     isDoctor,
     isStudent,
+    isReceptionist,
     canEditLabels,
     canViewAllLibrary,
     loading: authLoading,
@@ -65,6 +66,7 @@ export default function LibraryPage() {
   const [q, setQ] = useState('');
   const [category, setCategory] = useState<number | ''>('');
   const [dataType, setDataType] = useState<DataType | ''>('');
+  const [birthYear, setBirthYear] = useState('');
   const [tab, setTab] = useState<Tab>('all');
   const [page, setPage] = useState(1);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -77,6 +79,7 @@ export default function LibraryPage() {
     try {
       const data = await fetchAssets({
         q,
+        birth_year: birthYear ? Number(birthYear) : undefined,
         category: category || undefined,
         data_type: dataType || undefined,
         mine: tab === 'mine',
@@ -96,7 +99,7 @@ export default function LibraryPage() {
     } finally {
       if (version === requestVersion.current) setLoading(false);
     }
-  }, [q, category, dataType, tab, page, editableOnly]);
+  }, [q, birthYear, category, dataType, tab, page, editableOnly]);
 
   useEffect(() => {
     void load();
@@ -108,6 +111,12 @@ export default function LibraryPage() {
       .then(setCategories)
       .catch(() => setCategories([]));   // bộ lọc hỏng không nên chặn cả trang
   }, []);
+
+  // Kho của sinh viên ưu tiên tư liệu tự tải lên để ôn tập; các tab còn lại vẫn
+  // cho phép xem tư liệu được chia sẻ khi cần.
+  useEffect(() => {
+    if (isStudent) setTab('mine');
+  }, [isStudent]);
 
   // Gõ xong 350ms mới gọi API — cùng nhịp /users, /scans.
   useEffect(() => {
@@ -159,25 +168,31 @@ export default function LibraryPage() {
   }
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
-  const columns = 7 + (canEditLabels ? 1 : 0) + (canViewAllLibrary ? 1 : 0);
+  const showPatient = canEditLabels || isReceptionist;
+  const columns = isReceptionist ? 4 : 7 + Number(showPatient) + Number(canViewAllLibrary);
   const activeFilterCount =
     Number(Boolean(search.trim())) +
+    Number(Boolean(birthYear)) +
     Number(category !== '') +
     Number(dataType !== '') +
     Number(tab !== 'all');
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div className="w-full space-y-6 px-5 py-6 lg:px-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-serif text-xl font-semibold text-gray-900">
-            {isStudent ? 'Kho dữ liệu của tôi' : 'Kho dữ liệu'}
+          <h1 className="font-serif text-2xl font-semibold text-gray-900 lg:text-3xl">
+            {isReceptionist ? 'Kho phim bệnh nhân' : isStudent ? 'Kho dữ liệu ôn tập của tôi' : 'Kho dữ liệu'}
           </h1>
           <p className="mt-0.5 text-sm text-gray-500">
             {loading ? 'Đang tải…' : `${count} mục dữ liệu`}
-            {canViewAllLibrary
+            {isReceptionist
+              ? ' · danh sách phim toàn hệ thống'
+              : canViewAllLibrary
               ? ' · dữ liệu toàn hệ thống'
-              : ' · dữ liệu của bạn và dữ liệu được chia sẻ cho bạn'}
+              : isStudent
+                ? ' · tư liệu bạn tải lên để ôn tập'
+                : ' · dữ liệu của bạn và dữ liệu được chia sẻ cho bạn'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -199,13 +214,13 @@ export default function LibraryPage() {
               {filtersOpen ? 'expand_less' : 'expand_more'}
             </span>
           </button>
-          <Link
+          {!isReceptionist && <Link
             href="/library/new/"
             className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-600"
           >
             <span className="material-symbols-outlined text-[18px]">upload</span>
             Tải dữ liệu lên
-          </Link>
+          </Link>}
         </div>
       </div>
 
@@ -246,7 +261,7 @@ export default function LibraryPage() {
                 </button>
               ))}
             </div>
-            <div className="relative min-w-[200px] flex-1">
+            <div className="relative min-w-[240px] flex-1">
               <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[18px] text-gray-400">
                 search
               </span>
@@ -255,13 +270,21 @@ export default function LibraryPage() {
                 onChange={e => setSearch(e.target.value)}
                 aria-label="Tìm trong kho dữ liệu"
                 placeholder={
-                  canEditLabels
+                  showPatient
                     ? 'Tìm theo tiêu đề, tên file hoặc bệnh nhân…'
                     : 'Tìm theo tiêu đề hoặc tên file…'
                 }
                 className={`${inputCls} pl-9`}
               />
             </div>
+            <input
+              value={birthYear}
+              onChange={e => { setBirthYear(e.target.value.replace(/\D/g, '').slice(0, 4)); setPage(1); }}
+              inputMode="numeric"
+              aria-label="Lọc theo năm sinh bệnh nhân"
+              placeholder="Năm sinh, ví dụ 1990"
+              className={`${inputCls} lg:w-48`}
+            />
             <select
               value={category}
               onChange={e => {
@@ -305,19 +328,22 @@ export default function LibraryPage() {
       )}
 
       {/* ── Bảng ── */}
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-base">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs text-gray-500">
-                <th className="px-4 py-3 font-medium">Dữ liệu</th>
-                {canEditLabels && <th className="px-4 py-3 font-medium">Bệnh nhân</th>}
-                <th className="px-4 py-3 font-medium">Phân loại</th>
+              <tr className="border-b border-gray-100 bg-gray-50 text-left text-sm text-gray-500">
+                {!isReceptionist && <th className="px-5 py-4 font-medium">Dữ liệu</th>}
+                {showPatient && <th className="px-5 py-4 font-medium">Bệnh nhân</th>}
+                {isReceptionist && <th className="px-5 py-4 font-medium">Ngày sinh</th>}
+                <th className="px-5 py-4 font-medium">Phân loại</th>
+                {!isReceptionist && <>
                 <th className="px-4 py-3 font-medium">Loại dữ liệu</th>
                 <th className="px-4 py-3 font-medium">Trạng thái</th>
                 <th className="px-4 py-3 font-medium">Dung lượng</th>
                 {canViewAllLibrary && <th className="px-4 py-3 font-medium">Người tải lên</th>}
                 <th className="px-4 py-3 font-medium">Ngày tải lên</th>
+                </>}
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -345,7 +371,7 @@ export default function LibraryPage() {
                             ? 'Chưa có tư liệu của người dùng khác.'
                             : 'Kho dữ liệu còn trống.'}
                     </p>
-                    {!q && !category && !dataType && (tab === 'all' || tab === 'mine') && (
+                    {!q && !birthYear && !category && !dataType && !isReceptionist && (tab === 'all' || tab === 'mine') && (
                       <Link
                         href="/library/new/"
                         className="mt-2 inline-block text-sm text-primary underline underline-offset-2"
@@ -357,26 +383,26 @@ export default function LibraryPage() {
                 </tr>
               ) : (
                 rows.map(a => (
-                  <tr key={a.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50">
-                    <td className="px-4 py-3">
+                  <tr key={a.id} className="border-b border-gray-50 last:border-0 hover:bg-primary/[0.03]">
+                    {!isReceptionist && <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <AssetThumb asset={a} />
                         <div className="min-w-0">
                           <Link
                             href={`/library/${a.id}/`}
-                            className="block max-w-[220px] truncate font-medium leading-tight text-gray-900 hover:text-primary"
+                            className="block max-w-[320px] truncate font-medium leading-tight text-gray-900 hover:text-primary"
                           >
                             {a.title}
                           </Link>
-                          <p className="max-w-[220px] truncate text-[11px] text-gray-400">
+                          <p className="max-w-[320px] truncate text-xs text-gray-400">
                             {a.original_filename}
                           </p>
                           <span className="text-[11px] text-primary">{a.permission === 'owner' ? 'Của tôi' : a.permission === 'admin' ? 'Quản trị' : a.permission === 'edit' ? 'Được cấp quyền sửa' : 'Chỉ xem'}</span>
                         </div>
                       </div>
-                    </td>
-                    {canEditLabels && (
-                      <td className="px-4 py-3">
+                    </td>}
+                    {showPatient && (
+                      <td className="px-5 py-4">
                         {a.patient ? (
                           <>
                             <p className="leading-tight text-gray-700">{a.patient.name}</p>
@@ -389,7 +415,9 @@ export default function LibraryPage() {
                         )}
                       </td>
                     )}
-                    <td className="px-4 py-3 text-gray-600">{a.category_name}</td>
+                    {isReceptionist && <td className="px-5 py-4 text-gray-600">{a.patient?.birth_year ?? '—'}</td>}
+                    <td className="px-5 py-4 text-gray-700">{a.category_name}</td>
+                    {!isReceptionist && <>
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-1 text-gray-600">
                         <span className="material-symbols-outlined text-[16px] text-gray-400">
@@ -423,23 +451,24 @@ export default function LibraryPage() {
                     <td className="whitespace-nowrap px-4 py-3 text-gray-500">
                       {fmtDate(a.created_at)}
                     </td>
+                    </>}
                     <td className="px-4 py-3">
-                      <div className="flex justify-end gap-1">
+                      <div className="flex justify-end gap-2">
                         <Link
                           href={`/library/${a.id}/`}
                           title="Xem dữ liệu"
-                          className="rounded-lg p-1.5 text-primary transition-colors hover:bg-primary/5"
+                          className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary-50 text-primary transition-colors hover:bg-primary/10"
                         >
-                          <span className="material-symbols-outlined text-[18px]">visibility</span>
+                          <span className="material-symbols-outlined text-[24px]">visibility</span>
                         </Link>
                         {a.diagnosis_target && (
                           <Link
                             href={diagnosisUrl(a)!}
                             title={DIAGNOSIS_ROUTES[a.diagnosis_target].label}
                             aria-label={DIAGNOSIS_ROUTES[a.diagnosis_target].label}
-                            className="rounded-lg p-1.5 text-primary transition-colors hover:bg-primary/5"
+                            className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-primary transition-colors hover:bg-primary/5"
                           >
-                            <span className="material-symbols-outlined text-[18px]">
+                              <span className="material-symbols-outlined text-[24px]">
                               {a.diagnosis_target === 'canine3d' ? 'view_in_ar' : 'oral_disease'}
                             </span>
                           </Link>
@@ -452,10 +481,10 @@ export default function LibraryPage() {
                               ? 'Tải xuống'
                               : 'Chưa xử lý xong, chưa tải xuống được'
                           }
-                          className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 disabled:opacity-30"
+                          className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-gray-500 transition-colors hover:bg-gray-100 disabled:opacity-30"
                         >
                           <span
-                            className={`material-symbols-outlined text-[18px] ${busyId === a.id ? 'animate-spin' : ''}`}
+                            className={`material-symbols-outlined text-[24px] ${busyId === a.id ? 'animate-spin' : ''}`}
                           >
                             {busyId === a.id ? 'autorenew' : 'download'}
                           </span>
@@ -464,9 +493,9 @@ export default function LibraryPage() {
                           <button
                             onClick={() => handleDelete(a)}
                             title="Xoá"
-                            className="rounded-lg p-1.5 text-red-500 transition-colors hover:bg-red-50"
+                            className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-red-500 transition-colors hover:bg-red-50"
                           >
-                            <span className="material-symbols-outlined text-[18px]">delete</span>
+                            <span className="material-symbols-outlined text-[24px]">delete</span>
                           </button>
                         )}
                       </div>
@@ -539,13 +568,13 @@ function AssetThumb({ asset }: { asset: DataAsset }) {
       <img
         src={src}
         alt=""
-        className="h-10 w-10 shrink-0 rounded-lg border border-gray-200 object-cover"
+        className="h-14 w-14 shrink-0 rounded-xl border border-gray-200 object-cover"
       />
     );
   }
   return (
-    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-50">
-      <span className="material-symbols-outlined text-[20px] text-gray-400">
+    <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-gray-50">
+      <span className="material-symbols-outlined text-[28px] text-gray-400">
         {DATA_TYPE_ICON[asset.data_type]}
       </span>
     </span>

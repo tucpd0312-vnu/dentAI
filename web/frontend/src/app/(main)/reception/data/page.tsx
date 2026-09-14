@@ -1,12 +1,8 @@
-import Link from 'next/link';
+'use client';
 
-const resources = [
-  ['calendar_month', 'Danh sách lịch hẹn telemedicine', 'Tập hợp lịch tư vấn đã đặt, trạng thái xác nhận và đầu mối hỗ trợ trước giờ hẹn.', 'Mở quản lý lịch hẹn', '/reception/appointments/'],
-  ['description', 'Bảng Excel phân công', 'Tệp lịch trực, phân công quầy tiếp đón và danh sách công việc nội bộ.', 'Cập nhật tệp phân công', '/dashboard/#work-files'],
-  ['contact_phone', 'Danh bạ hỗ trợ', 'Thông tin liên hệ phục vụ điều phối cuộc hẹn và hướng dẫn bệnh nhân kết nối tư vấn.', 'Danh bạ nội bộ', '#'],
-  ['help_center', 'Biểu mẫu hỗ trợ', 'Mẫu hướng dẫn chuẩn bị trước buổi tư vấn và kịch bản nhắc lịch.', 'Xem biểu mẫu', '#'],
-];
+import LibraryPage from '@/app/(main)/library/page';
 
+/** Lễ tân dùng cùng nguồn phim với bác sĩ; bảng được LibraryPage rút còn ba trường nghiệp vụ. */
 export default function ReceptionDataPage() {
-  return <div className="min-h-full bg-slate-50 p-5 lg:p-7"><section className="rounded-2xl bg-white p-6 ring-1 ring-gray-200"><span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-3 py-1 text-xs font-medium text-primary"><span className="material-symbols-outlined text-[16px]">folder_shared</span>Khu vực lễ tân</span><h2 className="mt-3 font-serif text-2xl font-semibold text-gray-900">Kho dữ liệu nghiệp vụ</h2><p className="mt-1 max-w-2xl text-sm leading-relaxed text-gray-500">Tài nguyên dành cho điều phối lịch hẹn và tiếp đón. Hồ sơ chẩn đoán, hình ảnh lâm sàng và phim CBCT không hiển thị tại đây.</p></section><section className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">{resources.map(([icon, title, description, action, href]) => <Link key={title} href={href} className="group rounded-2xl border border-gray-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary-50 text-primary"><span className="material-symbols-outlined text-[23px]">{icon}</span></span><h3 className="mt-4 text-sm font-semibold text-gray-900">{title}</h3><p className="mt-2 min-h-16 text-xs leading-relaxed text-gray-500">{description}</p><span className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-primary group-hover:underline">{action}<span className="material-symbols-outlined text-[15px]">arrow_forward</span></span></Link>)}</section><p className="mt-5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-800">Các mục danh bạ và biểu mẫu đang ở chế độ minh hoạ giao diện. Danh sách lịch hẹn sử dụng dữ liệu demo đã được gắn nhãn rõ ràng.</p></div>;
+  return <LibraryPage />;
 }

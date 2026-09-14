@@ -450,13 +450,14 @@ class ReceptionistAccessTests(APITestCase):
             with self.subTest(path=path):
                 self.assertEqual(self.client.get(path).status_code, status.HTTP_200_OK)
 
-    def test_receptionist_is_denied_every_operational_module(self):
+    def test_receptionist_can_read_library_but_is_denied_other_operational_modules(self):
         self.client.force_authenticate(user=self.receptionist)
+
+        self.assertEqual(self.client.get("/api/library/assets/").status_code, status.HTTP_200_OK)
 
         for path in (
             "/api/cases/",
             "/api/scans/",
-            "/api/library/assets/",
             "/api/settings/",
             "/api/users/search/?q=doctor",
         ):
