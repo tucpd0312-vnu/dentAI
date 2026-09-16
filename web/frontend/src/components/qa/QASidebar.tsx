@@ -65,13 +65,25 @@ export default function QASidebar({
     <aside className="w-80 h-full border-r border-gray-200 bg-white flex flex-col shrink-0 select-none">
       {/* Top action: New Session button */}
       <div className="p-3 border-b border-gray-100 flex items-center justify-between gap-2">
-        <button
-          onClick={onNewSession}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-semibold shadow-sm transition-all active:scale-[0.98]"
-        >
-          <span className="material-symbols-outlined text-[18px]">add</span>
-          Phiên hỏi đáp mới
-        </button>
+        {isTeacher ? (
+          <div className="flex min-w-0 items-center gap-2 px-1 py-1">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+              <span className="material-symbols-outlined text-[18px]">school</span>
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-gray-900">Hỏi đáp với sinh viên</p>
+              <p className="truncate text-[10px] text-gray-400">Các phiên được sinh viên gửi đến</p>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={onNewSession}
+            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-semibold shadow-sm transition-all active:scale-[0.98]"
+          >
+            <span className="material-symbols-outlined text-[18px]">add</span>
+            Phiên hỏi đáp mới
+          </button>
+        )}
       </div>
 
       {/* Search Bar */}

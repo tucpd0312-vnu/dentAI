@@ -38,6 +38,10 @@ def create_diagnosis_storage_dir(root: str, object_id: int) -> str:
 def diagnosis_target(asset, user):
     if asset.status != DataAsset.Status.READY or not asset.is_anonymized:
         return None
+    if getattr(user, "role", None) not in (
+        Role.ADMIN, Role.DOCTOR, Role.PATIENT, Role.STUDENT,
+    ):
+        return None
     for target, (category_slug, data_type) in TARGET_RULES.items():
         if asset.category.slug == category_slug and asset.data_type == data_type:
             if target == "canine3d" and getattr(user, "role", None) not in (

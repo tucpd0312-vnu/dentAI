@@ -1,8 +1,8 @@
 """API quản trị người dùng + lịch sử hệ thống + tìm người nhận chia sẻ.
 
 Toàn bộ view ở đây là `IsAdmin`, TRỪ `UserSearchView` (mọi tài khoản hợp lệ, vì ai
-cũng cần tìm người để chia sẻ ca). Tài khoản lễ tân bị loại khỏi tìm kiếm trong
-giai đoạn chưa được cấp quyền vào các module nghiệp vụ.
+cũng cần tìm người để chia sẻ ca). Tài khoản lễ tân bị loại khỏi tìm kiếm chia sẻ;
+vai trò này dùng các luồng nghiệp vụ riêng cho quầy tiếp nhận.
 """
 from datetime import timedelta
 
@@ -24,6 +24,7 @@ from .admin_serializers import (
 )
 from .models import ActivityLog, LogAction, LogCategory, LogModule, Notification, Role, RoleRequest, User
 from .permissions import IsActiveUser, IsAdmin
+from .excel_import import WorkbookError, parse_account_workbook
 
 # Pagination gắn ở VIEW-LEVEL, không phải DEFAULT_PAGINATION_CLASS toàn cục —
 # bật toàn cục sẽ đổi shape response của GET /api/cases/ và làm vỡ trang History.
@@ -103,6 +104,50 @@ class UserListCreateView(APIView):
         return Response(AdminUserSerializer(user).data, status=status.HTTP_201_CREATED)
 
 
+class UserExcelImportView(APIView):
+    """Nhập tối đa 500 tài khoản từ sheet đầu tiên của Excel (.xlsx)."""
+
+    permission_classes = [IsAdmin]
+    MAX_FILE_SIZE = 5 * 1024 * 1024
+
+    def post(self, request):
+        workbook = request.FILES.get("file")
+        if workbook is None:
+            return _bad("Vui lòng chọn tệp Excel .xlsx.")
+        if workbook.size > self.MAX_FILE_SIZE:
+            return _bad("Tệp Excel vượt quá giới hạn 5 MB.")
+
+        try:
+            rows = parse_account_workbook(workbook.name, workbook.read())
+        except WorkbookError as exc:
+            return _bad(str(exc))
+
+        created = []
+        errors = []
+        for row in rows:
+            excel_row = int(row.pop("_row"))
+            payload = {key: value for key, value in row.items() if value != ""}
+            serializer = AdminUserCreateSerializer(data=payload)
+            if not serializer.is_valid():
+                errors.append({"row": excel_row, "username": row.get("username", ""), "errors": serializer.errors})
+                continue
+            user = serializer.save()
+            created.append(AdminUserSerializer(user).data)
+            log_activity(
+                LogCategory.ADMIN, LogAction.USER_CREATE,
+                actor=request.user, request=request, target_user=user,
+                detail={"username": user.username, "role": user.role, "source": "excel"},
+            )
+
+        return Response({
+            "total": len(rows),
+            "created_count": len(created),
+            "failed_count": len(errors),
+            "created": created,
+            "errors": errors,
+        }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+
 class UserDetailView(APIView):
     permission_classes = [IsAdmin]
 
@@ -174,8 +219,8 @@ class UserDetailView(APIView):
             from apps.library.models import DataAssetShare
             from apps.scans.models import ScanShare
 
-            # Lễ tân giai đoạn đầu không có module dữ liệu. Xoá quyền chia sẻ cũ
-            # để chúng không tự sống lại nếu tài khoản được đổi vai trò về sau.
+            # Lễ tân truy cập kho phim theo phạm vi vai trò, không nhận quyền chia sẻ
+            # lâm sàng cá nhân. Xoá quyền cũ để chúng không tự sống lại về sau.
             revoked_case_shares = CaseShare.objects.filter(shared_with=updated).count()
             revoked_scan_shares = ScanShare.objects.filter(shared_with=updated).count()
             revoked_library_shares = DataAssetShare.objects.filter(

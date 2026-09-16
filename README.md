@@ -100,7 +100,7 @@ Worker web gọi các thành phần pipeline qua `tasks.py`, không chạy trự
 
 Ứng dụng có năm vai trò: **quản trị viên**, **bác sĩ/giảng viên**, **sinh viên**,
 **bệnh nhân** và **lễ tân**. Sinh viên dùng phạm vi dữ liệu như bệnh nhân nhưng
-được sửa kết quả viêm lợi; lễ tân hiện chỉ dùng Tổng quan và tải file phân công.
+được sửa kết quả viêm lợi; lễ tân quản lý lịch hẹn và kho phim bệnh nhân.
 
 ### 2.1. Tech stack
 
@@ -155,16 +155,17 @@ web/
   Phê duyệt đổi vai trò, không đổi mật khẩu.
 - Người đăng ký làm sinh viên được cấp vai trò sau khi xác thực OTP, không cần admin
   phê duyệt.
-- Tài khoản lễ tân do admin tạo. Lễ tân chỉ vào Tổng quan, nhận thông báo và tải
-  file phân công `.xlsx`/`.xls` tối đa 10 MB; mỗi lần tải được giữ thành một phiên bản.
+- Tài khoản lễ tân do admin tạo. Lễ tân tra cứu hồ sơ theo mã bệnh nhân, tải phim,
+  xem kho phim toàn hệ thống, quản lý lịch hẹn và file phân công.
 - Admin cũng tải Excel phân công tại Tổng quan. Admin và lễ tân cùng xem thông tin
   bản mới nhất toàn hệ thống, gồm người tải lên; các phiên bản trước được giữ lại.
 - Sinh viên chỉ xem dữ liệu của mình hoặc được chia sẻ, được sửa kết quả viêm lợi
   nhưng không được nộp phân vùng CBCT.
-- Kho dữ liệu: admin và bác sĩ/giảng viên xem, tải xuống và thêm dữ liệu trong kho toàn
+- Kho dữ liệu: bác sĩ/giảng viên và lễ tân xem, tải xuống và thêm dữ liệu trong kho toàn
   hệ thống. Bác sĩ sửa tư liệu của mình hoặc được chia sẻ quyền `edit`; chỉ được xóa
   tư liệu mình tải lên. Bệnh nhân/sinh viên chỉ thấy dữ liệu của mình hoặc được chia sẻ.
-- Admin, bác sĩ, sinh viên và bệnh nhân được dùng các luồng AI theo phạm vi dữ liệu.
+- Bác sĩ, sinh viên và bệnh nhân được dùng các luồng AI theo phạm vi dữ liệu; admin
+  tập trung vào quản lý tài khoản, vai trò, cài đặt và lịch sử hệ thống.
   Bệnh nhân luôn chỉ xem kết quả; sinh viên sửa nhãn viêm lợi trên ca mình sở hữu
   hoặc được chia sẻ quyền sửa.
 - Nộp phân vùng RNNHT 3D chỉ dành cho admin hoặc bác sĩ có quyền trên phim.

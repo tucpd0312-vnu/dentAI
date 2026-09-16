@@ -9,6 +9,7 @@ from . import admin_views
 
 urlpatterns = [
     re_path(r"^users/search/?$", admin_views.UserSearchView.as_view(), name="user-search"),
+    re_path(r"^users/import-excel/?$", admin_views.UserExcelImportView.as_view(), name="user-import-excel"),
     re_path(r"^users/?$", admin_views.UserListCreateView.as_view(), name="user-list"),
     path("users/<int:pk>/restore/", admin_views.UserRestoreView.as_view(), name="user-restore"),
     path("users/<int:pk>/restore", admin_views.UserRestoreView.as_view()),

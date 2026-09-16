@@ -32,7 +32,7 @@ interface AuthContextValue {
   isDoctor: boolean;
   isPatient: boolean;
   isStudent: boolean;
-  /** Admin và bác sĩ/giảng viên được xem kho dữ liệu toàn hệ thống. */
+  /** Bác sĩ/giảng viên và lễ tân được xem kho dữ liệu toàn hệ thống. */
   canViewAllLibrary: boolean;
   /** Bệnh nhân và sinh viên cùng dùng phạm vi dữ liệu cá nhân. */
   hasPatientScope: boolean;
@@ -118,7 +118,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     isDoctor: role === 'doctor',
     isPatient: role === 'patient',
     isStudent: role === 'student',
-    canViewAllLibrary: role === 'admin' || role === 'doctor',
+    canViewAllLibrary: role === 'doctor' || role === 'receptionist',
     hasPatientScope: role === 'patient' || role === 'student',
     isReceptionist: role === 'receptionist',
     canEditLabels: role === 'admin' || role === 'doctor' || role === 'student',

@@ -21,12 +21,14 @@ from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from django.utils.text import slugify
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.cases.access import scoped_images
 from apps.cases.models import Image, Patient
+from apps.cases.serializers import PatientSerializer
 from apps.common import chunked_upload
 from apps.scans.access import scoped_scans
 from apps.scans.models import Scan
@@ -231,6 +233,39 @@ class AssetListView(APIView):
         )
 
 
+class PatientLookupView(APIView):
+    """Tra cứu chính xác hồ sơ bệnh nhân trước khi lễ tân/bác sĩ tải phim lên.
+
+    Không hỗ trợ tìm gần đúng hoặc liệt kê toàn bộ để tránh biến endpoint thành nơi
+    dò quét PHI. Chỉ các vai trò nghiệp vụ được đọc hồ sơ theo mã đã biết.
+    """
+
+    permission_classes = [IsActiveUser]
+    allow_receptionist_methods = ("GET",)
+
+    def get(self, request):
+        if request.user.role not in (Role.DOCTOR, Role.RECEPTIONIST):
+            return Response(
+                {"detail": "Chỉ bác sĩ hoặc lễ tân được tra cứu hồ sơ bệnh nhân."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        code = (request.query_params.get("code") or "").strip()
+        if not code:
+            return Response(
+                {"detail": "Vui lòng nhập mã bệnh nhân."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        patient = Patient.objects.filter(patient_code__iexact=code).first()
+        if patient is None:
+            return Response(
+                {"detail": "Không tìm thấy bệnh nhân với mã này."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return Response(PatientSerializer(patient).data)
+
+
 # ── Sao chép từ module nghiệp vụ vào Kho dữ liệu ─────────────────────────────
 
 class ScanSourceImportView(APIView):
@@ -367,6 +402,7 @@ class AssetUploadInitView(APIView):
     `chunk_size` do server chọn (nguồn chân lý duy nhất, tránh lệch hằng số FE/BE)."""
 
     permission_classes = [IsActiveUser]
+    allow_receptionist = True
 
     def post(self, request):
         ser = AssetUploadInitSerializer(
@@ -410,6 +446,17 @@ class AssetUploadInitView(APIView):
         """Tạo/tìm bệnh nhân từ metadata — trả None khi người dùng không khai gì."""
         name = d.get("patient_name", "").strip()
         code = d.get("patient_code", "").strip()
+
+        # Lễ tân tiếp nhận phim cho hồ sơ đã có: mã là bắt buộc và phải tra được.
+        # Không cho tạo ngầm một hồ sơ chỉ mang tên bằng mã do gõ nhầm.
+        if request.user.role == Role.RECEPTIONIST:
+            if not code:
+                raise ValidationError({"patient_code": "Lễ tân phải nhập mã bệnh nhân."})
+            patient = Patient.objects.filter(patient_code__iexact=code).first()
+            if patient is None:
+                raise ValidationError({"patient_code": "Không tìm thấy bệnh nhân với mã này."})
+            return patient
+
         if not name and not code:
             return None
 
@@ -461,6 +508,7 @@ class AssetUploadChunkView(APIView):
     """Bước 2/3 — nhận từng chunk thô (`application/octet-stream`, KHÔNG multipart)."""
 
     permission_classes = [IsActiveUser]
+    allow_receptionist = True
 
     def put(self, request, pk, index):
         asset = _get_uploading_asset(request, pk)
@@ -484,6 +532,7 @@ class AssetUploadStatusView(APIView):
     """Client dùng để resume sau lỗi giữa chừng."""
 
     permission_classes = [IsActiveUser]
+    allow_receptionist = True
 
     def get(self, request, pk):
         asset = _get_uploading_asset(request, pk)
@@ -500,6 +549,7 @@ class AssetUploadCompleteView(APIView):
     """Bước 3/3 — ghép chunk thành file gốc rồi đẩy sang Celery xử lý nền."""
 
     permission_classes = [IsActiveUser]
+    allow_receptionist = True
 
     def post(self, request, pk):
         asset = _get_uploading_asset(request, pk)
@@ -547,7 +597,7 @@ class AssetUploadCompleteView(APIView):
 
 class AssetDetailView(APIView):
     permission_classes = [IsActiveUser]
-    allow_receptionist_methods = ("GET",)
+    allow_receptionist = True
 
     def get(self, request, pk):
         asset = get_object_or_404(scoped_assets(request.user), pk=pk)

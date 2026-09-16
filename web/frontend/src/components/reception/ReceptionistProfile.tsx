@@ -31,9 +31,9 @@ export default function ReceptionistProfile({ user, children }: { user: AuthUser
   const name = user.full_name || user.username;
   const initials = name.split(/\s+/).filter(Boolean).slice(-2).map(part => part[0]).join('').toUpperCase();
   const cards = [
-    ['calendar_month', 'Lịch hẹn telemedicine', 'Theo dõi lịch đã xác nhận và hỗ trợ bệnh nhân vào phòng tư vấn.', '/reception/appointments/', 'Quản lý lịch hẹn'],
-    ['folder_shared', 'Tệp điều phối', 'Lịch trực, danh sách liên hệ và biểu mẫu được phân công cho quầy tiếp đón.', '#work-files', 'Xem kho dữ liệu'],
-    ['support_agent', 'Hỗ trợ bệnh nhân', 'Kiểm tra thông tin trước giờ hẹn và nhắc lịch theo quy trình của phòng khám.', '/reception/appointments/', 'Mở danh sách hôm nay'],
+    ['calendar_month', 'Lịch hẹn telemedicine', 'Theo dõi lịch đã xác nhận và hỗ trợ bệnh nhân vào phòng tư vấn.', '/telemedicine/', 'Quản lý lịch hẹn'],
+    ['folder_shared', 'Kho phim bệnh nhân', 'Tra cứu mã bệnh nhân, tải phim mới và theo dõi dữ liệu toàn hệ thống.', '/reception/data/', 'Mở kho dữ liệu'],
+    ['support_agent', 'Hỗ trợ bệnh nhân', 'Kiểm tra thông tin trước giờ hẹn và nhắc lịch theo quy trình của phòng khám.', '/telemedicine/', 'Mở danh sách hôm nay'],
   ];
 
   return (
@@ -43,9 +43,9 @@ export default function ReceptionistProfile({ user, children }: { user: AuthUser
           <div>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium"><span className="material-symbols-outlined text-[16px]">badge</span>Hồ sơ lễ tân</span>
             <h2 className="mt-3 font-serif text-2xl font-semibold">{name}</h2>
-            <p className="mt-1 text-sm text-white/80">Không gian điều phối lịch hẹn và hỗ trợ tiếp đón bệnh nhân.</p>
+            <p className="mt-1 text-sm text-white/80">Không gian điều phối lịch hẹn, hồ sơ và phim bệnh nhân.</p>
           </div>
-          <Link href="/reception/appointments/" className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-primary shadow-sm hover:bg-blue-50">
+          <Link href="/telemedicine/" className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-primary shadow-sm hover:bg-blue-50">
             <span className="material-symbols-outlined text-[19px]">calendar_month</span>Quản lý lịch hẹn
           </Link>
         </div>
@@ -71,7 +71,7 @@ export default function ReceptionistProfile({ user, children }: { user: AuthUser
           </>}
         </div>
         <div className="rounded-2xl border border-gray-200 bg-white p-5">
-          <div className="flex items-center justify-between"><div><h3 className="font-serif text-lg font-semibold text-gray-900">Kho dữ liệu nghiệp vụ</h3><p className="mt-1 text-xs text-gray-500">Tài nguyên phục vụ điều phối và tiếp đón, không hiển thị hồ sơ lâm sàng.</p></div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">Khu vực lễ tân</span></div>
+          <div className="flex items-center justify-between"><div><h3 className="font-serif text-lg font-semibold text-gray-900">Công việc lễ tân</h3><p className="mt-1 text-xs text-gray-500">Các tác vụ tiếp nhận, quản lý phim và hỗ trợ lịch hẹn.</p></div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">Khu vực lễ tân</span></div>
           <div className="mt-5 grid gap-3 md:grid-cols-3">{cards.map(([icon, title, description, href, action]) => <Link key={title} href={href} className="group rounded-xl border border-gray-200 p-4 transition hover:border-primary/30 hover:shadow-sm"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-50 text-primary"><span className="material-symbols-outlined text-[21px]">{icon}</span></span><h4 className="mt-3 text-sm font-semibold text-gray-900">{title}</h4><p className="mt-1 min-h-12 text-xs leading-relaxed text-gray-500">{description}</p><span className="mt-3 inline-flex text-xs font-medium text-primary group-hover:underline">{action}</span></Link>)}</div>
         </div>
       </section>

@@ -166,7 +166,7 @@ export default function LibraryPage() {
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
   const showPatient = canEditLabels || isReceptionist;
-  const columns = isReceptionist ? 4 : 5 + Number(showPatient);
+  const columns = 4 + Number(showPatient) + Number(isReceptionist) + Number(!isReceptionist);
   const activeFilterCount =
     Number(Boolean(search.trim())) +
     Number(Boolean(birthYear)) +
@@ -211,13 +211,13 @@ export default function LibraryPage() {
               {filtersOpen ? 'expand_less' : 'expand_more'}
             </span>
           </button>
-          {!isReceptionist && <Link
+          <Link
             href="/library/new/"
             className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-base font-semibold text-white shadow-sm hover:bg-primary-600"
           >
             <span className="material-symbols-outlined text-[22px]">upload</span>
             Tải dữ liệu lên
-          </Link>}
+          </Link>
         </div>
       </div>
 
@@ -330,14 +330,12 @@ export default function LibraryPage() {
           <table className="w-full text-base">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-left text-sm text-gray-500">
-                {!isReceptionist && <th className="px-5 py-4 font-medium">Dữ liệu</th>}
+                <th className="px-5 py-4 font-medium">Dữ liệu</th>
                 {showPatient && <th className="px-5 py-4 font-medium">Bệnh nhân</th>}
                 {isReceptionist && <th className="px-5 py-4 font-medium">Ngày sinh</th>}
                 <th className="px-5 py-4 font-medium">Phân loại</th>
-                {!isReceptionist && <>
-                <th className="px-4 py-3 font-medium">Loại dữ liệu</th>
+                {!isReceptionist && <th className="px-4 py-3 font-medium">Loại dữ liệu</th>}
                 <th className="px-4 py-3 font-medium">Ngày tải lên</th>
-                </>}
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -378,7 +376,7 @@ export default function LibraryPage() {
               ) : (
                 rows.map(a => (
                   <tr key={a.id} className="border-b border-gray-50 last:border-0 hover:bg-primary/[0.03]">
-                    {!isReceptionist && <td className="px-5 py-4">
+                    <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <AssetThumb asset={a} />
                         <div className="min-w-0">
@@ -394,7 +392,7 @@ export default function LibraryPage() {
                           <span className="text-[11px] text-primary">{a.permission === 'owner' ? 'Của tôi' : a.permission === 'admin' ? 'Quản trị' : a.permission === 'edit' ? 'Được cấp quyền sửa' : 'Chỉ xem'}</span>
                         </div>
                       </div>
-                    </td>}
+                    </td>
                     {showPatient && (
                       <td className="px-5 py-4">
                         {a.patient ? (
@@ -409,21 +407,19 @@ export default function LibraryPage() {
                         )}
                       </td>
                     )}
-                    {isReceptionist && <td className="px-5 py-4 text-gray-600">{a.patient?.birth_year ?? '—'}</td>}
+                    {isReceptionist && <td className="whitespace-nowrap px-5 py-4 text-gray-600">{a.patient?.birth_date ? new Date(`${a.patient.birth_date}T00:00:00`).toLocaleDateString('vi-VN') : a.patient?.birth_year ?? '—'}</td>}
                     <td className="px-5 py-4 text-gray-700">{a.category_name}</td>
-                    {!isReceptionist && <>
-                    <td className="px-4 py-3">
+                    {!isReceptionist && <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-1 text-gray-600">
                         <span className="material-symbols-outlined text-[16px] text-gray-400">
                           {DATA_TYPE_ICON[a.data_type]}
                         </span>
                         {a.data_type_display}
                       </span>
-                    </td>
+                    </td>}
                     <td className="whitespace-nowrap px-4 py-3 text-gray-500">
                       {fmtDate(a.created_at)}
                     </td>
-                    </>}
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
                         <Link

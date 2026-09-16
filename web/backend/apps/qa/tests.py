@@ -108,6 +108,44 @@ class QASystemTests(APITestCase):
         session.refresh_from_db()
         self.assertEqual(session.status, "resolved")
 
+    def test_diagnosis_question_is_saved_for_student_and_selected_doctor(self):
+        """Phiên thật phải xuất hiện ở màn hỏi đáp của cả hai vai trò."""
+        self.client.force_authenticate(user=self.student)
+        create_res = self.client.post(
+            "/api/qa/sessions/",
+            {
+                "title": "Hỏi về kết quả chẩn đoán · Ca #12 · Ảnh 1",
+                "image_url": "/media/cases/12/annotated_0.jpg",
+                "initial_content": "Nhờ thầy xem giúp vùng AI vừa đánh dấu ạ.",
+                "share_with_user_ids": [self.doctor.id],
+            },
+            format="json",
+        )
+        self.assertEqual(create_res.status_code, 201)
+        session_id = create_res.data["id"]
+
+        student_list = self.client.get("/api/qa/sessions/", {"scope": "mine"})
+        self.assertEqual(student_list.status_code, 200)
+        self.assertIn(session_id, [item["id"] for item in student_list.data])
+
+        self.client.force_authenticate(user=self.doctor)
+        doctor_list = self.client.get("/api/qa/sessions/", {"scope": "all"})
+        self.assertEqual(doctor_list.status_code, 200)
+        self.assertIn(session_id, [item["id"] for item in doctor_list.data])
+
+        reply_res = self.client.post(
+            f"/api/qa/sessions/{session_id}/messages/",
+            {"content": "Thầy đã xem kết quả; em cần đối chiếu thêm dấu hiệu lâm sàng."},
+            format="json",
+        )
+        self.assertEqual(reply_res.status_code, 201)
+
+        self.client.force_authenticate(user=self.student)
+        detail_res = self.client.get(f"/api/qa/sessions/{session_id}/")
+        self.assertEqual(detail_res.status_code, 200)
+        self.assertEqual(len(detail_res.data["messages"]), 2)
+        self.assertEqual(detail_res.data["messages"][-1]["sender"]["id"], self.doctor.id)
+
     def test_student_must_select_at_least_one_teacher(self):
         self.client.force_authenticate(user=self.student)
         res = self.client.post(
@@ -117,6 +155,14 @@ class QASystemTests(APITestCase):
         )
         self.assertEqual(res.status_code, 400)
         self.assertIn("share_with_user_ids", res.data)
+
+    def test_student_can_list_registered_active_doctors_as_teachers(self):
+        self.client.force_authenticate(user=self.student)
+        res = self.client.get("/api/qa/sessions/teachers/")
+
+        self.assertEqual(res.status_code, 200)
+        teacher_ids = [item["id"] for item in res.data]
+        self.assertIn(self.doctor.id, teacher_ids)
 
     def test_unselected_doctor_cannot_read_student_session(self):
         other_doctor = User.objects.create_user(

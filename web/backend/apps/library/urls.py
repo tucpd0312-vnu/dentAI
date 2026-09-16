@@ -13,6 +13,10 @@ urlpatterns = [
         views.CategoryListCreateView.as_view(), name="library-category-list",
     ),
     re_path(r"^library/assets/?$", views.AssetListView.as_view(), name="library-asset-list"),
+    re_path(
+        r"^library/patients/lookup/?$",
+        views.PatientLookupView.as_view(), name="library-patient-lookup",
+    ),
 
     # ── Sao chép dữ liệu đã xử lý từ module nghiệp vụ ───────────────────────
     re_path(

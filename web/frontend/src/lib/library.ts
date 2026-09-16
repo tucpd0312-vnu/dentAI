@@ -57,6 +57,7 @@ export interface AssetPatient {
   gender: Gender | '';
   gender_display: string;
   birth_year: number | null;
+  birth_date: string | null;
   /** Suy từ `birth_year` lúc đọc — backend không lưu tuổi, xem Patient.birth_year. */
   age: number | null;
   created_at: string;
@@ -246,6 +247,14 @@ export function fileExtension(file: File): string {
 
 export async function fetchCategories(): Promise<DataCategory[]> {
   const res = await api.get<DataCategory[]>('/library/categories/');
+  return res.data;
+}
+
+/** Tra cứu chính xác theo mã; backend chỉ cho bác sĩ và lễ tân sử dụng. */
+export async function lookupPatientByCode(code: string): Promise<AssetPatient> {
+  const res = await api.get<AssetPatient>('/library/patients/lookup/', {
+    params: { code: code.trim() },
+  });
   return res.data;
 }
 

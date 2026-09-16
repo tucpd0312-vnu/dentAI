@@ -1,6 +1,9 @@
 from unittest import mock
+import io
+import zipfile
 
 from django.core.cache import cache, caches
+from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -10,8 +13,66 @@ from apps.cases.models import Caption, Case, CaseShare, Detection, Image, Patien
 from apps.library.models import DataAsset, DataAssetShare, DataCategory
 from apps.scans.models import Scan, ScanShare
 
-from .models import EmailOTP, Notification, Role, RoleRequest, User
+from .models import ActivityLog, EmailOTP, LogAction, Notification, Role, RoleRequest, User
 from .notifications import notify_user
+
+
+def _accounts_xlsx(rows):
+    """Workbook XLSX tối thiểu dùng inline strings, đủ mô phỏng file từ Excel."""
+    def cell(column, row, value):
+        return f'<c r="{column}{row}" t="inlineStr"><is><t>{value}</t></is></c>'
+
+    letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    sheet_rows = []
+    for row_index, values in enumerate(rows, start=1):
+        cells = "".join(cell(letters[index], row_index, value) for index, value in enumerate(values))
+        sheet_rows.append(f'<row r="{row_index}">{cells}</row>')
+    sheet = '<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>' + "".join(sheet_rows) + '</sheetData></worksheet>'
+    workbook = '<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Tai khoan" sheetId="1" r:id="rId1"/></sheets></workbook>'
+    rels = '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>'
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("xl/workbook.xml", workbook)
+        archive.writestr("xl/_rels/workbook.xml.rels", rels)
+        archive.writestr("xl/worksheets/sheet1.xml", sheet)
+    return buffer.getvalue()
+
+
+class AdminExcelImportTests(APITestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            "excel-admin", "excel-admin@example.test", "AdminPass123",
+            role=Role.ADMIN, is_active=True, email_verified=True,
+        )
+        self.client.force_authenticate(self.admin)
+
+    def test_admin_imports_accounts_from_xlsx_and_logs_each_created_user(self):
+        content = _accounts_xlsx([
+            ["username", "email", "password", "role", "last_name", "first_name"],
+            ["bs.excel", "bs.excel@example.test", "DemoPass123", "Bác sĩ", "Nguyễn", "An"],
+            ["lt.excel", "lt.excel@example.test", "DemoPass123", "Lễ tân", "Trần", "Hà"],
+        ])
+        response = self.client.post(
+            "/api/users/import-excel/",
+            {"file": SimpleUploadedFile("accounts.xlsx", content, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data["created_count"], 2)
+        self.assertEqual(User.objects.get(username="bs.excel").role, Role.DOCTOR)
+        self.assertEqual(User.objects.get(username="lt.excel").role, Role.RECEPTIONIST)
+        self.assertEqual(
+            ActivityLog.objects.filter(action=LogAction.USER_CREATE, detail__source="excel").count(), 2
+        )
+
+    def test_non_admin_cannot_import_accounts(self):
+        user = User.objects.create_user("not-admin", "not-admin@example.test", "UserPass123", role=Role.DOCTOR)
+        self.client.force_authenticate(user)
+        content = _accounts_xlsx([["username", "email", "password", "role"]])
+        response = self.client.post(
+            "/api/users/import-excel/", {"file": SimpleUploadedFile("accounts.xlsx", content)}, format="multipart"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class LoginTests(APITestCase):

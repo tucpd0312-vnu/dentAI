@@ -23,13 +23,21 @@ class Patient(models.Model):
     # tư liệu nghiên cứu lâu dài. Form vẫn cho nhập tuổi rồi quy đổi ngay ở client;
     # tuổi hiển thị được tính lại lúc đọc (xem PatientSerializer.get_age).
     birth_year = models.PositiveSmallIntegerField(null=True, blank=True)
+    # Ngày sinh đầy đủ dành cho hồ sơ nghiệp vụ; birth_year vẫn được giữ để tương
+    # thích dữ liệu cũ và các form chỉ thu thập tuổi/năm sinh.
+    birth_date = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.patient_code} — {self.name}"
 
     def age(self) -> int | None:
-        """Tuổi suy ra tại thời điểm đọc; None khi chưa khai năm sinh."""
+        """Tuổi suy ra tại thời điểm đọc; ưu tiên ngày sinh đầy đủ nếu có."""
+        if self.birth_date:
+            today = timezone.localdate()
+            return today.year - self.birth_date.year - (
+                (today.month, today.day) < (self.birth_date.month, self.birth_date.day)
+            )
         if not self.birth_year:
             return None
         return timezone.now().year - self.birth_year

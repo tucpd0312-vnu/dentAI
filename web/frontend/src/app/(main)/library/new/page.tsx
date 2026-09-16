@@ -12,6 +12,7 @@ import {
   fetchCategories,
   fileExtension,
   GENDER_LABEL,
+  lookupPatientByCode,
   MAX_ASSET_SIZE,
   uploadAsset,
   type DataCategory,
@@ -45,7 +46,7 @@ function normalize(value: string): string {
 
 export default function NewAssetPage() {
   const router = useRouter();
-  const { canViewAllLibrary, hasPatientScope, loading: authLoading } = useAuth();
+  const { canViewAllLibrary, hasPatientScope, isReceptionist, loading: authLoading } = useAuth();
 
   const inputRef = useRef<HTMLInputElement>(null);
   // Phiên upload dở từ lần submit lỗi trước — bấm lại chỉ gửi nốt chunk còn thiếu,
@@ -60,10 +61,14 @@ export default function NewAssetPage() {
   const [title, setTitle] = useState('');
 
   const [showPatient, setShowPatient] = useState(false);
+  const [patientResolved, setPatientResolved] = useState(false);
+  const [patientLookupBusy, setPatientLookupBusy] = useState(false);
+  const [patientLookupError, setPatientLookupError] = useState<string | null>(null);
   const [patient, setPatient] = useState({
     name: '',
     code: '',
     age: '',
+    birthDate: '',
     gender: '' as Gender | '',
     condition: '',
   });
@@ -79,6 +84,35 @@ export default function NewAssetPage() {
       .then(setCategories)
       .catch(err => setError(apiErrorMessage(err, 'Không tải được danh sách phân loại.')));
   }, []);
+
+  useEffect(() => {
+    if (isReceptionist) setShowPatient(true);
+  }, [isReceptionist]);
+
+  async function lookupPatient(codeOverride?: string) {
+    const lookupCode = (codeOverride ?? patient.code).trim();
+    if (!lookupCode || patientLookupBusy) return;
+    setPatientLookupBusy(true);
+    setPatientLookupError(null);
+    try {
+      const found = await lookupPatientByCode(lookupCode);
+      setPatient(p => ({
+        ...p,
+        code: found.patient_code,
+        name: found.name,
+        age: found.age == null ? '' : String(found.age),
+        birthDate: found.birth_date ?? '',
+        gender: found.gender,
+      }));
+      setPatientResolved(true);
+    } catch (err) {
+      setPatientResolved(false);
+      setPatient(p => ({ ...p, name: '', age: '', birthDate: '', gender: '' }));
+      setPatientLookupError(apiErrorMessage(err, 'Không tìm thấy bệnh nhân với mã này.'));
+    } finally {
+      setPatientLookupBusy(false);
+    }
+  }
 
   /** Danh mục đã có mà tên mới gõ vào rất giống — chặn "Viêm lợi"/"viem loi" từ sớm. */
   const similarCategory = useMemo(() => {
@@ -171,7 +205,7 @@ export default function NewAssetPage() {
         setProgress,
         resumeAssetIdRef.current,
       );
-      router.push(`/library/${data.id}/`);
+      router.push(isReceptionist ? '/reception/data/' : `/library/${data.id}/`);
     } catch (err: unknown) {
       const assetId = (err as { assetId?: number })?.assetId;
       if (assetId) resumeAssetIdRef.current = assetId;
@@ -200,12 +234,13 @@ export default function NewAssetPage() {
   const categoryReady =
     categoryChoice === NEW_CATEGORY ? newCategoryName.trim().length >= 2 : !!categoryChoice;
   const dataTypeReady = dataType && (dataType !== 'other' || dataTypeOther.trim().length > 0);
-  const canSubmit = !!file && !!title.trim() && categoryReady && !!dataTypeReady && !submitting;
+  const canSubmit = !!file && !!title.trim() && categoryReady && !!dataTypeReady
+    && (!isReceptionist || patientResolved) && !submitting;
 
   return (
     <form onSubmit={handleSubmit} className="mx-auto max-w-3xl space-y-5">
       <Link
-        href="/library/"
+        href={isReceptionist ? '/reception/data/' : '/library/'}
         className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
       >
         <span className="material-symbols-outlined text-[14px]">arrow_back</span>
@@ -216,7 +251,7 @@ export default function NewAssetPage() {
       <section className="overflow-hidden rounded-xl border border-gray-200 bg-white">
         <button
           type="button"
-          onClick={() => setShowPatient(v => !v)}
+          onClick={() => { if (!isReceptionist) setShowPatient(v => !v); }}
           aria-expanded={showPatient}
           className="flex w-full items-center gap-2 border-b border-gray-100 px-5 py-3.5 text-left"
         >
@@ -226,14 +261,55 @@ export default function NewAssetPage() {
           <span className="font-serif text-[15px] font-semibold text-gray-900">
             Thông tin bệnh nhân
           </span>
-          <span className="text-xs font-normal text-gray-400">(tuỳ chọn)</span>
+          <span className="text-xs font-normal text-gray-400">{isReceptionist ? '(bắt buộc)' : '(tuỳ chọn)'}</span>
           <span className="material-symbols-outlined ml-auto text-[18px] text-gray-400">
-            {showPatient ? 'expand_less' : 'expand_more'}
+            {!isReceptionist && (showPatient ? 'expand_less' : 'expand_more')}
           </span>
         </button>
 
         {showPatient && (
           <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
+            {isReceptionist && (
+              <div className="sm:col-span-2">
+                <label className="mb-1.5 block text-xs font-medium text-gray-600">
+                  Mã bệnh nhân <span className="text-red-500">*</span>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={patient.code}
+                    onChange={e => {
+                      setPatient(p => ({ ...p, code: e.target.value.toUpperCase(), name: '', age: '', birthDate: '', gender: '' }));
+                      setPatientResolved(false);
+                      setPatientLookupError(null);
+                    }}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void lookupPatient(); } }}
+                    onBlur={() => { if (!patientResolved && patient.code.trim()) void lookupPatient(); }}
+                    placeholder="Ví dụ: BN-DEMO-001"
+                    disabled={submitting}
+                    className={inputCls}
+                  />
+                  <button
+                    type="button"
+                    onMouseDown={e => e.preventDefault()}
+                    onClick={() => void lookupPatient()}
+                    disabled={!patient.code.trim() || patientLookupBusy || submitting}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  >
+                    <span className={`material-symbols-outlined text-[18px] ${patientLookupBusy ? 'animate-spin' : ''}`}>{patientLookupBusy ? 'autorenew' : 'search'}</span>
+                    Tra cứu
+                  </button>
+                </div>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px]">
+                  <span className="text-gray-400">Demo nhanh:</span>
+                  {['BN-DEMO-001', 'BN-DEMO-002'].map(code => (
+                    <button key={code} type="button" onMouseDown={e => e.preventDefault()} onClick={() => { setPatient(p => ({ ...p, code, name: '', age: '', birthDate: '', gender: '' })); setPatientResolved(false); setPatientLookupError(null); void lookupPatient(code); }} className="rounded-full bg-primary-50 px-2 py-0.5 font-mono text-primary hover:bg-primary/10">{code}</button>
+                  ))}
+                </div>
+                {patientLookupError && <p className="mt-2 text-xs text-red-600">{patientLookupError}</p>}
+                {patientResolved && <p className="mt-2 flex items-center gap-1 text-xs font-medium text-green-700"><span className="material-symbols-outlined text-[16px]">check_circle</span>Đã tìm thấy hồ sơ — thông tin bên dưới được điền tự động.</p>}
+              </div>
+            )}
             <div>
               <label className="mb-1.5 block text-xs font-medium text-gray-600">
                 Tên bệnh nhân
@@ -243,11 +319,11 @@ export default function NewAssetPage() {
                 value={patient.name}
                 onChange={e => setPatient(p => ({ ...p, name: e.target.value }))}
                 placeholder="Nguyễn Văn A"
-                disabled={submitting}
+                disabled={submitting || isReceptionist}
                 className={inputCls}
               />
             </div>
-            {!hasPatientScope && (
+            {!hasPatientScope && !isReceptionist && (
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-gray-600">
                   Mã bệnh nhân
@@ -257,12 +333,19 @@ export default function NewAssetPage() {
                   value={patient.code}
                   onChange={e => setPatient(p => ({ ...p, code: e.target.value }))}
                   placeholder="Để trống sẽ tự sinh mã LIB-XXXXXXXX"
-                  disabled={submitting}
+                  disabled={submitting || isReceptionist}
                   className={inputCls}
                 />
               </div>
             )}
             <div>
+              {isReceptionist ? (
+                <>
+                  <label className="mb-1.5 block text-xs font-medium text-gray-600">Ngày sinh</label>
+                  <input type="text" value={patient.birthDate ? new Date(`${patient.birthDate}T00:00:00`).toLocaleDateString('vi-VN') : ''} placeholder="Tự động điền sau khi tra cứu" disabled className={inputCls} />
+                </>
+              ) : (
+                <>
                 <label className="mb-1.5 block text-xs font-medium text-gray-600">Tuổi</label>
                 <input
                   type="number"
@@ -279,6 +362,8 @@ export default function NewAssetPage() {
                   {patient.age.trim() ? ` (${CURRENT_YEAR - Number(patient.age)})` : ''} thay vì
                   tuổi, để số liệu không sai lệch theo thời gian.
                 </p>
+                </>
+              )}
             </div>
             <div>
                 <span className="mb-1.5 block text-xs font-medium text-gray-600">Giới tính</span>
@@ -291,7 +376,7 @@ export default function NewAssetPage() {
                         value={g}
                         checked={patient.gender === g}
                         onChange={() => setPatient(p => ({ ...p, gender: g }))}
-                        disabled={submitting}
+                        disabled={submitting || isReceptionist}
                         className="accent-primary"
                       />
                       {GENDER_LABEL[g]}
@@ -341,7 +426,7 @@ export default function NewAssetPage() {
                   {c.name}
                 </option>
               ))}
-              {canViewAllLibrary && (
+              {canViewAllLibrary && !isReceptionist && (
                 <option value={NEW_CATEGORY}>➕ Khác — nhập tên mới…</option>
               )}
             </select>

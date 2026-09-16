@@ -9,10 +9,12 @@ import {
   createUser,
   deleteUser,
   fetchUsers,
+  importUsersFromExcel,
   restoreUser,
   updateUser,
   type AdminUser,
   type UserFilters,
+  type UserExcelImportResult,
 } from '@/lib/users';
 import { useRequireRole } from '@/lib/useRequireRole';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -94,6 +96,95 @@ function ErrorBox({ message }: { message: string }) {
       <span className="material-symbols-outlined mt-0.5 shrink-0 text-[16px]">error</span>
       <span>{message}</span>
     </div>
+  );
+}
+
+// ── Modal nhập danh sách Excel ───────────────────────────────────────────────
+
+function ImportUsersModal({ onClose, onImported }: { onClose: () => void; onImported: (count: number) => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [result, setResult] = useState<UserExcelImportResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  function downloadTemplate() {
+    const csv = [
+      'username,email,password,role,last_name,first_name,phone',
+      'bacsi.demo,bacsi.demo@dentai.local,Demo@1234,doctor,Nguyễn,Minh Anh,0901234567',
+      'letan.demo,letan.demo@dentai.local,Demo@1234,receptionist,Trần,Thu Hà,0907654321',
+    ].join('\n');
+    const url = URL.createObjectURL(new Blob(['\ufeff', csv], { type: 'text/csv;charset=utf-8' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'mau-danh-sach-tai-khoan.csv';
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!file) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const imported = await importUsersFromExcel(file);
+      setResult(imported);
+      if (imported.created_count) onImported(imported.created_count);
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Không thể nhập danh sách tài khoản.'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const errorText = (values: Record<string, string[] | string>) =>
+    Object.entries(values)
+      .map(([field, value]) => `${field}: ${Array.isArray(value) ? value.join(', ') : value}`)
+      .join(' · ');
+
+  return (
+    <Modal title="Nhập danh sách tài khoản từ Excel" onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4 p-5">
+        {error && <ErrorBox message={error} />}
+        <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs leading-relaxed text-blue-800">
+          Sheet đầu tiên cần các cột <strong>username, email, password, role</strong>.
+          Vai trò nhận: admin, doctor, student, patient, receptionist. Tối đa 500 dòng/lần.
+        </div>
+        <button type="button" onClick={downloadTemplate} className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+          <span className="material-symbols-outlined text-[18px]">download</span>
+          Tải file mẫu mở bằng Excel
+        </button>
+        <label className="block cursor-pointer rounded-xl border-2 border-dashed border-gray-300 p-5 text-center hover:border-primary/60 hover:bg-gray-50">
+          <span className="material-symbols-outlined text-4xl text-gray-300">upload_file</span>
+          <span className="mt-1 block text-sm font-medium text-gray-700">{file?.name ?? 'Chọn file .xlsx hoặc .csv'}</span>
+          <span className="block text-xs text-gray-400">Tối đa 5 MB</span>
+          <input type="file" accept=".xlsx,.csv" className="hidden" onChange={e => { setFile(e.target.files?.[0] ?? null); setResult(null); }} />
+        </label>
+
+        {result && (
+          <div className="space-y-2 rounded-xl border border-gray-200 p-3 text-sm">
+            <p className="font-medium text-gray-800">
+              Đã tạo {result.created_count}/{result.total} tài khoản
+              {result.failed_count ? ` · ${result.failed_count} dòng lỗi` : ''}.
+            </p>
+            {result.errors.slice(0, 8).map(item => (
+              <p key={item.row} className="text-xs text-red-600">
+                Dòng {item.row}{item.username ? ` (${item.username})` : ''}: {errorText(item.errors)}
+              </p>
+            ))}
+          </div>
+        )}
+
+        <div className="flex gap-2 pt-1">
+          <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
+            {result ? 'Đóng' : 'Huỷ'}
+          </button>
+          <button type="submit" disabled={!file || saving} className="flex-1 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50">
+            {saving ? 'Đang nhập…' : 'Nhập tài khoản'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -322,7 +413,7 @@ function EditUserModal({
           {form.role === 'receptionist' && user.role !== 'receptionist' && (
             <p className="mt-1 text-[11px] text-amber-600">
               Chuyển sang Lễ tân sẽ thu hồi mọi quyền chia sẻ ca, phim và dữ liệu;
-              tài khoản chỉ còn truy cập trang Tổng quan.
+              tài khoản chuyển sang phạm vi tiếp nhận: lịch hẹn và kho phim toàn hệ thống.
             </p>
           )}
         </Field>
@@ -456,6 +547,7 @@ export default function UsersPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [deleting, setDeleting] = useState<AdminUser | null>(null);
 
@@ -534,6 +626,15 @@ export default function UsersPage() {
           </p>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
+          {mainTab === 'accounts' && (
+            <button
+              onClick={() => setImporting(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-white px-3.5 py-2 text-sm font-medium text-primary hover:bg-primary-50"
+            >
+              <span className="material-symbols-outlined text-[18px]">upload_file</span>
+              Nhập từ Excel
+            </button>
+          )}
           {mainTab === 'accounts' && (
             <button
               type="button"
@@ -821,6 +922,15 @@ export default function UsersPage() {
           onDone={() => {
             setCreating(false);
             flash('Đã tạo tài khoản mới.');
+            void load();
+          }}
+        />
+      )}
+      {importing && (
+        <ImportUsersModal
+          onClose={() => setImporting(false)}
+          onImported={created => {
+            flash(`Đã nhập ${created} tài khoản từ Excel.`);
             void load();
           }}
         />

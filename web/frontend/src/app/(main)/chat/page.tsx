@@ -7,12 +7,10 @@ import { qaApi, type QASessionListItem, type QASessionDetail } from '@/lib/qa';
 import QASidebar from '@/components/qa/QASidebar';
 import QAChatPanel from '@/components/qa/QAChatPanel';
 import NewSessionModal from '@/components/qa/NewSessionModal';
-import StudentQADemo from '@/components/qa/StudentQADemo';
 
 export default function ChatPage() {
   const { user, loading } = useAuth();
   if (loading || !user) return null;
-  if (user.role === 'doctor') return <StudentQADemo teacher={user} />;
   return <LiveChatPage />;
 }
 
@@ -121,6 +119,15 @@ function LiveChatPage() {
     return () => clearInterval(interval);
   }, [activeSessionId]);
 
+  // Đồng bộ danh sách để câu hỏi vừa tạo từ màn kết quả xuất hiện ở cả màn
+  // sinh viên và màn bác sĩ đang mở mà không cần tải lại trang.
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      void fetchSessions();
+    }, 5000);
+    return () => window.clearInterval(interval);
+  }, [fetchSessions]);
+
   // Khi tìm kiếm hoặc đổi scope
   const handleScopeChange = (newScope: string) => {
     setScope(newScope);
@@ -208,19 +215,21 @@ function LiveChatPage() {
                 ? 'Chọn một phiên hỏi đáp bên trái để xem câu hỏi và phản hồi trực tiếp cho sinh viên.'
                 : 'Chọn một phiên hỏi đáp hoặc mở kết quả chẩn đoán AI để gửi câu hỏi tới giảng viên bạn chọn.'}
             </p>
-            <button
-              onClick={() => setShowNewModal(true)}
-              className="mt-4 px-4 py-2 bg-primary text-white text-xs font-semibold rounded-xl hover:bg-primary/90 transition-all flex items-center gap-1.5 shadow-sm"
-            >
-              <span className="material-symbols-outlined text-[16px]">add</span>
-              Tạo phiên hỏi đáp mới
-            </button>
+            {user?.role !== 'doctor' && (
+              <button
+                onClick={() => setShowNewModal(true)}
+                className="mt-4 px-4 py-2 bg-primary text-white text-xs font-semibold rounded-xl hover:bg-primary/90 transition-all flex items-center gap-1.5 shadow-sm"
+              >
+                <span className="material-symbols-outlined text-[16px]">add</span>
+                Tạo phiên hỏi đáp mới
+              </button>
+            )}
           </div>
         )}
       </div>
 
       {/* Modal tạo phiên mới */}
-      {showNewModal && (
+      {showNewModal && user?.role !== 'doctor' && (
         <NewSessionModal
           initialCaseId={paramCaseId ? parseInt(paramCaseId, 10) : undefined}
           initialImageIndex={paramImageIndex ? parseInt(paramImageIndex, 10) : undefined}

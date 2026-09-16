@@ -6,6 +6,7 @@ import Link from 'next/link';
 
 import SliceViewer from '@/components/viewer/SliceViewer';
 import ShareModal from '@/components/results/ShareModal';
+import { useAuth } from '@/components/providers/AuthProvider';
 import {
   ASSET_STATUS_CLASS,
   ASSET_STATUS_LABEL,
@@ -39,6 +40,7 @@ const inputCls =
   'focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30';
 
 export default function AssetDetailPage() {
+  const { isReceptionist } = useAuth();
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
@@ -107,7 +109,7 @@ export default function AssetDetailPage() {
     }
     try {
       await deleteAsset(asset.id);
-      router.push('/library/');
+      router.push(isReceptionist ? '/reception/data/' : '/library/');
     } catch (err) {
       setError(apiErrorMessage(err, 'Không xoá được mục này.'));
     }
@@ -174,18 +176,18 @@ export default function AssetDetailPage() {
   const canDownload = asset.status === 'ready';
 
   return (
-    <div className="space-y-4">
+    <div className="w-full space-y-5">
       {/* ── Header ── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <Link
-            href="/library/"
+            href={isReceptionist ? '/reception/data/' : '/library/'}
             className="mb-1 inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
           >
             <span className="material-symbols-outlined text-[14px]">arrow_back</span>
             Kho dữ liệu
           </Link>
-          <h1 className="truncate font-serif text-xl font-semibold text-gray-900">
+          <h1 className="truncate font-serif text-2xl font-semibold text-gray-900">
             {asset.title}
           </h1>
           <p className="truncate font-mono text-xs text-gray-400">{asset.original_filename}</p>
@@ -225,9 +227,9 @@ export default function AssetDetailPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-start gap-5">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(280px,0.72fr)_minmax(500px,1.28fr)]">
         {/* ── Cột trái: xem dữ liệu ── */}
-        <div className="min-w-0 flex-1 basis-96">
+        <div className="min-w-0 lg:sticky lg:top-4">
           {isImageLike ? (
             <SliceViewer
               count={asset.preview_count}
@@ -263,16 +265,16 @@ export default function AssetDetailPage() {
         </div>
 
         {/* ── Cột phải ── */}
-        <div className="w-full shrink-0 space-y-4 sm:w-80">
+        <div className="min-w-0 space-y-5">
           <div className="space-y-2">
-            {(asset.permission === 'owner' || asset.permission === 'admin') && <button
-              onClick={() => setSharing(true)} className="w-full rounded-xl border border-primary px-4 py-2 text-sm text-primary">
+            {!isReceptionist && (asset.permission === 'owner' || asset.permission === 'admin') && <button
+              onClick={() => setSharing(true)} className="w-full rounded-xl border border-primary px-5 py-3 text-base font-medium text-primary">
               Chia sẻ tư liệu
             </button>}
             {asset.diagnosis_target && (
               <Link
                 href={diagnosisUrl(asset)!}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-600"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-base font-semibold text-white shadow-sm transition-colors hover:bg-primary-600"
               >
                 <span className="material-symbols-outlined text-[18px]">{asset.diagnosis_target === 'canine3d' ? 'view_in_ar' : 'oral_disease'}</span>
                 {DIAGNOSIS_ROUTES[asset.diagnosis_target].label}
@@ -282,7 +284,7 @@ export default function AssetDetailPage() {
               onClick={handleDownload}
               disabled={!canDownload || downloading}
               title={canDownload ? undefined : 'Chưa xử lý xong, chưa tải xuống được'}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-base font-semibold text-white shadow-sm transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <span
                 className={`material-symbols-outlined text-[18px] ${downloading ? 'animate-spin' : ''}`}
@@ -294,7 +296,7 @@ export default function AssetDetailPage() {
             {asset.can_edit && !editing && (
               <button
                 onClick={startEditing}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-5 py-3 text-base font-medium text-gray-700 transition-colors hover:bg-gray-50"
               >
                 <span className="material-symbols-outlined text-[18px]">edit</span>
                 Sửa thông tin
@@ -303,7 +305,7 @@ export default function AssetDetailPage() {
             {(asset.permission === 'owner' || asset.permission === 'admin') && (
               <button
                 onClick={handleDelete}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-5 py-3 text-base font-medium text-red-600 transition-colors hover:bg-red-50"
               >
                 <span className="material-symbols-outlined text-[18px]">delete</span>
                 Xoá khỏi kho
@@ -320,9 +322,11 @@ export default function AssetDetailPage() {
                   <InfoRow label="Họ tên" value={asset.patient.name} />
                   <InfoRow label="Mã bệnh nhân" value={asset.patient.patient_code} />
                   <InfoRow
-                    label="Tuổi"
+                    label={asset.patient.birth_date ? 'Ngày sinh' : 'Tuổi'}
                     value={
-                      asset.patient.age !== null
+                      asset.patient.birth_date
+                        ? new Date(`${asset.patient.birth_date}T00:00:00`).toLocaleDateString('vi-VN')
+                        : asset.patient.age !== null
                         ? `${asset.patient.age} (sinh ${asset.patient.birth_year})`
                         : '—'
                     }
@@ -347,7 +351,7 @@ export default function AssetDetailPage() {
                     className={`${inputCls} mt-1 resize-none`}
                   />
                 ) : (
-                  <p className="mt-0.5 whitespace-pre-line text-xs leading-relaxed text-gray-600">
+                  <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-gray-700">
                     {asset.condition_note || <span className="text-gray-300">Chưa có mô tả.</span>}
                   </p>
                 )}
@@ -362,7 +366,7 @@ export default function AssetDetailPage() {
             {asset.provenance.saved_by && <InfoRow label="Người lưu" value={asset.provenance.saved_by.name} />}
             <InfoRow label="Lưu lúc" value={fmtDateTime(asset.created_at)} />
             {asset.provenance.revision && <InfoRow label="Phiên bản" value={asset.provenance.revision} />}
-            {asset.provenance.mode === 'linked' && <p className="mt-2 text-xs text-gray-500">Quyền nhận qua nguồn được quản lý tại ca/phim gốc. Các quyền chia sẻ trực tiếp được quản lý riêng.</p>}
+            {asset.provenance.mode === 'linked' && <p className="mt-3 text-sm leading-relaxed text-gray-500">Quyền nhận qua nguồn được quản lý tại ca/phim gốc. Các quyền chia sẻ trực tiếp được quản lý riêng.</p>}
           </Card>
           <Card title="Phân loại & loại dữ liệu">
             {editing ? (
@@ -446,7 +450,7 @@ export default function AssetDetailPage() {
               {asset.source.kind === 'scan' ? (
                 <Link
                   href={`/scans/${asset.source.id}/`}
-                  className="inline-flex items-center gap-1.5 text-xs text-primary underline underline-offset-2"
+                  className="inline-flex items-center gap-1.5 text-sm text-primary underline underline-offset-2"
                 >
                   <span className="material-symbols-outlined text-[16px]">radiology</span>
                   Phim CBCT #{asset.source.id}
@@ -454,7 +458,7 @@ export default function AssetDetailPage() {
               ) : (
                 <Link
                   href={`/analysis/${asset.source.id}/results/${asset.source.image_index ?? 0}/`}
-                  className="inline-flex items-center gap-1.5 text-xs text-primary underline underline-offset-2"
+                  className="inline-flex items-center gap-1.5 text-sm text-primary underline underline-offset-2"
                 >
                   <span className="material-symbols-outlined text-[16px]">oral_disease</span>
                   Ca chẩn đoán #{asset.source.id}
@@ -473,20 +477,20 @@ export default function AssetDetailPage() {
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-      <div className="border-b border-gray-100 px-4 py-3">
-        <h3 className="font-serif text-[13px] font-semibold text-gray-900">{title}</h3>
+    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div className="border-b border-gray-100 px-5 py-4">
+        <h3 className="font-serif text-base font-semibold text-gray-900">{title}</h3>
       </div>
-      <div className="p-4">{children}</div>
+      <div className="p-5">{children}</div>
     </div>
   );
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-start justify-between gap-3 py-1 text-xs">
-      <span className="shrink-0 text-gray-400">{label}</span>
-      <span className="text-right font-medium text-gray-700">{value}</span>
+    <div className="flex items-start justify-between gap-5 border-b border-gray-50 py-2.5 text-sm last:border-0">
+      <span className="shrink-0 text-gray-500">{label}</span>
+      <span className="text-right font-semibold text-gray-800">{value}</span>
     </div>
   );
 }

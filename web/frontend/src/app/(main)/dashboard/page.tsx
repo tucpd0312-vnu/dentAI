@@ -10,6 +10,7 @@ import {
   MGI_LABEL,
   fetchDashboard,
   type DashboardData,
+  type OperationalDashboardData,
 } from '@/lib/dashboard';
 import { useAuth } from '@/components/providers/AuthProvider';
 import ReceptionistProfile from '@/components/reception/ReceptionistProfile';
@@ -793,6 +794,59 @@ function ProfileInput({
 
 // ── Trang ────────────────────────────────────────────────────────────────────
 
+function AdminDashboard({ user, data }: { user: AuthUser; data: OperationalDashboardData }) {
+  const users = data.users;
+  const activity = data.activity;
+  if (!users) return null;
+  return (
+    <div className="mx-auto max-w-6xl space-y-5">
+      <section className="overflow-hidden rounded-2xl bg-gradient-to-r from-slate-800 via-primary-800 to-primary text-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-5 px-6 py-6">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-white/65">Trung tâm quản trị DentAI</p>
+            <h1 className="mt-1 font-serif text-2xl font-semibold">Xin chào, {user.full_name || user.username}</h1>
+            <p className="mt-1 text-sm text-white/75">Quản lý tài khoản, phân quyền và theo dõi lịch sử vận hành hệ thống.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/users/" className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-primary shadow-sm">
+              <span className="material-symbols-outlined text-[19px]">group</span>Quản lý người dùng
+            </Link>
+            <Link href="/system-log/" className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/20">
+              <span className="material-symbols-outlined text-[19px]">receipt_long</span>Lịch sử hệ thống
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard icon="group" label="Tổng người dùng" value={users.total} hint={`+${users.new_7d} trong 7 ngày`} />
+        <StatCard icon="how_to_reg" label="Yêu cầu vai trò" value={users.pending_role_requests} tone={users.pending_role_requests ? 'amber' : 'default'} />
+        <StatCard icon="lock" label="Tài khoản bị khoá" value={users.locked} tone="red" />
+        <StatCard icon="mark_email_unread" label="Chưa xác thực" value={users.unverified} tone="amber" />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Section title="Phân bổ vai trò" action={<Link href="/users/" className="text-xs font-medium text-primary hover:underline">Quản lý vai trò</Link>}>
+          <div className="space-y-3">
+            {(Object.keys(ROLE_LABEL) as Role[]).map(role => {
+              const count = users.by_role[role] ?? 0;
+              const width = users.total ? (count / users.total) * 100 : 0;
+              return <div key={role}><div className="mb-1 flex justify-between text-xs"><span className="text-gray-600">{ROLE_LABEL[role]}</span><span className="font-semibold tabular-nums">{count}</span></div><div className="h-2 overflow-hidden rounded-full bg-gray-100"><div className="h-full rounded-full bg-primary" style={{ width: `${width}%` }} /></div></div>;
+            })}
+          </div>
+        </Section>
+        <Section title="Hoạt động 7 ngày qua" action={<Link href="/system-log/" className="text-xs font-medium text-primary hover:underline">Xem toàn bộ</Link>}>
+          <div className="grid grid-cols-2 gap-3">
+            {Object.entries(activity?.last_7d_by_category ?? {}).map(([category, count]) => (
+              <div key={category} className="rounded-xl bg-gray-50 p-3"><p className="text-xs text-gray-500">{LOG_CATEGORY_LABEL[category] ?? category}</p><p className={`mt-1 text-xl font-semibold ${category === 'error' && count ? 'text-red-600' : 'text-gray-900'}`}>{count}</p></div>
+            ))}
+          </div>
+        </Section>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const { user, isAdmin, canViewAllLibrary, loading: authLoading } = useAuth();
   const role = user?.role ?? null;
@@ -857,6 +911,10 @@ export default function DashboardPage() {
 
   if (data.scope === 'patient') {
     return user ? <PatientDashboard user={user} data={data} /> : null;
+  }
+
+  if (data.scope === 'all' && user.role === 'admin') {
+    return <AdminDashboard user={user} data={data} />;
   }
 
   const { cases, scans, library, mgi, users, activity } = data;

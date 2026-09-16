@@ -26,6 +26,7 @@ x-django-env: &django-env
   SEED_ADMIN_USERNAME:    ${SEED_ADMIN_USERNAME:-admin}
   SEED_ADMIN_EMAIL:       ${SEED_ADMIN_EMAIL:-admin@dentai.local}
   SEED_ADMIN_PASSWORD:    ${SEED_ADMIN_PASSWORD:-Admin@123}
+  SEED_DEMO_DATA:         ${SEED_DEMO_DATA:-1}
 
 services:
 
@@ -68,6 +69,7 @@ services:
     command: >
       sh -c "python manage.py migrate --noinput &&
              python manage.py seed_admin &&
+             python manage.py seed_demo &&
              python manage.py runserver 0.0.0.0:8000"
     ports:
       - "8002:8000"

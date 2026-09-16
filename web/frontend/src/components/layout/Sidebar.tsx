@@ -44,34 +44,37 @@ const NAV: NavEntry[] = [
         label: 'Chẩn đoán viêm lợi',
         prefix: '/gingivitis',
         activePrefixes: ['/analysis'],
+        roles: ['doctor', 'student', 'patient'],
       },
       {
         href: '/scans',
         icon: 'radiology',
         label: 'Phim răng nanh ngầm 3D',
         prefix: '/scans',
+        roles: ['doctor', 'student', 'patient'],
       },
       {
         href: '/plaque',
         icon: 'dentistry',
         label: 'Chẩn đoán mảng bám răng',
         prefix: '/plaque',
+        roles: ['doctor', 'student', 'patient'],
       },
     ],
   },
   { href: '/appointments', icon: 'calendar_month', label: 'Đặt hẹn', prefix: '/appointments', roles: ['patient'] },
   { href: '/telemedicine/', icon: 'event_available', label: 'Lịch hẹn của tôi', prefix: '/telemedicine', roles: ['doctor'] },
   // Bệnh nhân không dùng Kho dữ liệu trong giao diện tích hợp.
-  { href: '/library', icon: 'inventory_2', label: 'Kho dữ liệu', prefix: '/library', roles: ['admin', 'doctor', 'student'] },
+  { href: '/library', icon: 'inventory_2', label: 'Kho dữ liệu', prefix: '/library', roles: ['doctor', 'student'] },
   // Hỏi đáp và trao đổi giữa sinh viên và giảng viên
-  { href: '/chat', icon: 'forum', label: 'Hỏi đáp & Trao đổi', prefix: '/chat', roles: ['admin', 'doctor', 'student'] },
-  { href: '/reception/data', icon: 'folder_shared', label: 'Kho dữ liệu nghiệp vụ', prefix: '/reception/data', roles: ['receptionist'] },
-  { href: '/reception/appointments', icon: 'calendar_month', label: 'Quản lý lịch hẹn', prefix: '/reception/appointments', roles: ['receptionist'] },
+  { href: '/chat', icon: 'forum', label: 'Hỏi đáp & Trao đổi', prefix: '/chat', roles: ['doctor', 'student'] },
+  { href: '/reception/data', icon: 'folder_shared', label: 'Kho dữ liệu', prefix: '/reception/data', roles: ['receptionist'] },
+  { href: '/telemedicine/', icon: 'calendar_month', label: 'Quản lý lịch hẹn Telemedicine', prefix: '/telemedicine', roles: ['receptionist'] },
   { href: '/users',      icon: 'group',        label: 'Quản lý người dùng', prefix: '/users',      roles: ['admin'] },
-  { href: '/history',    icon: 'history',      label: 'Lịch sử chẩn đoán AI', prefix: '/history'   },
+  { href: '/history',    icon: 'history',      label: 'Lịch sử chẩn đoán AI', prefix: '/history', roles: ['doctor', 'student', 'patient'] },
   { href: '/system-log', icon: 'receipt_long', label: 'Lịch sử hệ thống',   prefix: '/system-log', roles: ['admin'] },
   { href: '/settings',   icon: 'settings',     label: 'Cài đặt',            prefix: '/settings',   roles: ['admin'] },
-  { href: '/help',       icon: 'help',         label: 'Hướng dẫn',          prefix: '/help', roles: ['admin', 'student'] },
+  { href: '/help',       icon: 'help',         label: 'Hướng dẫn',          prefix: '/help', roles: ['student'] },
 ];
 
 export default function Sidebar() {
@@ -83,7 +86,7 @@ export default function Sidebar() {
   const { role, user } = useAuth();
 
   const visible = (item: NavLeaf) => {
-    if (role === 'receptionist') return ['/dashboard', '/reception/data', '/reception/appointments'].includes(item.href);
+    if (role === 'receptionist') return ['/dashboard', '/reception/data', '/telemedicine/'].includes(item.href);
     return !item.roles || Boolean(role && item.roles.includes(role));
   };
   const active = (item: NavLeaf) =>

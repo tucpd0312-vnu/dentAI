@@ -151,7 +151,7 @@ export default function ScanDetailPage() {
 
   return (
     <>
-    <div className="space-y-4">
+    <div className="w-full space-y-5">
       {/* ── Header ── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -162,7 +162,7 @@ export default function ScanDetailPage() {
             <span className="material-symbols-outlined text-[14px]">arrow_back</span>
             Kho phim
           </Link>
-          <h1 className="font-serif text-xl font-semibold text-gray-900">{scan.patient.name}</h1>
+          <h1 className="font-serif text-2xl font-semibold text-gray-900">{scan.patient.name}</h1>
           <p className="font-mono text-xs text-gray-400">{scan.patient.patient_code}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -232,9 +232,9 @@ export default function ScanDetailPage() {
       )}
 
       {/* ── Two-column layout ── */}
-      <div className="flex flex-wrap items-start gap-5">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(280px,0.72fr)_minmax(500px,1.28fr)]">
         {/* Slice viewer */}
-        <div className="min-w-0 flex-1 basis-96">
+        <div className="min-w-0 lg:sticky lg:top-4">
           <SliceViewer
             count={scan.preview_count}
             fetchBlob={index => fetchScanPreviewBlob(scan.id, index)}
@@ -242,7 +242,7 @@ export default function ScanDetailPage() {
         </div>
 
         {/* Sidebar */}
-        <div className="w-full shrink-0 space-y-4 sm:w-80">
+        <div className="min-w-0 space-y-5">
           <Card title="Thông tin phim">
             <InfoRow label="Modality" value={scan.modality || '—'} />
             <InfoRow label="Số lát" value={scan.n_slices ? String(scan.n_slices) : '—'} />
@@ -265,14 +265,14 @@ export default function ScanDetailPage() {
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
                   Ghi chú
                 </p>
-                <p className="mt-0.5 text-xs leading-relaxed text-gray-600">{scan.note}</p>
+                <p className="mt-1 text-sm leading-relaxed text-gray-700">{scan.note}</p>
               </div>
             )}
           </Card>
 
           <Card title="Mở trong 3D Slicer">
             {!slicerReady ? (
-              <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
                 <div className="flex items-start gap-2">
                   <span className="material-symbols-outlined mt-0.5 text-[18px]">warning</span>
                   <div>
@@ -285,7 +285,7 @@ export default function ScanDetailPage() {
                 </div>
               </div>
             ) : (
-              <div className="mb-3 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
+              <div className="mb-3 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
                 <span className="material-symbols-outlined text-[17px]">verified</span>
                 Máy này đã được xác nhận thiết lập Slicer Bridge.
               </div>
@@ -358,13 +358,13 @@ export default function ScanDetailPage() {
 
           <Card title="Kết quả phân vùng" badge={segs.length ? String(segs.length) : undefined}>
             {segs.length === 0 ? (
-              <p className="text-xs text-gray-400">Chưa có kết quả nào được nộp.</p>
+              <p className="text-sm text-gray-400">Chưa có kết quả nào được nộp.</p>
             ) : (
               <div className="divide-y divide-gray-50">
                 {segs.map(s => (
                   <div key={s.id} className="flex items-start justify-between gap-2 py-2 first:pt-0 last:pb-0">
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-gray-700">
+                      <p className="text-sm font-semibold text-gray-700">
                         Phiên bản {s.version}
                         {s.author && (
                           <span className="ml-1.5 font-normal text-gray-400">
@@ -373,9 +373,9 @@ export default function ScanDetailPage() {
                         )}
                       </p>
                       {s.note && (
-                        <p className="mt-0.5 truncate text-[11px] text-gray-500">{s.note}</p>
+                        <p className="mt-1 truncate text-xs text-gray-500">{s.note}</p>
                       )}
-                      <p className="text-[10px] text-gray-400">{fmtDateTime(s.created_at)}</p>
+                      <p className="mt-0.5 text-xs text-gray-400">{fmtDateTime(s.created_at)}</p>
                     </div>
                     <a
                       href={segmentationFileUrl(s.id)}
@@ -392,16 +392,16 @@ export default function ScanDetailPage() {
 
           <Card title="Nhật ký truy cập">
             {logs.length === 0 ? (
-              <p className="text-xs text-gray-400">Chưa có hoạt động nào.</p>
+              <p className="text-sm text-gray-400">Chưa có hoạt động nào.</p>
             ) : (
               <div className="max-h-64 space-y-2.5 overflow-y-auto">
                 {logs.map(l => (
-                  <div key={l.id} className="text-xs">
+                  <div key={l.id} className="text-sm">
                     <p className="text-gray-700">
                       <span className="font-medium">{l.actor_label || 'Hệ thống'}</span>{' '}
                       {l.action_display.toLowerCase()}
                     </p>
-                    <p className="text-[10px] text-gray-400">{fmtDateTime(l.created_at)}</p>
+                    <p className="mt-0.5 text-xs text-gray-400">{fmtDateTime(l.created_at)}</p>
                   </div>
                 ))}
               </div>
@@ -442,25 +442,25 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-      <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-        <h3 className="font-serif text-[13px] font-semibold text-gray-900">{title}</h3>
+    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+        <h3 className="font-serif text-base font-semibold text-gray-900">{title}</h3>
         {badge && (
           <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
             {badge}
           </span>
         )}
       </div>
-      <div className="p-4">{children}</div>
+      <div className="p-5">{children}</div>
     </div>
   );
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between py-1 text-xs">
-      <span className="text-gray-400">{label}</span>
-      <span className="font-medium text-gray-700">{value}</span>
+    <div className="flex items-start justify-between gap-5 border-b border-gray-50 py-2.5 text-sm last:border-0">
+      <span className="text-gray-500">{label}</span>
+      <span className="text-right font-semibold text-gray-800">{value}</span>
     </div>
   );
 }

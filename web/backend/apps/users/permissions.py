@@ -26,14 +26,14 @@ class IsActiveUser(permissions.BasePermission):
         if not is_usable(request.user):
             return False
 
-        # Giai đoạn đầu, lễ tân chỉ được dùng những view chủ động opt-in bằng
-        # ``allow_receptionist``. Chốt tại backend để việc gõ URL hoặc gọi API
-        # trực tiếp không vượt qua giới hạn chỉ ẩn menu ở frontend.
+        # Lễ tân chỉ dùng những view chủ động opt-in bằng ``allow_receptionist``
+        # (dashboard, lịch hẹn, kho phim). Chốt tại backend để việc gõ URL hoặc gọi
+        # API trực tiếp không vượt qua giới hạn chỉ ẩn menu ở frontend.
         allowed_methods = getattr(view, "allow_receptionist_methods", ())
         if request.user.role == Role.RECEPTIONIST and not (
             getattr(view, "allow_receptionist", False) or request.method in allowed_methods
         ):
-            self.message = "Vai trò lễ tân hiện chỉ được sử dụng trang Tổng quan."
+            self.message = "Vai trò lễ tân không được sử dụng chức năng này."
             return False
         return True
 

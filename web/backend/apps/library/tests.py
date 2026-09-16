@@ -13,12 +13,14 @@ import io
 import os
 import shutil
 import tempfile
+from datetime import date
 from unittest import mock
 
 from django.test import TestCase, override_settings
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from apps.cases.models import Patient
 from apps.users.models import Role, User
 
 from .models import DataAsset, DataCategory
@@ -58,6 +60,9 @@ class LibraryTestCase(TestCase):
         )
         self.student = User.objects.create_user(
             "student1", "student1@x.local", "pw", role=Role.STUDENT
+        )
+        self.receptionist = User.objects.create_user(
+            "reception1", "reception1@x.local", "pw", role=Role.RECEPTIONIST
         )
         self.category = DataCategory.objects.get(slug="viem-loi")
 
@@ -162,6 +167,36 @@ class UploadTests(LibraryTestCase):
         self.assertEqual(asset.patient.birth_year, 1994)
         self.assertTrue(asset.patient.patient_code.startswith("LIB-"))
         self.assertEqual(asset.condition_note, "Lợi sưng vùng răng cửa")
+
+    def test_receptionist_looks_up_patient_and_uploads_with_existing_code(self):
+        patient = Patient.objects.create(
+            name="Bệnh nhân lễ tân", patient_code="BN-LOOKUP-001",
+            birth_year=1992, birth_date=date(1992, 6, 15), gender="female",
+        )
+        lookup = self.client_for(self.receptionist).get(
+            "/api/library/patients/lookup/", {"code": "bn-lookup-001"}
+        )
+        self.assertEqual(lookup.status_code, 200, lookup.data)
+        self.assertEqual(lookup.data["name"], patient.name)
+        self.assertEqual(lookup.data["birth_date"], "1992-06-15")
+
+        asset = self.upload(self.receptionist, extra={
+            "patient_name": lookup.data["name"],
+            "patient_code": lookup.data["patient_code"],
+        })
+        self.assertEqual(asset.patient_id, patient.pk)
+        self.assertEqual(asset.uploaded_by_id, self.receptionist.pk)
+
+    def test_receptionist_cannot_upload_unknown_patient_code(self):
+        client = self.client_for(self.receptionist)
+        body = _png_bytes()
+        response = client.post("/api/library/assets/uploads/", {
+            "title": "Ảnh sai mã", "category": self.category.pk,
+            "data_type": DataAsset.DataType.INTRAORAL, "filename": "anh.png",
+            "total_size": len(body), "patient_code": "BN-KHONG-TON-TAI",
+        }, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("patient_code", response.data)
 
     def test_patient_upload_attaches_patient_record(self):
         asset = self.upload(self.patient, extra={

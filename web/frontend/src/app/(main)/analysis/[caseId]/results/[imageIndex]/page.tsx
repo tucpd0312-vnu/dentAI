@@ -332,9 +332,9 @@ export default function ResultsPage() {
       )}
 
       {/* ── Two-column layout ── */}
-      <div className="flex gap-5 items-start">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(420px,0.92fr)]">
         {/* Canvas */}
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0">
           <ResultsCanvas
             imageUrl={imageUrl}
             imgW={imgData.width || 1024}
@@ -348,11 +348,11 @@ export default function ResultsPage() {
         </div>
 
         {/* Sidebar */}
-        <div className="w-72 shrink-0 space-y-4">
+        <div className="min-w-0 space-y-5">
           {/* Caption */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="font-serif font-semibold text-[13px] text-gray-900">
+          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+              <h3 className="font-serif text-base font-semibold text-gray-900">
                 Mô tả lâm sàng
               </h3>
               {caption?.is_edited && (
@@ -361,10 +361,10 @@ export default function ResultsPage() {
                 </span>
               )}
             </div>
-            <div className="p-4">
+            <div className="p-5">
               {caption ? (
                 <>
-                  <p className="text-sm text-gray-700 leading-relaxed">
+                  <p className="text-base leading-relaxed text-gray-700">
                     {caption.is_edited ? caption.edited_text : caption.ai_text}
                   </p>
                   {!caption.is_edited && (
@@ -386,9 +386,9 @@ export default function ResultsPage() {
 
           {/* Detection list */}
           {activeDetections.length > 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                <h3 className="font-serif font-semibold text-[13px] text-gray-900">
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+                <h3 className="font-serif text-base font-semibold text-gray-900">
                   Phát hiện viêm lợi
                 </h3>
                 <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full font-medium">
@@ -403,16 +403,16 @@ export default function ResultsPage() {
                       FDI_ORDER.indexOf(a.tooth_fdi) - FDI_ORDER.indexOf(b.tooth_fdi),
                   )
                   .map(det => (
-                    <div key={det.id} className="flex items-center gap-2.5 px-4 py-2">
+                    <div key={det.id} className="flex items-center gap-3 px-5 py-3">
                       <div
                         className="w-2.5 h-2.5 rounded-full shrink-0"
                         style={{ backgroundColor: MGI_COLORS[det.mgi_level] }}
                       />
                       <div className="flex-1 min-w-0">
-                        <span className="text-xs font-semibold text-gray-700">
+                        <span className="text-sm font-semibold text-gray-700">
                           Răng {det.tooth_fdi}
                         </span>
-                        <span className="text-[11px] text-gray-500 ml-1.5">
+                        <span className="ml-1.5 text-xs text-gray-500">
                           MGI {det.mgi_level} · {MGI_LABELS[det.mgi_level]}
                         </span>
                       </div>
@@ -437,20 +437,20 @@ export default function ResultsPage() {
           )}
 
           {/* MGI legend */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-100">
-              <h3 className="font-serif font-semibold text-[13px] text-gray-900">
+          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <div className="border-b border-gray-100 px-5 py-4">
+              <h3 className="font-serif text-base font-semibold text-gray-900">
                 Thang MGI
               </h3>
             </div>
-            <div className="px-4 py-3 space-y-1.5">
+            <div className="space-y-2 px-5 py-4">
               {([0, 1, 2, 3, 4] as const).map(level => (
                 <div key={level} className="flex items-center gap-2">
                   <div
                     className="w-2.5 h-2.5 rounded-full shrink-0"
                     style={{ backgroundColor: MGI_COLORS[level] }}
                   />
-                  <span className="text-[11px] text-gray-600">
+                  <span className="text-sm text-gray-600">
                     <span className="font-semibold">{level}</span> — {MGI_LABELS[level]}
                   </span>
                 </div>

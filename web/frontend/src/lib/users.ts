@@ -54,6 +54,18 @@ export interface CreateUserPayload {
   lecturer_code?: string;
 }
 
+export interface UserExcelImportResult {
+  total: number;
+  created_count: number;
+  failed_count: number;
+  created: AdminUser[];
+  errors: Array<{
+    row: number;
+    username: string;
+    errors: Record<string, string[] | string>;
+  }>;
+}
+
 /** Kết quả autocomplete — email luôn ở dạng che một phần. */
 export interface UserSuggestion {
   id: number;
@@ -81,6 +93,13 @@ export async function fetchUsers(filters: UserFilters = {}): Promise<Paginated<A
 
 export async function createUser(payload: CreateUserPayload): Promise<AdminUser> {
   const res = await api.post<AdminUser>('/users/', payload);
+  return res.data;
+}
+
+export async function importUsersFromExcel(file: File): Promise<UserExcelImportResult> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await api.post<UserExcelImportResult>('/users/import-excel/', form);
   return res.data;
 }
 

@@ -15,7 +15,10 @@ const nextConfig = {
     return [
       {
         source: "/api/:path*",
-        destination: `${process.env.NEXT_PUBLIC_API_URL || "http://backend:8000"}/api/:path*`,
+        // DRF router của backend dùng trailing slash. Next bỏ slash cuối khỏi
+        // tham số `:path*`, vì vậy cần thêm lại ở destination; nếu không các
+        // endpoint ViewSet như /qa/sessions/teachers/ sẽ thành URL 404.
+        destination: `${process.env.NEXT_PUBLIC_API_URL || "http://backend:8000"}/api/:path*/`,
       },
       {
         source: "/media/:path*",
